@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  phone     String?  @unique
+  email     String?  @unique
+  firstName String?
+  lastName  String?
+  healthcareProfessional Boolean  @default(false)
+
+  addresses Address[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cart Cart?
+}
+
+model Address {
+  id            String   @id @default(uuid())
+
+  userId        String
+
+  label         String
+  recipientName String
+  phone         String
+
+  addressLine1  String
+  addressLine2  String?
+  area          String?
+  city          String
+  province      String?
+  postalCode    String?
+  country       String
+
+  latitude      Float?
+  longitude     Float?
+
+  isDefault     Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OtpSession {
+  id         String   @id @default(uuid())
+  phone      String
+  otp        String
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([phone])
+}
+
+model Product {
+  id                   String   @id @default(cuid())
+
+  name                 String
+  slug                 String   @unique
+
+  genericName          String?  // Salt Composition (e.g. Domperidone 30mg + Pantoprazole 40mg)
+  brandName            String?  // Marketer / Brand (e.g. Leeford Healthcare Ltd)
+
+  // Pricing & Discounts
+  price                Float?
+  originalPrice        Float?
+
+  // 1mg Detailed Medical Content Columns
+  description          String?  @db.Text // Overview / Summary
+  uses                 String?  @db.Text // Indications & Uses list
+  benefits             String?  @db.Text // Detailed benefits of medicine
+  sideEffects          String?  @db.Text // Common side effects
+  howToUse             String?  @db.Text // Directions for use & dosage
+  working              String?  @db.Text // How medicine works / Mechanism
+  safetyAdvice         String?  @db.Text // Alcohol, Pregnancy, Driving, Liver/Kidney warnings
+  quickTips            String?  @db.Text // Doctor advice / Patient quick tips
+  storage              String?           // Storage conditions (e.g. Store below 30°C)
+
+  category             String?
+  subCategory          String?
+
+  // ==========================================
+  // NEW 1MG COLLECTION & FILTERING FIELDS
+  // ==========================================
+  systemOfMedicine     String?  @default("Allopathy") // e.g., Allopathy, Homeopathy, Herbal, Ayurveda, Unani
+  healthConditions     String[]                       // e.g., ["diabetes", "cough-and-flu", "skin-care", "hair-care"]
+  ingredients          String[]                       // e.g., ["collagen", "vitamin-c", "salicylic-acid", "paracetamol"]
+  tags                 String[]                       // e.g., ["supplement-of-the-week", "bestseller", "trending", "deal-of-the-day"]
+  isFeatured           Boolean  @default(false)       // For collection hero sections & landing pages
+
+  dosageForm           String?  // Capsule, Tablet, Syrup
+  strength             String?  // e.g. 30mg/40mg
+  packSize             String?  // e.g. 10 capsules in 1 strip
+
+  manufacturer         String?
+
+  prescriptionRequired Boolean  @default(false)
+
+  imageUrl             String?
+
+  isActive             Boolean  @default(true)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  pharmacyProducts     PharmacyProduct[]
+  cartItems CartItem[]
+}
+
+model PharmacyProduct {
+  id          String   @id @default(cuid())
+
+  productId   String
+  pharmacyId  String
+
+  price       Decimal  @db.Decimal(10, 2)
+  mrp         Decimal? @db.Decimal(10, 2)
+
+  stock       Int      @default(0)
+
+  isAvailable Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pharmacy    Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, pharmacyId])
+  @@index([productId])
+  @@index([pharmacyId])
+}
+
+model Pharmacy {
+  id          String   @id @default(cuid())
+
+  name        String
+  phone       String?
+  email       String?
+
+  address     String?
+  city        String?
+  province    String?
+  postalCode  String?
+  country     String   @default("Pakistan")
+
+  latitude    Float?
+  longitude   Float?
+
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  products    PharmacyProduct[]
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+}
