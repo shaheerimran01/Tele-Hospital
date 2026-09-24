@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCart } from './CartContext';
 
 export default function CartDrawer() {
@@ -16,18 +17,30 @@ export default function CartDrawer() {
     return null;
   }
 
-  // Calculate Subtotal
+  // Calculate Subtotal (Based on actual discounted price)
   const subtotal =
     cart?.items.reduce((total, item) => {
-      const price = (item.product as any).price || 0;
+      const price = Number((item.product as any).price) || 0;
       return total + price * item.quantity;
     }, 0) || 0;
+
+  // Calculate Total Original Price for Savings Preview
+  const originalSubtotal =
+    cart?.items.reduce((total, item) => {
+      const originalPrice =
+        Number((item.product as any).originalPrice) ||
+        Number((item.product as any).price) ||
+        0;
+      return total + originalPrice * item.quantity;
+    }, 0) || 0;
+
+  const totalSavings = Math.max(0, originalSubtotal - subtotal);
 
   return (
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-[9998] bg-black/40"
+        className="fixed inset-0 z-[9998] bg-black/40 backdrop-blur-xs"
         onClick={closeCart}
       />
 
@@ -36,26 +49,23 @@ export default function CartDrawer() {
         {/* Header */}
         <div className="flex items-center justify-between border-b px-5 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Your Cart
-            </h2>
-
-            <p className="text-sm text-gray-500">
+            <h2 className="text-lg font-bold text-gray-900">Your Cart</h2>
+            <p className="text-xs text-gray-500">
               {cart?.totalItems ?? 0} item
-              {(cart?.totalItems ?? 0) !== 1 ? 's' : ''}
+              {(cart?.totalItems ?? 0) !== 1 ? 's' : ''} in cart
             </p>
           </div>
 
           <button
             type="button"
             onClick={closeCart}
-            className="flex h-9 w-9 items-center justify-center rounded-full text-xl text-gray-500 hover:bg-gray-100"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-xl text-gray-500 hover:bg-gray-100 cursor-pointer transition"
           >
             ×
           </button>
         </div>
 
-        {/* Items */}
+        {/* Items Container */}
         <div className="flex-1 overflow-y-auto p-5">
           {!cart || cart.items.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
@@ -63,41 +73,43 @@ export default function CartDrawer() {
                 🛒
               </div>
 
-              <h3 className="text-lg font-semibold text-gray-800">
+              <h3 className="text-lg font-bold text-gray-800">
                 Your cart is empty
               </h3>
 
-              <p className="mt-1 text-sm text-gray-500">
-                Add some products to your cart.
+              <p className="mt-1 text-xs text-gray-500">
+                Add some products to your cart to get started.
               </p>
 
               <button
                 type="button"
                 onClick={closeCart}
-                className="mt-5 rounded-md bg-red-500 px-5 py-2 text-sm font-semibold text-white hover:bg-red-600"
+                className="mt-5 rounded-xl bg-[#ff6f61] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#e05b4f] transition cursor-pointer"
               >
                 Continue Shopping
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {cart.items.map((item) => {
-                // 🛠️ Image source check (imageUrl or image)
+                const productPrice = Number((item.product as any).price) || 0;
+                const originalPrice = Number((item.product as any).originalPrice);
+                const hasDiscount =
+                  originalPrice && originalPrice > productPrice;
+
                 const displayImage =
                   item.product.imageUrl ||
                   (item.product as any).image ||
                   'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=300';
 
-                const productPrice = (item.product as any).price;
-
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg border border-gray-200 p-4"
+                    className="rounded-xl border border-gray-200/80 bg-white p-3.5 shadow-2xs"
                   >
                     <div className="flex gap-3 items-center">
-                      {/* Product Real Image */}
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md bg-gray-50 border border-gray-100 p-1 overflow-hidden">
+                      {/* Product Image */}
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-gray-50 border border-gray-100 p-1 overflow-hidden">
                         <img
                           src={displayImage}
                           alt={item.product.name}
@@ -105,61 +117,54 @@ export default function CartDrawer() {
                         />
                       </div>
 
-                      {/* Product information */}
+                      {/* Product Details */}
                       <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-gray-900 text-sm line-clamp-1">
+                        <h3 className="font-bold text-gray-900 text-xs line-clamp-1">
                           {item.product.name}
                         </h3>
 
                         {item.product.manufacturer && (
-                          <p className="mt-0.5 text-xs text-gray-500">
+                          <p className="mt-0.5 text-[10px] text-gray-500">
                             {item.product.manufacturer}
                           </p>
                         )}
 
-                        {item.product.strength && (
-                          <p className="text-xs text-gray-500">
-                            {item.product.strength}
-                          </p>
-                        )}
+                        {/* Price Display with Cut/Strikethrough Original Price */}
+                        <div className="mt-1 flex items-baseline gap-2">
+                          <span className="text-xs font-extrabold text-[#ff6f61]">
+                            Rs. {productPrice * item.quantity}
+                          </span>
 
-                        {productPrice && (
-                          <p className="mt-1 text-xs font-bold text-gray-900">
-                            {typeof productPrice === 'number'
-                              ? `Rs. ${productPrice * item.quantity}`
-                              : productPrice}
-                          </p>
-                        )}
+                          {hasDiscount && (
+                            <span className="text-[10px] text-gray-400 line-through">
+                              Rs. {originalPrice * item.quantity}
+                            </span>
+                          )}
+                        </div>
 
-                        {/* Quantity controls */}
-                        <div className="mt-3 flex items-center justify-between">
-                          <div className="flex items-center rounded border border-gray-300">
+                        {/* Quantity Controls & Remove */}
+                        <div className="mt-2.5 flex items-center justify-between">
+                          <div className="flex items-center rounded-lg border border-gray-300 bg-gray-50 overflow-hidden">
                             <button
                               type="button"
                               onClick={() =>
-                                decreaseQuantity(
-                                  item.id,
-                                  item.quantity,
-                                )
+                                decreaseQuantity(item.id, item.quantity)
                               }
-                              className="h-8 w-8 text-lg hover:bg-gray-100 cursor-pointer"
+                              className="h-7 w-7 text-sm font-bold text-gray-700 hover:bg-gray-200 transition cursor-pointer"
                             >
                               −
                             </button>
 
-                            <span className="flex h-8 min-w-8 items-center justify-center border-x border-gray-300 text-sm font-semibold">
+                            <span className="flex h-7 min-w-7 items-center justify-center border-x border-gray-300 bg-white text-xs font-extrabold text-gray-900 px-2">
                               {item.quantity}
                             </span>
 
                             <button
                               type="button"
                               onClick={() =>
-                                increaseQuantity(
-                                  item.id,
-                                  item.quantity,
-                                )
+                                increaseQuantity(item.id, item.quantity)
                               }
-                              className="h-8 w-8 text-lg hover:bg-gray-100 cursor-pointer"
+                              className="h-7 w-7 text-sm font-bold text-gray-700 hover:bg-gray-200 transition cursor-pointer"
                             >
                               +
                             </button>
@@ -167,10 +172,8 @@ export default function CartDrawer() {
 
                           <button
                             type="button"
-                            onClick={() =>
-                              removeProduct(item.id)
-                            }
-                            className="text-xs font-medium text-red-500 hover:text-red-600 cursor-pointer"
+                            onClick={() => removeProduct(item.id)}
+                            className="text-[11px] font-bold text-red-500 hover:text-red-600 transition cursor-pointer"
                           >
                             Remove
                           </button>
@@ -186,29 +189,35 @@ export default function CartDrawer() {
 
         {/* Footer */}
         {cart && cart.items.length > 0 && (
-          <div className="border-t bg-white p-5">
-            <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-gray-600">Total Items</span>
-              <span className="font-semibold text-gray-900">
+          <div className="border-t bg-white p-5 space-y-2">
+            {totalSavings > 0 && (
+              <div className="flex items-center justify-between text-xs font-bold text-[#16a34a] bg-green-50 p-2 rounded-lg">
+                <span>Total Savings:</span>
+                <span>- Rs. {totalSavings}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between text-xs text-gray-600">
+              <span>Total Items</span>
+              <span className="font-bold text-gray-900">
                 {cart.totalItems}
               </span>
             </div>
 
-            {subtotal > 0 && (
-              <div className="flex items-center justify-between text-sm font-bold text-gray-900">
-                <span>Subtotal</span>
-                <span>Rs. {subtotal}</span>
-              </div>
-            )}
+            <div className="flex items-center justify-between text-sm font-extrabold text-gray-900 pt-1">
+              <span>Subtotal</span>
+              <span className="text-base text-[#ff6f61]">Rs. {subtotal}</span>
+            </div>
 
-            {/* Checkout intentionally disabled for now */}
-            <button
-              type="button"
-              disabled
-              className="mt-4 w-full cursor-not-allowed rounded-md bg-gray-200 py-3 text-sm font-semibold text-gray-500 uppercase tracking-wider"
-            >
-              Checkout — Coming Next
-            </button>
+            {/* Active Proceed to Checkout Navigation */}
+            <Link href="/checkout" onClick={closeCart} className="mt-3 block w-full">
+              <button
+                type="button"
+                className="w-full rounded-xl bg-[#ff6f61] py-3.5 text-xs font-extrabold uppercase tracking-wider text-white shadow-md transition hover:bg-[#e05b4f] cursor-pointer"
+              >
+                Proceed to Checkout
+              </button>
+            </Link>
           </div>
         )}
       </div>

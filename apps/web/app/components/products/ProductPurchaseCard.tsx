@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ApiProduct } from '@/components/home/productData';
 import { useCart } from '@/app/components/cart/CartContext';
 
@@ -10,7 +11,8 @@ interface ProductPurchaseCardProps {
 
 export default function ProductPurchaseCard({ product }: ProductPurchaseCardProps) {
   const [quantity, setQuantity] = useState(1);
-  const { addProductToCart, loading } = useCart();
+  const { addProductToCart, openCart, closeCart, loading } = useCart(); // 🛒 closeCart import kiya
+  const router = useRouter();
 
   // Extract Product ID safely
   const targetProductId =
@@ -103,6 +105,7 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
 
       {/* Action Buttons */}
       <div className="space-y-2.5 pt-2">
+        {/* ADD TO CART */}
         <button
           type="button"
           disabled={loading}
@@ -112,8 +115,9 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
 
             if (targetProductId) {
               await addProductToCart(targetProductId, quantity);
+              if (openCart) openCart(); // Cart Drawer open karein
             } else {
-              console.error('Product ID missing for product:', product);
+              console.error('Product ID missing:', product);
               alert('Is product ki ID database se fetch nahi ho saki.');
             }
           }}
@@ -125,11 +129,26 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
           {loading ? 'ADDING TO CART...' : 'ADD TO CART'}
         </button>
 
+        {/* BUY NOW */}
         <button
           type="button"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl transition duration-200 text-sm cursor-pointer uppercase"
+          disabled={loading}
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (targetProductId) {
+              await addProductToCart(targetProductId, quantity);
+              if (closeCart) closeCart(); // 👈 Explicitly cart drawer close kar rahe hain
+              router.push('/checkout');   // 👈 Phir checkout pe navigate karein
+            } else {
+              console.error('Product ID missing:', product);
+              alert('Is product ki ID database se fetch nahi ho saki.');
+            }
+          }}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl transition duration-200 text-sm cursor-pointer uppercase disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          BUY NOW
+          {loading ? 'PROCESSING...' : 'BUY NOW'}
         </button>
       </div>
 
