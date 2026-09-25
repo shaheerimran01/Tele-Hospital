@@ -62,11 +62,11 @@ const COLLECTION_MEDIA: Record<
       'Mobility support, adult diapers, joint care formulas, and daily monitoring devices for comfortable, independent senior living.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://eldersclub.pk/wp-content/uploads/2025/07/imgi_64_hero-bg-1.jpg',
         label: 'Senior Wellness',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://superiorcareiowa.com/wp-content/uploads/2023/12/Elderly-Care-at-Home.jpg',
         label: 'Daily Support',
       },
     ],
@@ -80,11 +80,11 @@ const COLLECTION_MEDIA: Record<
       'Explore premium vitality supplements, intimate care essentials, stamina boosters, and reproductive health products for confidence and balance.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?auto=format&fit=crop&w=600&q=80',
+        url: 'https://eu-images.contentstack.com/v3/assets/bltcc0d7f2f3b1240c5/blt288a1046cb6159d5/6a63313647f00a7bfcd1e568/image_(1)(1).png?width=500&height=450&format=png&quality=80',
         label: 'Vitality Supplements',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://greenstar.org.pk/wp-content/uploads/2023/05/touch_2.jpg',
         label: 'Intimate Care',
       },
     ],
@@ -98,11 +98,11 @@ const COLLECTION_MEDIA: Record<
       'Hydrating cleansers, daily SPF sunscreens, acne control treatments, and barrier repair serums for glowing, healthy skin.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80',
+        url: 'https://conaturalintl.com/cdn/shop/collections/skin_care.jpg?v=1614668308',
         label: 'Barrier Hydration',
       },
       {
-        url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+        url: 'https://bionyxskincare.com/wp-content/uploads/2024/11/skincare.jpg',
         label: 'Active Serums',
       },
     ],
@@ -116,11 +116,11 @@ const COLLECTION_MEDIA: Record<
       'Targeted hair fall solutions, anti-dandruff cleansers, biotin supplements, and restorative oils for strong, lustrous hair.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.oand3.com/wp-content/uploads/2023/10/shutterstock_682212448-scaled-1.jpg',
         label: 'Scalp Oils & Serums',
       },
       {
-        url: 'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.alanaskinhairlaserclnic.com/resources/assets/images/hair-treatments/male-or-female-pattern-hairloss-service-img.jpg',
         label: 'Hair Nourishment',
       },
     ],
@@ -134,11 +134,11 @@ const COLLECTION_MEDIA: Record<
       'Sensitivity relief toothpastes, protective mouthwashes, dental floss, and enamel care solutions for fresh breath and healthy teeth.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1556228722-d0b5b1a03e67?auto=format&fit=crop&w=600&q=80',
+        url: 'https://cosmeticscience.net/wp-content/uploads/2024/07/AdobeStock_366763950-scaled.jpeg',
         label: 'Oral Hygiene',
       },
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://media.naheed.pk/catalog/category/2Oral-Hygiene.jpg',
         label: 'Dental Protection',
       },
     ],
@@ -152,11 +152,11 @@ const COLLECTION_MEDIA: Record<
       'Hypoallergenic baby shampoos, rash creams, gentle wipes, and infant nutritional products formulated for delicate baby skin.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.babycarehomeservicebd.com/wp-content/uploads/2026/04/Night-Baby-Care-Service-in-Bangladesh.webp',
         label: 'Gentle Care',
       },
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://nexton.com.pk/cdn/shop/files/Untitled-4.jpg?v=1710918012&width=2048',
         label: 'Infant Essentials',
       },
     ],
@@ -170,11 +170,11 @@ const COLLECTION_MEDIA: Record<
       'Feminine hygiene washes, menstrual health products, prenatal supplements, and daily wellness items designed specifically for women.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+        url: 'https://stellamattina.com/wp-content/uploads/2024/01/stellaM-primary-care-womens-health-image.jpg',
         label: 'Intimate Care',
       },
       {
-        url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80',
+        url: 'https://coswin.pk/cdn/shop/files/Bioaqua_Rose_Hyaluronic_Acid_Moisturizing_6_Pcs_Skin_Care_Set_800x_377c626b-b85e-48b4-bb68-eeab779f73e3.webp?v=1755273390',
         label: 'Feminine Hygiene',
       },
     ],
@@ -188,11 +188,11 @@ const COLLECTION_MEDIA: Record<
       'Beard care oils, refreshing face washes, anti-sweat deodorants, and premium hair styling essentials tailored for men.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://images.squarespace-cdn.com/content/v1/5c851ea1e5f7d13ac2cfb017/1555247557003-7PX5XHF3PPE32NGAUBOU/image-asset.jpeg',
         label: 'Grooming Tools',
       },
       {
-        url: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=600&q=80',
+        url: 'https://wbminternational.com/public/uploads/all/5LOKZ5kEPJQT8J8JzYDWLSJWBWrkBM6MKIRQImB9.jpg',
         label: 'Beard & Hair',
       },
     ],
@@ -206,11 +206,11 @@ const COLLECTION_MEDIA: Record<
       'Veterinary shampoos, flea & tick treatments, dietary supplements, and daily hygiene products for happy, healthy pets.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://smb.ibsrv.net/imageresizer/image/article_manager/1200x1200/16287/549914/heroimage0.607099001649796965.jpg',
         label: 'Pet Health',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://bugalugspetcare.com/cdn/shop/files/One-In-A-Million-Giftset-Products.png?v=1717069179&width=1500',
         label: 'Hygiene Care',
       },
     ],
@@ -242,11 +242,11 @@ const COLLECTION_MEDIA: Record<
       'High-potency multivitamin tablets, essential mineral complexes, omega-3 softgels, and daily dietary supplements for peak energy and health.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=600&q=80',
+        url: 'https://nutritionsource.hsph.harvard.edu/wp-content/uploads/2021/11/shutterstock_719023027-scaled.jpg',
         label: 'Dietary Vitamins',
       },
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://static.tildacdn.com/tild6332-6639-4431-b861-323865323762/Vitamine_B12.png',
         label: 'Daily Supplements',
       },
     ],
@@ -260,11 +260,11 @@ const COLLECTION_MEDIA: Record<
       'Pure homeopathic dilutions, Mother Tinctures, biochemic tablets, and natural remedies curated for side-effect-free holistic healing.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.inovifertility.com/wp-content/uploads/2025/03/5_Must-Know_Benefits_of_Homeopathic_Medicines_1024x1024.webp',
         label: 'Pure Dilutions',
       },
       {
-        url: 'https://images.unsplash.com/photo-1512069772995-ec65ed45afd6?auto=format&fit=crop&w=600&q=80',
+        url: 'https://media.post.rvohealth.io/wp-content/uploads/sites/3/2025/05/Homeopathic-bottles-shelf-1296x728-header-1024x575.jpg',
         label: 'Herbal Remedies',
       },
     ],
@@ -278,11 +278,11 @@ const COLLECTION_MEDIA: Record<
       'Traditional herbal formulations, organic tonics, and ancient Unani & Ayurvedic supplements for natural immunity and holistic wellbeing.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1512069772995-ec65ed45afd6?auto=format&fit=crop&w=600&q=80',
+        url: 'https://raihospital.com/wp-content/uploads/2019/01/herbal-naturopathic-medicine-1-2-scaled.jpg',
         label: 'Botanical Extracts',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://polycareherbals.com/wp-content/uploads/2022/10/Top-Natural-Herbs-Used-by-Ayurve.webp',
         label: 'Ayurvedic Formulations',
       },
     ],
@@ -296,11 +296,11 @@ const COLLECTION_MEDIA: Record<
       'Targeted muscle balms, fast pain sprays, joint support formulas, and effective analgesics for active, comfortable mobility.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1608248597359-54d9c79e6cf4?auto=format&fit=crop&w=600&q=80',
+        url: 'https://yourfamilymedical.com/wp-content/uploads/2020/06/Internal-Medicine-pain-management-5.png',
         label: 'Relief Sprays & Balms',
       },
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.ncspecialty.com/wp-content/uploads/2023/01/shutterstock_586346885.jpg.webp',
         label: 'Joint Wellness',
       },
     ],
@@ -314,11 +314,11 @@ const COLLECTION_MEDIA: Record<
       'Complete health nutrition powders, protein drinks, stamina boosters, and meal replacement nutrition shakes for the whole family.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://bodevolvebariatric.com/wp-content/uploads/2026/06/meal-replacement-shakes-for-weight-loss-1024x683.png',
         label: 'Nutrition Shakes',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://d1fm27ee7pjs8v.cloudfront.net/images/detailed/282/Mix_2_2x_d1559263-3c35-4936-b057-223c1119e596.jpeg',
         label: 'Energy Mixes',
       },
     ],
