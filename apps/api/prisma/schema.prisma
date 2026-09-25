@@ -20,6 +20,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   cart Cart?
+  orders Order[]
 }
 
 model Address {
@@ -116,6 +117,7 @@ model Product {
 
   pharmacyProducts     PharmacyProduct[]
   cartItems CartItem[]
+  orderItems OrderItem[]
 }
 
 model PharmacyProduct {
@@ -189,4 +191,45 @@ model CartItem {
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, productId])
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  userId            String
+  status            String      @default("PENDING")
+  totalAmount       Float
+  shippingAddress   String?
+  paymentMethod     String      @default("COD")
+  paymentStatus     String      @default("PENDING")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user              User        @relation(fields: [userId], references: [id])
+  items             OrderItem[]
+  notifications     Notification[]
+}
+
+model OrderItem {
+  id          String   @id @default(uuid())
+  orderId     String
+  productId   String
+  productName String
+  quantity    Int
+  price       Float
+  total       Float
+
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product  @relation(fields: [productId], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  type        String
+  title       String
+  message     String
+  orderId     String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }

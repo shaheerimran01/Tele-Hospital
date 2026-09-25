@@ -8,6 +8,8 @@ import { AuthModule } from './auth/auth.module.js';
 import { AddressModule } from './addresses/address.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { CartModule } from './cart/cart.module.js';
+import { OrdersModule } from './orders/orders.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -19,6 +21,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AddressModule,
     ProductsModule,
     CartModule,
+    OrdersModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
