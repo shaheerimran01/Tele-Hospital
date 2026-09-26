@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ApiProduct } from '@/components/home/productData';
 import { useCart } from '@/app/components/cart/CartContext';
+import { uploadPrescriptionApi, PrescriptionResponse } from '@/app/lib/api/prescriptions';
 
 interface ProductPurchaseCardProps {
   product: ApiProduct;
@@ -11,12 +12,20 @@ interface ProductPurchaseCardProps {
 
 export default function ProductPurchaseCard({ product }: ProductPurchaseCardProps) {
   const [quantity, setQuantity] = useState(1);
-  const { addProductToCart, openCart, closeCart, loading } = useCart(); // 🛒 closeCart import kiya
+  const { addProductToCart, openCart, closeCart, loading } = useCart();
   const router = useRouter();
+
+  // Logged-in User & Prescription Upload States
+  const [user, setUser] = useState<{ id: string } | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<PrescriptionResponse[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Extract Product ID safely
   const targetProductId =
     product.id || (product as any)._id || (product as any).productId;
+
+  const isPrescriptionRequired = (product as any).prescriptionRequired ?? false;
 
   const price = product.price ? `Rs ${product.price}` : 'Rs 180';
   const originalPrice = product.originalPrice ? `Rs ${product.originalPrice}` : 'Rs 220';
@@ -24,6 +33,59 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
     product.originalPrice && product.price
       ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
       : 18;
+
+  // LocalStorage se active logged-in User ID fetch karein
+  useEffect(() => {
+    try {
+      const rawUser =
+        localStorage.getItem('user') ||
+        localStorage.getItem('userData') ||
+        localStorage.getItem('auth') ||
+        localStorage.getItem('currentUser') ||
+        localStorage.getItem('tabibistan_user');
+
+      if (rawUser) {
+        const parsed = JSON.parse(rawUser);
+        const actualUser = parsed.user || parsed.data?.user || parsed;
+        const extractedId = actualUser?.id || actualUser?._id || actualUser?.userId;
+
+        if (extractedId) {
+          setUser({ id: extractedId });
+        }
+      }
+    } catch (err) {
+      console.error('Error loading user session:', err);
+    }
+  }, []);
+
+  // Multiple files upload handler
+  const handlePrescriptionUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!user?.id) {
+      setUploadError('Prescription upload karne ke liye pehle Login karein.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadPrescriptionApi(user.id, file)
+      );
+
+      const results = await Promise.all(uploadPromises);
+      setUploadedFiles((prev) => [...prev, ...results]);
+    } catch (err: any) {
+      console.error('Upload Error:', err);
+      setUploadError(err.message || 'Prescription upload mein masla aaya.');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
 
   return (
     <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm space-y-5 lg:sticky lg:top-6">
@@ -81,6 +143,66 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
         </div>
       </div>
 
+      {/* PRESCRIPTION UPLOAD SECTION (Only renders if prescriptionRequired === true) */}
+      {isPrescriptionRequired && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+          <div className="flex items-start gap-2.5">
+            <span className="text-xl">📄</span>
+            <div>
+              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                Prescription Required
+              </h4>
+              <p className="text-[11px] text-amber-700 mt-0.5 leading-tight">
+                This Medicine cannot be delivered without the doctor pescription. (PNG, JPG, PDF)
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className="w-full inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl cursor-pointer transition shadow-xs uppercase">
+              <span>{isUploading ? 'Uploading...' : '📎 Attach Prescription File(s)'}</span>
+              <input
+                type="file"
+                multiple
+                accept=".png,.jpg,.jpeg,.pdf"
+                disabled={isUploading}
+                onChange={handlePrescriptionUpload}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {uploadError && (
+            <p className="text-[11px] font-bold text-red-600">
+              ⚠️ {uploadError}
+            </p>
+          )}
+
+          {uploadedFiles.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-amber-200/60">
+              <span className="text-[10px] font-bold text-amber-800 uppercase block">
+                Uploaded ({uploadedFiles.length}):
+              </span>
+              <ul className="space-y-1">
+                {uploadedFiles.map((file) => (
+                  <li
+                    key={file.id}
+                    className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-amber-200 text-xs text-gray-800"
+                  >
+                    <span className="truncate max-w-[180px] font-medium text-[11px]">
+                      📄 {file.fileName}
+                    </span>
+                    <span className="text-[9px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">
+                      Uploaded ✓
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Quantity Selector */}
       <div className="flex items-center justify-between pt-1">
         <span className="text-xs font-bold text-gray-700 uppercase">Quantity</span>
@@ -115,7 +237,7 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
 
             if (targetProductId) {
               await addProductToCart(targetProductId, quantity);
-              if (openCart) openCart(); // Cart Drawer open karein
+              if (openCart) openCart();
             } else {
               console.error('Product ID missing:', product);
               alert('Is product ki ID database se fetch nahi ho saki.');
@@ -139,8 +261,8 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
 
             if (targetProductId) {
               await addProductToCart(targetProductId, quantity);
-              if (closeCart) closeCart(); // 👈 Explicitly cart drawer close kar rahe hain
-              router.push('/checkout');   // 👈 Phir checkout pe navigate karein
+              if (closeCart) closeCart();
+              router.push('/checkout');
             } else {
               console.error('Product ID missing:', product);
               alert('Is product ki ID database se fetch nahi ho saki.');

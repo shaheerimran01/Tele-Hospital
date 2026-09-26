@@ -163,9 +163,14 @@ export default function Header() {
   useEffect(() => {
     const loadUser = () => {
       try {
-        const saved = localStorage.getItem('tabibistan_user');
+        const saved =
+          localStorage.getItem('tabibistan_user') ||
+          localStorage.getItem('user') ||
+          localStorage.getItem('userData');
         if (saved) {
-          setUser(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          const actualUser = parsed.user || parsed.data?.user || parsed;
+          setUser(actualUser);
         } else {
           setUser(null);
         }
@@ -202,10 +207,13 @@ export default function Header() {
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('tabibistan_user');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userData');
       window.dispatchEvent(new Event('auth_state_change'));
     }
     setUser(null);
     setShowUserMenu(false);
+    router.push('/');
   };
 
   useEffect(() => {
@@ -353,7 +361,7 @@ export default function Header() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-48 rounded-xl border border-gray-100 bg-white py-1.5 shadow-lg z-50 divide-y divide-gray-100">
+                    <div className="absolute right-0 mt-2 w-52 rounded-xl border border-gray-100 bg-white py-1.5 shadow-lg z-50 divide-y divide-gray-100">
                       <div className="px-3.5 py-2">
                         <p className="text-xs font-bold text-gray-900 truncate">
                           {user.firstName} {user.lastName}
@@ -364,7 +372,32 @@ export default function Header() {
                           </p>
                         )}
                       </div>
-                      <div className="p-1">
+
+                      {/* USER NAVIGATION LINKS */}
+                      <div className="p-1 space-y-0.5">
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            router.push('/prescriptions');
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-amber-50 hover:text-amber-700 transition cursor-pointer"
+                        >
+                          <svg
+                            className="h-3.5 w-3.5 text-amber-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          <span>My Prescriptions</span>
+                        </button>
+
                         <button
                           onClick={handleLogout}
                           className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer"
@@ -513,7 +546,9 @@ export default function Header() {
               <span>QUICK BUY! Get up to 25% off on medicines*</span>
             </div>
 
-            <button className="shrink-0 rounded-md bg-[#ff574d] px-5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#e8453b] transition cursor-pointer">
+            <button 
+              onClick={() => router.push('/quick-order')}
+              className="shrink-0 rounded-md bg-[#ff574d] px-5 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#e8453b] transition cursor-pointer">
               Quick Order
             </button>
           </div>
