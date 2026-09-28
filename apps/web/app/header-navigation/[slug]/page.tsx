@@ -697,13 +697,25 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Orthopedic Ankle & Calf Binders',
       subtitle: 'Targeted compression for heel pain & joint stabilization',
-      url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
+      url: 'https://www.bauerfeind.ca/cdn/shop/articles/ankle_3.png?v=1620044596&width=2048',
     },
     {
       id: 2,
       title: 'Plantar & Knee Compression Sleeves',
       subtitle: 'Ergonomic joint relief and comfortable active movement',
-      url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=800&q=80',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ09aj9IqPrl1nalfsr8cb3U8D3NLvSNRtLMX2O-vmemJjvrTvaIVh-X-Ih&s=10',
+    },
+     {
+      id: 3,
+      title: 'Achilles and Heel Compression Supports',
+      subtitle: 'Ergonomic joint relief and comfortable active movement',
+      url: 'https://www.probrace.com/wp-content/uploads/sites/2/2025/11/achillotrainproprobrace.png',
+    },
+      {
+      id: 4,
+      title: 'Lower Leg Compression Sleeves',
+      subtitle: 'Ergonomic joint relief and comfortable active movement',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXnBxmA-LRcY23DQeXyD4GGkoedCmbnCIlsHiePu6oHdYhhg3uSXPKaGw&s=10',
     },
   ],
 
@@ -712,7 +724,19 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Zinc + Vitamin C & Elderberry',
       subtitle: 'Daily immune defense capsules and effervescent boosters',
-      url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=800&q=80',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/nth/nth11373/l/72.jpg',
+    },
+     {
+      id: 2,
+      title: 'Collagen + Biotin & Vitamin C',
+      subtitle: 'Daily immune defense capsules and effervescent boosters',
+      url: 'https://theskinfit.com/cdn/shop/files/Herbiotics_Collagix_Collagen_Biotin_Vitamin_C_Tablets_2.png?v=1775568531&width=1920',
+    },
+     {
+      id: 3,
+      title: 'Probiotics + Prebiotics & Digestive Enzymes',
+      subtitle: 'Daily immune defense capsules and effervescent boosters',
+      url: 'https://m.media-amazon.com/images/I/71rVXNzZcrL._AC_UF1000,1000_QL80_.jpg',
     },
   ],
 
@@ -721,7 +745,19 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Glutathione 500mg & CoQ10',
       subtitle: 'Premium cellular detox & free-radical neutralization',
-      url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80',
+      url: 'https://m.media-amazon.com/images/I/71EixAMLFfL._AC_UF1000,1000_QL80_.jpg',
+    },
+      {
+      id: 2,
+      title: 'Selenium 200mcg & Vitamin E',
+      subtitle: 'Premium cellular detox & free-radical neutralization',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/now/now01485/l/31.jpg',
+    }, 
+     {
+      id: 3,
+      title: 'Grape Seed Extract & Resveratrol',
+      subtitle: 'Premium cellular detox & free-radical neutralization',
+      url: 'https://www.thehimalayanorganics.in/cdn/shop/files/Listing1_2ff2b9f9-4138-4cb8-84d5-595835103187.jpg?v=1759924421&width=720',
     },
   ],
 
@@ -730,7 +766,25 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Organic Ashwagandha & Curcumin',
       subtitle: '100% Ayurvedic extracts for natural vitality & stress ease',
-      url: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=800&q=80',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/swv/swv11571/y/24.jpg',
+    },
+     {
+      id: 2,
+      title: 'Organic Cinnamon',
+      subtitle: '100% Ayurvedic extracts for natural vitality & stress ease',
+      url: 'https://buyimported.pk/wp-content/uploads/2023/02/cinnamon-stick-whole.jpg',
+    },
+     {
+      id: 3,
+      title: 'Organic Matcha Powder',
+      subtitle: '100% Ayurvedic extracts for natural vitality & stress ease',
+      url: 'https://www.thehouseofumami.in/cdn/shop/articles/organic-matcha-powder-benefits-and-simple-daily-uses-6994258.webp?v=1770375125',
+    },
+     {
+      id: 4,
+      title: 'Organic Milk Thistle & Dandelion',
+      subtitle: '100% Ayurvedic extracts for natural vitality & stress ease',
+      url: 'https://clubmagichour.com/cdn/shop/collections/The_Magician_Apothecary_Jar_332.png?v=1723505694',
     },
   ],
 
@@ -739,7 +793,19 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Tulsi Ginger Green Tea & Kahwa',
       subtitle: 'Aromatic herbal infusions for digestive & immune comfort',
-      url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=800&q=80',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRYfKr3e6t_OKDQsRnTNGGTtkhMvoteUYv7S1KeqILd-mQf70JXe01f808&s=10',
+    },
+    {
+      id: 2,
+      title: 'Rose Green Tea & Kahwa',
+      subtitle: 'Aromatic herbal infusions for digestive & immune comfort',
+      url: 'https://www.seema.com/wp-content/uploads/2022/08/Kahwa1-1024x1024.jpg',
+    },
+    {
+      id: 3,
+      title: 'Cinnamon Clove Tea',
+      subtitle: 'Aromatic herbal infusions for digestive & immune comfort',
+      url: 'https://cdn.shopify.com/s/files/1/0555/9861/files/blog-whole-cloves-for-tea-0_800x.png?v=1783738571',
     },
   ],
 
@@ -748,7 +814,19 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Triple Strength Omega-3 EPA/DHA',
       subtitle: 'Molecularly distilled softgels for heart & joint support',
-      url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=800&q=80',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/sol/sol02057/l/85.jpg',
+    },
+      {
+      id: 2,
+      title: 'Omega-3 Salmon Oil & Vitamin E',
+      subtitle: 'Molecularly distilled softgels for heart & joint support',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/ntw/ntw00765/y/48.jpg',
+    },
+      {
+      id: 3,
+      title: 'Cod Liver Oil & Vitamin A',
+      subtitle: 'Molecularly distilled softgels for heart & joint support',
+      url: 'https://medicalstore.com.pk/wp-content/uploads/2018/09/Cod-Liver-Oil-with-Vitamins-A-D.jpg',
     },
   ],
 
@@ -757,7 +835,19 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Biotin 10000mcg & Marine Collagen',
       subtitle: 'Thicker hair growth, strong nails & glowing skin bounce',
-      url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/ncs/ncs67464/l/24.jpg',
+    },
+      {
+      id: 2,
+      title: 'Collagen Peptides & Vitamin C',
+      subtitle: 'Thicker hair growth, strong nails & glowing skin bounce',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/cgn/cgn01178/l/288.jpg',
+    },
+      {
+      id: 3,
+      title: 'Collagen & Zinc Hair Support',
+      subtitle: 'Thicker hair growth, strong nails & glowing skin bounce',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ8R7bda74NJTJJdCfvLtFljOGKwoSKHql2GmIW_Pbipw&s=10',
     },
   ],
 
@@ -766,16 +856,40 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Damiana Q & Agnus Castus',
       subtitle: 'Homeopathic tonic for natural stamina & reproductive health',
-      url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=800&q=80',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ4FTbsz_d7ttJkq5g02HCp7azT13qJ33hKMvIMOsJDiYnCBHHAKwd-Zjl9&s=10',
+    },
+      {
+      id: 2,
+      title: 'Selenium & Zinc Male Wellness',
+      subtitle: 'Homeopathic tonic for natural stamina & reproductive health',
+      url: 'https://5.imimg.com/data5/SELLER/Default/2026/1/573699544/OR/XN/ZP/232525767/natural-selenium-mustared-extract-nlt-1-powder.png',
+    },
+     {
+      id: 3,
+      title: 'Ginseng & Tribulus Extract',
+      subtitle: 'Homeopathic tonic for natural stamina & reproductive health',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTqgSwVF9RR1so5HhmNVFkYwxWurbn0mFuE4UPH19r_9A&s=10',
     },
   ],
 
   'homeopathy-hair-care-products': [
     {
       id: 1,
-      title: 'Jaborandi & Cantharis Hair Oils',
+      title: 'Hair Fall Drops & Scalp Care Oil',
       subtitle: 'Nourish roots, prevent hairfall & control dandruff naturally',
-      url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80',
+      url: 'https://www.hairaffairsbyms.com/cdn/shop/files/Anti-hair-fall-hair-growth-oil.webp?v=1783592475',
+    },
+     {
+      id: 2,
+      title: 'Arnica Shampoo & Hair Growth Oil',
+      subtitle: 'Nourish roots, prevent hairfall & control dandruff naturally',
+      url: 'https://shopyums.com/cdn/shop/files/natural-arnica-infused-hair-oil-1.jpg?v=1788453503&width=1200',
+    },
+      {
+      id: 3,
+      title: 'Hair Growth Spray For Dandruff & Hair Loss Prevention',
+      subtitle: 'Nourish roots, prevent hairfall & control dandruff naturally',
+      url: 'https://static.markaz.app/pakistan/products/1776-55-665326-product-1.webp',
     },
   ],
 
@@ -784,7 +898,19 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Aesculus & Hamamelis Ointment',
       subtitle: 'Relieve pain, itching, and swelling from piles & fissures',
-      url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
+      url: 'https://agp.com.pk/wp-content/uploads/2023/09/Posterisan.jpg',
+    },
+     {
+      id: 2,
+      title: 'CT-26 Hemopil',
+      subtitle: 'Relieve pain, itching, and swelling from piles & fissures',
+      url: 'https://www.masoodstore.com.pk/cdn/shop/files/CTNo_Website_01_-26.webp?v=1779534636&width=720',
+    },
+     {
+      id: 3,
+      title: 'Collinsonia Canadensis Q',
+      subtitle: 'Relieve pain, itching, and swelling from piles & fissures',
+      url: 'https://panglobal-sz.b-cdn.net/2021/06/6B06665A-4A14-4687-AD71-A71224FAE993-scaled.jpeg',
     },
   ],
 
@@ -793,7 +919,13 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Phytolacca Berry & Fucus Vesiculosus',
       subtitle: 'Support healthy metabolic weight loss without side effects',
-      url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=800&q=80',
+      url: 'https://assets.schwabeindia.net/schwabe-nextjs-assets/product-images/phytolacca-berry-tablets/prod_01K79HGAQVPF7GBPG9VKJNHPGW-phytolaca-berry_pack_sep-23.jpg',
+    },
+     {
+      id: 2,
+      title: 'Kent Slimtrac Slimming Mixture',
+      subtitle: 'Support healthy metabolic weight loss without side effects',
+      url: 'https://kentpharma.com/cdn/shop/files/WhatsApp-Image-2024-05-30-at-12.27.14_38199428.jpg?v=1739615404',
     },
   ],
 
@@ -802,7 +934,13 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Thuja Occidentalis 200C & Corn Paint',
       subtitle: 'Painless homeopathic solution for warts, corns & skin tags',
-      url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjYf3Pm_GNTpfPyWpNG_PDzWniQ9B_oKrqCfKi1Zt5lQ&s=10',
+    },
+      {
+      id: 2,
+      title: 'Wart Care Ointment & Drops ',
+      subtitle: 'Painless homeopathic solution for warts, corns & skin tags',
+      url: 'https://www.shopaholic.pk/cdn/shop/files/1176242-1.jpg?v=1782072439',
     },
   ],
 
@@ -811,43 +949,91 @@ const CATEGORY_SCROLLING_BANNERS: Record<
       id: 1,
       title: 'Tellurium & Sulphur Anti-Fungal Drop',
       subtitle: 'Relief from ringworm, itching, candidiasis & skin mycosis',
-      url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=800&q=80',
+      url: 'https://images.squarespace-cdn.com/content/v1/61266e982104fd1fe23f9fba/1632498607530-V3GS6HKX05Z5J8JBLUAC/Fungal+Infections',
+    },
+     {
+      id: 2,
+      title: 'Dermosporin Cream',
+      subtitle: 'Relief from ringworm, itching, candidiasis & skin mycosis',
+      url: 'https://www.thomsonmedical.com/_next/image?url=https%3A%2F%2Fimages.contentstack.io%2Fv3%2Fassets%2Fblt5f400315f9e4f0b3%2Fbltdec55798978c619e%2F693258ce9c4ad11c2b163556%2Ffungal_infection_pill_4.webp%3Fbranch%3Dprod&w=3840&q=100',
+    },
+     {
+      id: 3,
+      title: 'Home Remedy For Fungal Infections',
+      subtitle: 'Relief from ringworm, itching, candidiasis & skin mycosis',
+      url: 'https://www.avogel.co.uk/images2019/May/10-natural-remedies-for-fungal-skin-infections-open-graph-graph.png?m=1557401223',
     },
   ],
 
   'diabetes-medicines': [
     {
       id: 1,
-      title: 'Syzygium Jambolanum Q Drops',
+      title: 'Diabetes Infections Symptoms',
       subtitle: 'Natural support for regulating blood sugar levels',
-      url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
+      url: 'https://images.everydayhealth.com/images/2025/diabetes-and-infections-1440x810.jpg?sfvrsn=9f1d5008_3',
+    },
+     {
+      id: 2,
+      title: 'Diabetes Care',
+      subtitle: 'Natural support for regulating blood sugar levels',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRM5y6_G1uU7PBPGuyJj5WBxOcfPEBEjBUAUFTqgzk1lCHW5_5Zp_ucK1w&s=10',
+    },
+     {
+      id: 3,
+      title: 'Diabetes Stage 2 ',
+      subtitle: 'Natural support for regulating blood sugar levels',
+      url: 'https://media.licdn.com/dms/image/v2/C5612AQG-NsgSpOKsNw/article-cover_image-shrink_720_1280/article-cover_image-shrink_720_1280/0/1520103468395?e=2147483647&v=beta&t=l8cBoYG-r4_1DPgYECYw6Sf97HBw2yfVQjX23F5MLl0',
     },
   ],
 
   'stomach-medicines': [
     {
       id: 1,
-      title: 'Nux Vomica & Carbo Veg Drops',
+      title: 'Stomach Pain Symptom',
       subtitle: 'Instant relief from acidity, heartburn & indigestion',
-      url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=800&q=80',
+      url: 'https://hop.sg/wp-content/uploads/2025/12/Man-Experiencing-Stomach-Pain-and-Abdominal-Discomfort.png',
+    },
+    {
+      id: 2,
+      title: 'Easy Home Remedy',
+      subtitle: 'Instant relief from acidity, heartburn & indigestion',
+      url: 'https://assets.clevelandclinic.org/transform/f768fdfe-32c6-4bcc-8943-6b049f94c9ca/brat-Diet-stomachache-1219151013-770x533-1_jpg',
+    },
+      {
+      id: 3,
+      title: 'Best medicines',
+      subtitle: 'Instant relief from acidity, heartburn & indigestion',
+      url: 'https://blossomlabs.pk/wp-content/uploads/Stomach-medicines1.jpg',
     },
   ],
 
   'pet-supplements': [
     {
       id: 1,
+      title: 'Pet Food Processing',
+      subtitle: 'Essential bone, joint & shiny coat supplements for pets',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_7ZngNpUsRqjIfLHc0vqLWEzP8sSMh4Dq9dNRvVRSOsSqq-gCyusX9EA&s=10',
+    },
+      {
+      id: 2,
       title: 'Veterinary Calcium & Glucosamine',
       subtitle: 'Essential bone, joint & shiny coat supplements for pets',
-      url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=800&q=80',
+      url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/srl/srl99892/y/26.jpg',
     },
   ],
 
   'pet-food': [
     {
       id: 1,
+      title: 'Premium Food Group',
+      subtitle: 'High-protein dry food & tasty wet pouches for dogs & cats',
+      url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2RsPIZEepRLzSLZFflEaZFi9meBGIL2dRqQPPgxYZVw&s=10',
+    },
+     {
+      id: 2,
       title: 'Royal Canin, Whiskas & Pedigree',
       subtitle: 'High-protein dry food & tasty wet pouches for dogs & cats',
-      url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=800&q=80',
+      url: 'https://www.petfoodinstitute.org/wp-content/uploads/2020/12/pet-food-types.jpg',
     },
   ],
 };
