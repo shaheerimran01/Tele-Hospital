@@ -8,6 +8,11 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { useCart } from '@/app/components/cart/CartContext';
 import { placeOrderApi } from '@/app/lib/api/orders';
+import {
+  uploadPrescriptionApi,
+  getUserPrescriptionsApi,
+  PrescriptionResponse,
+} from '@/app/lib/api/prescriptions';
 
 function CheckoutContent() {
   // LocalStorage se logged-in user state
@@ -27,6 +32,12 @@ function CheckoutContent() {
   // Success State after order placement
   const [placedOrder, setPlacedOrder] = useState<any>(null);
 
+  // Prescription States
+  const [userPrescriptions, setUserPrescriptions] = useState<PrescriptionResponse[]>([]);
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState<boolean>(false);
+  const [isModalUploading, setIsModalUploading] = useState<boolean>(false);
+  const [modalUploadError, setModalUploadError] = useState<string | null>(null);
+
   // Form States
   const [formData, setFormData] = useState({
     fullName: '',
@@ -42,40 +53,52 @@ function CheckoutContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Bulletproof LocalStorage Reader for Logged-In User ID
+  // Bulletproof LocalStorage Reader for Logged-In User ID & Fetch Unattached Prescriptions
   useEffect(() => {
-    try {
-      const rawUser =
-        localStorage.getItem('user') ||
-        localStorage.getItem('userData') ||
-        localStorage.getItem('auth') ||
-        localStorage.getItem('currentUser') ||
-        localStorage.getItem('tabibistan_user');
+    async function initUserAndPrescriptions() {
+      try {
+        const rawUser =
+          localStorage.getItem('tabibistan_user') ||
+          localStorage.getItem('user') ||
+          localStorage.getItem('userData') ||
+          localStorage.getItem('auth') ||
+          localStorage.getItem('currentUser');
 
-      if (rawUser) {
-        const parsed = JSON.parse(rawUser);
-        const actualUser = parsed.user || parsed.data?.user || parsed;
-        const extractedId = actualUser?.id || actualUser?._id || actualUser?.userId;
+        if (rawUser) {
+          const parsed = JSON.parse(rawUser);
+          const actualUser = parsed.user || parsed.data?.user || parsed;
+          const extractedId = actualUser?.id || actualUser?._id || actualUser?.userId;
 
-        if (extractedId) {
-          setUser({
-            id: extractedId,
-            email: actualUser.email || '',
-            name: actualUser.name || actualUser.fullName || '',
-          });
+          if (extractedId) {
+            setUser({
+              id: extractedId,
+              email: actualUser.email || '',
+              name: actualUser.name || actualUser.fullName || '',
+            });
 
-          setFormData((prev) => ({
-            ...prev,
-            fullName: prev.fullName || actualUser.name || actualUser.fullName || '',
-            email: prev.email || actualUser.email || '',
-          }));
+            setFormData((prev) => ({
+              ...prev,
+              fullName: prev.fullName || actualUser.name || actualUser.fullName || '',
+              email: prev.email || actualUser.email || '',
+            }));
+
+            // Fetch user's unattached (orderId = null) prescriptions from backend
+            try {
+              const prescriptions = await getUserPrescriptionsApi(extractedId, true);
+              setUserPrescriptions(prescriptions || []);
+            } catch (pErr) {
+              console.error('Error fetching prescriptions:', pErr);
+            }
+          }
         }
+      } catch (err) {
+        console.error('Error parsing user session from localStorage:', err);
+      } finally {
+        setAuthLoading(false);
       }
-    } catch (err) {
-      console.error('Error parsing user session from localStorage:', err);
-    } finally {
-      setAuthLoading(false);
     }
+
+    initUserAndPrescriptions();
   }, []);
 
   // Fetch specific product if Buy Now was clicked
@@ -103,7 +126,8 @@ function CheckoutContent() {
         }
       } catch (err) {
         console.error('Error fetching buy now product:', err);
-      } finally {
+      }
+      finally {
         setFetchingBuyNow(false);
       }
     }
@@ -117,6 +141,11 @@ function CheckoutContent() {
       ? [{ id: buyNowProduct.id, product: buyNowProduct, quantity: buyNowQuantity }]
       : []
     : cart?.items || [];
+
+  // Check if any product in checkout requires a prescription
+  const hasPrescriptionRequiredItems = checkoutItems.some(
+    (item: any) => item.product?.prescriptionRequired === true
+  );
 
   // Price Calculations
   const totalPrice = checkoutItems.reduce((sum: number, item: any) => {
@@ -141,12 +170,42 @@ function CheckoutContent() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // DYNAMIC ORDER PLACEMENT HANDLER
+  // Upload handler inside Prescription Modal
+  const handleModalFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user?.id) return;
+
+    setIsModalUploading(true);
+    setModalUploadError(null);
+
+    try {
+      const uploadPromises = Array.from(files).map((file) =>
+        uploadPrescriptionApi(user.id, file)
+      );
+
+      const uploadedResults = await Promise.all(uploadPromises);
+      setUserPrescriptions((prev) => [...prev, ...uploadedResults]);
+    } catch (err: any) {
+      console.error('Modal Upload Error:', err);
+      setModalUploadError(err.message || 'Prescription file upload nahi ho saki.');
+    } finally {
+      setIsModalUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // DYNAMIC ORDER PLACEMENT HANDLER WITH PRESCRIPTION VALIDATION
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!user || !user.id) {
       setErrorMessage('Order place karne ke liye pehle Login karein.');
+      return;
+    }
+
+    // CHECK: Prescription required medicines validation
+    if (hasPrescriptionRequiredItems && userPrescriptions.length === 0) {
+      setShowPrescriptionModal(true);
       return;
     }
 
@@ -179,8 +238,9 @@ function CheckoutContent() {
         items: orderItemsPayload,
       });
 
-      // 5. Set Placed Order State to show Success Screen
+      // 5. Set Placed Order State & reset pending prescriptions
       setPlacedOrder(orderResult);
+      setUserPrescriptions([]);
     } catch (err: any) {
       console.error('Order Creation Failed:', err);
       setErrorMessage(err.message || 'Order place karne me error aaya. Dubara koshish karein.');
@@ -202,13 +262,13 @@ function CheckoutContent() {
         </span>
 
         <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
-          Shukriya! Aapka Order Receive Ho Gaya Hai
+          Thanks! Your order has been placed.
         </h1>
 
         <p className="text-xs text-gray-600 max-w-md mb-6 leading-relaxed">
           Order ID: <span className="font-mono font-bold text-gray-900">{placedOrder.id}</span>
           <br />
-          Aapke order ki details backend database aur admin notifications mein update kar di gayi hain.
+          Your order details have been updated in the backend database and admin notifications.
         </p>
 
         <div className="bg-white border border-gray-200 rounded-2xl p-5 text-left w-full max-w-md shadow-xs mb-6 space-y-3">
@@ -278,7 +338,7 @@ function CheckoutContent() {
           Checkout karne aur order place karne ke liye pehle apne account mein login karein.
         </p>
         <Link
-          href="/login"
+          href="/auth/login"
           className="mt-4 bg-[#ff6f61] text-white text-xs font-bold px-6 py-2.5 rounded-xl hover:bg-[#e05b4f] transition shadow-xs"
         >
           Proceed to Login
@@ -548,6 +608,48 @@ function CheckoutContent() {
                 <span className="text-xs font-bold text-[#ff6f61]">({checkoutItems.length} Items)</span>
               </h2>
 
+              {/* Prescription Required Alert Banner */}
+              {hasPrescriptionRequiredItems && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-lg shrink-0">📄</span>
+                    <div className="min-w-0">
+                      <span className="font-bold text-amber-900 block text-[11px] uppercase truncate">
+                        Prescription Required
+                      </span>
+                      <span className="text-[10px] text-amber-700 block truncate">
+                        {userPrescriptions.length > 0
+                          ? `${userPrescriptions.length} Prescription(s) attached`
+                          : 'Order place karne par upload karna zaroori hai'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {userPrescriptions.length > 0 ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                        Attached ✓
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowPrescriptionModal(true)}
+                        className="text-[10px] font-bold text-[#ff6f61] hover:text-[#e05b4f] underline cursor-pointer"
+                      >
+                        + Add Another
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowPrescriptionModal(true)}
+                      className="text-[10px] font-bold text-amber-900 underline hover:text-amber-700 cursor-pointer shrink-0"
+                    >
+                      Upload Now
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* Items List */}
               <div className="max-h-72 overflow-y-auto space-y-3 pr-1 divide-y divide-gray-100 no-scrollbar">
                 {checkoutItems.map((item: any) => {
@@ -576,7 +678,14 @@ function CheckoutContent() {
                         </div>
 
                         <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-gray-900 truncate">{product.name}</h4>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-bold text-gray-900 truncate">{product.name}</h4>
+                            {product.prescriptionRequired && (
+                              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded shrink-0">
+                                Rx
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[10px] text-gray-500">{product.packSize || 'Standard Pack'}</p>
                         </div>
                       </div>
@@ -649,6 +758,102 @@ function CheckoutContent() {
           </div>
         </form>
       </div>
+
+      {/* PRESCRIPTION UPLOAD POPUP MODAL */}
+      {showPrescriptionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-gray-100 space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">📄</span>
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                  Upload Prescriptions
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPrescriptionModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Aapke order mein prescription medicines shamil hain. Doctor ki prescription file upload karein. Aap ek se zyada files bhi add kar sakte hain.
+            </p>
+
+            {/* Upload Box inside Modal */}
+            <div className="border-2 border-dashed border-amber-300 bg-amber-50/50 rounded-2xl p-5 text-center space-y-3">
+              <span className="text-3xl block">📎</span>
+              <label className="inline-block bg-[#ff6f61] hover:bg-[#e05b4f] text-white text-xs font-bold px-5 py-2.5 rounded-xl cursor-pointer transition shadow-xs uppercase">
+                <span>
+                  {isModalUploading
+                    ? 'Uploading...'
+                    : userPrescriptions.length > 0
+                    ? '+ Add Another File'
+                    : 'Select Prescription File(s)'}
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,.pdf"
+                  disabled={isModalUploading}
+                  onChange={handleModalFileUpload}
+                  className="hidden"
+                />
+              </label>
+              <p className="text-[10px] text-gray-400">Supported Formats: PNG, JPG, JPEG, PDF (Max 10MB)</p>
+            </div>
+
+            {/* Modal Upload Error */}
+            {modalUploadError && (
+              <p className="text-xs font-bold text-red-600 text-center">
+                ⚠️ {modalUploadError}
+              </p>
+            )}
+
+            {/* Modal Uploaded Files List */}
+            {userPrescriptions.length > 0 && (
+              <div className="space-y-1.5 pt-2 max-h-36 overflow-y-auto">
+                <span className="text-[11px] font-bold text-gray-700 uppercase block">
+                  Attached Prescriptions ({userPrescriptions.length}):
+                </span>
+                <ul className="space-y-1 text-xs">
+                  {userPrescriptions.map((file) => (
+                    <li key={file.id} className="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-xl border border-gray-200">
+                      <span className="truncate max-w-[200px] text-gray-800 font-medium">📎 {file.fileName}</span>
+                      <span className="text-[10px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">Uploaded ✓</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPrescriptionModal(false)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-xs uppercase cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={userPrescriptions.length === 0}
+                onClick={(e) => {
+                  setShowPrescriptionModal(false);
+                  handlePlaceOrder(e);
+                }}
+                className="flex-1 bg-[#ff6f61] hover:bg-[#e05b4f] disabled:opacity-50 text-white font-bold py-3 rounded-xl text-xs uppercase shadow-md cursor-pointer"
+              >
+                Continue Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

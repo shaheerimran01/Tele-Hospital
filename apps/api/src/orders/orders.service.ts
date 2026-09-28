@@ -57,6 +57,18 @@ export class OrdersService {
 
       include: {
         items: true,
+        prescriptions: true,
+      },
+    });
+
+    // 👈 User ki tamam unattached prescriptions ko is Order ID ke sath bind kar dein
+    await this.prisma.prescription.updateMany({
+      where: {
+        userId,
+        orderId: null,
+      },
+      data: {
+        orderId: order.id,
       },
     });
 
@@ -87,6 +99,7 @@ export class OrdersService {
       },
       include: {
         items: true,
+        prescriptions: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -102,6 +115,7 @@ export class OrdersService {
       },
       include: {
         items: true,
+        prescriptions: true,
       },
     });
 
