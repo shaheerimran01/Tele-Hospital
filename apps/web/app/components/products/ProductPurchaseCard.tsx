@@ -64,7 +64,7 @@ export default function ProductPurchaseCard({ product }: ProductPurchaseCardProp
     if (!files || files.length === 0) return;
 
     if (!user?.id) {
-      setUploadError('Prescription upload karne ke liye pehle Login karein.');
+      setUploadError('Please login to upload prescriptions.');
       return;
     }
 

@@ -31,4 +31,14 @@ export class AuthController {
   createAccount(@Body() createAccountDto: CreateAccountDto) {
     return this.authService.createAccount(createAccountDto);
   }
+
+  @Post('login')
+  login(@Body() body: any) {
+    return this.authService.login(body);
+  }
+
+  @Post('register')
+  register(@Body() body: any) {
+    return this.authService.register(body);
+  }
 }

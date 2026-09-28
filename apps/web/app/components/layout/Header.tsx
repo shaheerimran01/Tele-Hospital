@@ -46,6 +46,16 @@ interface CategoryPill {
   items: SubCategoryItem[];
 }
 
+interface SearchProductItem {
+  id: string;
+  name: string;
+  slug: string;
+  price?: number;
+  genericName?: string;
+  imageUrl?: string;
+  image?: string;
+}
+
 const CATEGORY_PILLS: CategoryPill[] = [
   {
     title: 'Health Resource Center',
@@ -150,6 +160,16 @@ export default function Header() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
+  // SEARCH STATES (ONLY SEARCH LOGIC ADDED)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{
+    products: SearchProductItem[];
+    formulas: string[];
+  }>({ products: [], formulas: [] });
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const [activeTab, setActiveTab] = useState(
     pathname === '/lab-tests'
       ? 'LAB TESTS'
@@ -189,6 +209,7 @@ export default function Header() {
     };
   }, []);
 
+  // CLICK OUTSIDE HANDLER (User menu + Search dropdown)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -197,12 +218,50 @@ export default function Header() {
       ) {
         setShowUserMenu(false);
       }
+      if (
+        searchRef.current &&
+        !searchRef.current.contains(e.target as Node)
+      ) {
+        setShowSearchDropdown(false);
+      }
     };
-    if (showUserMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
+    document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showUserMenu]);
+  }, []);
+
+  // DEBOUNCED SEARCH EFFECT
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setSearchResults({ products: [], formulas: [] });
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(
+          `http://localhost:4000/products/search?q=${encodeURIComponent(
+            searchQuery.trim()
+          )}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults({
+            products: data.products || [],
+            formulas: data.formulas || [],
+          });
+          setShowSearchDropdown(true);
+        }
+      } catch (err) {
+        console.error('Header Search Error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
@@ -424,14 +483,26 @@ export default function Header() {
               ) : (
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => router.push('/auth/login')}
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent('open_login_modal', {
+                          detail: { mode: 'login' },
+                        })
+                      );
+                    }}
                     className="font-medium hover:text-[#ff6f61] transition cursor-pointer"
                   >
                     Login
                   </button>
                   <span className="text-gray-400">|</span>
                   <button
-                    onClick={() => router.push('/auth/signup')}
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent('open_login_modal', {
+                          detail: { mode: 'signup' },
+                        })
+                      );
+                    }}
                     className="font-medium hover:text-[#ff6f61] transition cursor-pointer"
                   >
                     Signup
@@ -518,27 +589,132 @@ export default function Header() {
               </svg>
             </button>
 
-            <div className="relative flex-1">
+            {/* LIVE SEARCH INPUT & DROPDOWN CONTAINER */}
+            <div ref={searchRef} className="relative flex-1">
               <input
                 type="text"
-                placeholder="Search Medicines & Health Products"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => {
+                  if (searchResults.products.length > 0 || searchResults.formulas.length > 0) {
+                    setShowSearchDropdown(true);
+                  }
+                }}
+                placeholder="Search Medicines & Health Products (e.g., Panadol, Paracetamol)"
                 className="w-full rounded-md border border-gray-200 bg-[#f7f8fa] py-2 pl-4 pr-10 text-xs text-gray-800 outline-none focus:border-[#ff6f61] focus:bg-white transition"
               />
               <button className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
+                {isSearching ? (
+                  <span className="animate-spin text-xs">⏳</span>
+                ) : (
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                )}
               </button>
+
+              {/* LIVE SEARCH DROPDOWN */}
+              {showSearchDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 rounded-2xl border border-gray-100 bg-white py-2 shadow-2xl z-50 max-h-[420px] overflow-y-auto divide-y divide-gray-100">
+                  {/* FORMULAS / SALTS SECTION */}
+                  {searchResults.formulas.length > 0 && (
+                    <div className="p-3 bg-red-50/40">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-[#ff6f61] mb-2 flex items-center gap-1">
+                        <span>🧪 Related Formulas / Salt</span>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {searchResults.formulas.map((formula) => (
+                          <button
+                            key={formula}
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery(formula);
+                              setShowSearchDropdown(false);
+                            }}
+                            className="bg-white border border-red-200 hover:border-[#ff6f61] text-[#ff6f61] font-bold text-[11px] px-2.5 py-1 rounded-lg transition cursor-pointer"
+                          >
+                            {formula}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PRODUCTS LIST SECTION */}
+                  {searchResults.products.length > 0 ? (
+                    <div className="p-2 space-y-1">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 px-3 py-1">
+                        💊 Matching Medicines ({searchResults.products.length})
+                      </p>
+                      {searchResults.products.map((item) => {
+                        const rawImg = item.imageUrl || item.image;
+                        const fullImgUrl = rawImg
+                          ? rawImg.startsWith('http')
+                            ? rawImg
+                            : `http://localhost:4000${rawImg}`
+                          : null;
+
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setShowSearchDropdown(false);
+                              router.push(`/products/${item.slug}`);
+                            }}
+                            className="flex w-full items-center justify-between p-2.5 rounded-xl hover:bg-gray-50 transition text-left cursor-pointer group"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-10 h-10 rounded-lg border border-gray-100 bg-white flex items-center justify-center shrink-0 overflow-hidden">
+                                {fullImgUrl ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element */
+                                  <img
+                                    src={fullImgUrl}
+                                    alt={item.name}
+                                    className="w-full h-full object-contain p-0.5"
+                                  />
+                                ) : (
+                                  <span className="text-sm">💊</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="text-xs font-bold text-gray-900 truncate group-hover:text-[#ff6f61] transition">
+                                  {item.name}
+                                </h4>
+                                {item.genericName && (
+                                  <p className="text-[10px] text-gray-500 truncate">
+                                    Formula: {item.genericName}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <span className="text-xs font-bold text-[#ff6f61] shrink-0 ml-2">
+                              Rs. {item.price || 180}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    !isSearching && (
+                      <p className="text-xs text-gray-400 text-center py-6 italic">
+                        Koi medicine ya formula nahi mila.
+                      </p>
+                    )
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="hidden xl:flex items-center gap-1.5 text-xs text-[#ff574d] font-semibold whitespace-nowrap">

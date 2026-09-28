@@ -50,6 +50,61 @@ export class ProductsService {
     });
   }
 
+  // Search products & generic formulas (Accurate Search Method)
+  async searchProducts(query: string) {
+    if (!query || query.trim().length < 2) {
+      return { products: [], formulas: [] };
+    }
+
+    const cleanQuery = query.trim();
+    const words = cleanQuery.split(/\s+/).filter((w) => w.length > 0);
+
+    // 1. Fetch matching distinct generic formulas/salts from DB
+    const formulasRaw = await this.prisma.product.findMany({
+      where: {
+        genericName: {
+          contains: cleanQuery,
+          mode: 'insensitive',
+        },
+      },
+      select: {
+        genericName: true,
+      },
+      distinct: ['genericName'],
+      take: 5,
+    });
+
+    const formulas = formulasRaw
+      .map((f) => f.genericName)
+      .filter((g): g is string => !!g);
+
+    // 2. Fetch matching products (matching name, genericName, or brandName)
+    const products = await this.prisma.product.findMany({
+      where: {
+        AND: words.map((word) => ({
+          OR: [
+            { name: { contains: word, mode: 'insensitive' } },
+            { genericName: { contains: word, mode: 'insensitive' } },
+            { brandName: { contains: word, mode: 'insensitive' } },
+          ],
+        })),
+      },
+      take: 10,
+    });
+
+    // 3. Relevance Sorting (Starts-with matches prioritized)
+    const lowerQuery = cleanQuery.toLowerCase();
+    products.sort((a, b) => {
+      const aStarts = a.name.toLowerCase().startsWith(lowerQuery);
+      const bStarts = b.name.toLowerCase().startsWith(lowerQuery);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return 0;
+    });
+
+    return { products, formulas };
+  }
+
   // Get single product
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({

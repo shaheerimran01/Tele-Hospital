@@ -15,6 +15,43 @@ import { extname } from 'path';
 
 import { PrescriptionsService } from './prescriptions.service.js';
 
+const multerOptions = {
+  storage: diskStorage({
+    destination: './uploads/prescriptions',
+    filename: (req, file, callback) => {
+      const uniqueName =
+        `${Date.now()}-${Math.round(Math.random() * 1e9)}` +
+        extname(file.originalname);
+
+      callback(null, uniqueName);
+    },
+  }),
+
+  fileFilter: (req: any, file: Express.Multer.File, callback: any) => {
+    const allowedTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'application/pdf',
+    ];
+
+    if (!allowedTypes.includes(file.mimetype)) {
+      return callback(
+        new BadRequestException(
+          'Only PNG, JPG, JPEG and PDF files are allowed',
+        ),
+        false,
+      );
+    }
+
+    callback(null, true);
+  },
+
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+  },
+};
+
 @Controller('prescriptions')
 export class PrescriptionsController {
   constructor(
@@ -22,67 +59,47 @@ export class PrescriptionsController {
   ) {}
 
   @Post('upload')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/prescriptions',
-        filename: (req, file, callback) => {
-          const uniqueName =
-            `${Date.now()}-${Math.round(Math.random() * 1e9)}` +
-            extname(file.originalname);
-
-          callback(null, uniqueName);
-        },
-      }),
-
-      fileFilter: (req, file, callback) => {
-        const allowedTypes = [
-          'image/png',
-          'image/jpeg',
-          'application/pdf',
-        ];
-
-        if (!allowedTypes.includes(file.mimetype)) {
-          return callback(
-            new BadRequestException(
-              'Only PNG, JPG, JPEG and PDF files are allowed',
-            ),
-            false,
-          );
-        }
-
-        callback(null, true);
-      },
-
-      limits: {
-        fileSize: 10 * 1024 * 1024,
-      },
-    }),
-  )
+  @UseInterceptors(FileInterceptor('file', multerOptions))
   uploadPrescription(
     @Query('userId') userId: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
-    if (!userId) {
-      throw new BadRequestException('userId is required');
-    }
+    if (!userId) throw new BadRequestException('userId is required');
+    if (!file) throw new BadRequestException('Prescription file is required');
 
-    if (!file) {
-      throw new BadRequestException('Prescription file is required');
-    }
-
-    return this.prescriptionsService.createPrescription(
-      userId,
-      file,
-    );
+    return this.prescriptionsService.createPrescription(userId, file);
   }
 
-  // 👈 Query query parameter 'unattached' extract karke service ko bhej rahay hain
+  @Post('analyze')
+  @UseInterceptors(FileInterceptor('file', multerOptions))
+  analyzePrescription(
+    @Query('userId') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!userId) throw new BadRequestException('userId is required');
+    if (!file) throw new BadRequestException('Prescription file is required');
+
+    return this.prescriptionsService.analyzePrescription(userId, file);
+  }
+
+  // 👈 NAYA ENDPOINT: Stored prescription ko ID se analyze karne ke liye
+  @Post(':id/analyze')
+  analyzeExistingPrescription(
+    @Param('id') id: string,
+    @Query('userId') userId: string,
+  ) {
+    if (!userId) throw new BadRequestException('userId is required');
+
+    return this.prescriptionsService.analyzeExistingPrescription(id, userId);
+  }
+
   @Get()
   getUserPrescriptions(
     @Query('userId') userId: string,
     @Query('unattached') unattached?: string,
   ) {
+    if (!userId) throw new BadRequestException('userId is required');
+
     return this.prescriptionsService.getUserPrescriptions(
       userId,
       unattached === 'true',
@@ -94,10 +111,9 @@ export class PrescriptionsController {
     @Param('id') id: string,
     @Query('userId') userId: string,
   ) {
-    return this.prescriptionsService.getPrescription(
-      id,
-      userId,
-    );
+    if (!userId) throw new BadRequestException('userId is required');
+
+    return this.prescriptionsService.getPrescription(id, userId);
   }
 
   @Delete(':id')
@@ -105,9 +121,8 @@ export class PrescriptionsController {
     @Param('id') id: string,
     @Query('userId') userId: string,
   ) {
-    return this.prescriptionsService.deletePrescription(
-      id,
-      userId,
-    );
+    if (!userId) throw new BadRequestException('userId is required');
+
+    return this.prescriptionsService.deletePrescription(id, userId);
   }
 }

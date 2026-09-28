@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 
 import { ProductsService } from './products.service.js';
@@ -29,6 +30,12 @@ export class ProductsController {
   @Get()
   findAll() {
     return this.productsService.findAll();
+  }
+
+  // GET /products/search?q=panadol
+  @Get('search')
+  searchProducts(@Query('q') query: string) {
+    return this.productsService.searchProducts(query);
   }
 
   // GET /products/:id

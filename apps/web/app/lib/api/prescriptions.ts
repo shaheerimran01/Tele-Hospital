@@ -1,5 +1,3 @@
-// apps/web/app/lib/api/prescriptions.ts
-
 export interface PrescriptionResponse {
   id: string;
   userId: string;
@@ -11,7 +9,6 @@ export interface PrescriptionResponse {
   createdAt: string;
 }
 
-// Single file upload handler
 export async function uploadPrescriptionApi(
   userId: string,
   file: File
@@ -23,7 +20,7 @@ export async function uploadPrescriptionApi(
     `http://localhost:4000/prescriptions/upload?userId=${userId}`,
     {
       method: 'POST',
-      body: formData, // Multipart form data automatically handled
+      body: formData,
     }
   );
 
@@ -37,7 +34,47 @@ export async function uploadPrescriptionApi(
   return response.json();
 }
 
-// User ki uploaded prescriptions fetch karne ke liye (unattached parameter added)
+export async function analyzePrescriptionApi(
+  userId: string,
+  file: File
+): Promise<{ prescription: PrescriptionResponse; detectedProducts: any[] }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(
+    `http://localhost:4000/prescriptions/analyze?userId=${userId}`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Prescription analyze karne me masla aaya.');
+  }
+
+  return response.json();
+}
+
+// 👈 NAYA API HELPER: Existing ID se analyze karna
+export async function analyzeExistingPrescriptionApi(
+  id: string,
+  userId: string
+): Promise<{ prescription: PrescriptionResponse; detectedProducts: any[] }> {
+  const response = await fetch(
+    `http://localhost:4000/prescriptions/${id}/analyze?userId=${userId}`,
+    {
+      method: 'POST',
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Past prescription analyze karne me masla aaya.');
+  }
+
+  return response.json();
+}
+
 export async function getUserPrescriptionsApi(
   userId: string,
   unattached = false
@@ -55,7 +92,6 @@ export async function getUserPrescriptionsApi(
   return response.json();
 }
 
-// Prescription delete karne ke liye
 export async function deletePrescriptionApi(
   id: string,
   userId: string

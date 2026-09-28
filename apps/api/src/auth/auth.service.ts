@@ -140,4 +140,80 @@ export class AuthService {
       },
     };
   }
+
+  async login(body: { email?: string; phone?: string; password?: string }) {
+    const identifier = body.email?.trim() || body.phone?.trim();
+    if (!identifier) {
+      throw new BadRequestException('Please provide an email or phone number.');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier },
+        ],
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('No account found with this email or phone. Please sign up first.');
+    }
+
+    return {
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: user.email,
+      },
+    };
+  }
+
+  async register(body: { name?: string; email?: string; phone?: string; password?: string }) {
+    const email = body.email?.trim();
+    const phone = body.phone?.trim();
+
+    if (!email && !phone) {
+      throw new BadRequestException('Email or phone number is required.');
+    }
+
+    const conditions: any[] = [];
+    if (email) conditions.push({ email });
+    if (phone) conditions.push({ phone });
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: { OR: conditions },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('An account with this email or phone already exists. Please login.');
+    }
+
+    const nameParts = (body.name || '').trim().split(' ');
+    const firstName = nameParts[0] || 'User';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const user = await this.prisma.user.create({
+      data: {
+        email: email || null,
+        phone: phone || null,
+        firstName,
+        lastName,
+      },
+    });
+
+    return {
+      message: 'Registration successful',
+      user: {
+        id: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: user.email,
+      },
+    };
+  }
 }
