@@ -63,11 +63,11 @@ const NAVIGATION_MEDIA: Record<
       'High-grade compression sleeves, ankle braces, knee binders, calf supports, and plantar fasciitis heel cushions for stability and recovery.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQykWOvtOOsjyi3MktOF4XAVKNwVZMj7hQMUQ0_ku0-WQ&s=10',
         label: 'Ankle Braces',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRSg-_ah0rXDNRKq3K6-FCJhW1SJVwdK1JFBBVBtMBesQ&s=10',
         label: 'Compression Sleeves',
       },
     ],
@@ -83,11 +83,11 @@ const NAVIGATION_MEDIA: Record<
       'Zinc + Vitamin C formulas, Chyawanprash, Elderberry, Black Seed (Kalonji), and Giloy extracts for all-around immune defense.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://assets.clevelandclinic.org/transform/LargeFeatureImage/de3bda53-59e5-4342-a45c-e64c72c1207d/foods-with-vitamins-1182014891',
         label: 'Immunity Boosters',
       },
       {
-        url: 'https://images.unsplash.com/photo-1550572017-edf7b3b92a1a?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQl-myXWS0cFJS7slCjXLgh-rDPTCZJPq1fym73npH_XQ&s=10',
         label: 'Zinc & Elderberry',
       },
     ],
@@ -101,11 +101,11 @@ const NAVIGATION_MEDIA: Record<
       'Glutathione, CoQ10, Alpha Lipoic Acid, Astaxanthin, Resveratrol, and Green Tea Extracts for powerful free-radical neutralization.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzlZjPHF_AoJApz5AfALRqFZivrpwe8eL6zMtsruAq0z2wBvRQIi6F6kVc&s=10',
         label: 'Glutathione & CoQ10',
       },
       {
-        url: 'https://images.unsplash.com/photo-1608248597261-0734005b4104?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTV_QacqhrxF0VnDK3lDUQ-BmD-VVLiCMJVRvYuvD4xYcpDjlibsewTVjNX&s=10',
         label: 'Antioxidant Shield',
       },
     ],
@@ -119,11 +119,11 @@ const NAVIGATION_MEDIA: Record<
       'Pure Ashwagandha, Turmeric Curcumin, Tulsi, Kalonji, Echinacea, and Giloy capsules for natural vitality and holistic wellness.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTMCXVya3Ny9EhTZpYp3aiFngETe6HGFAouDN6JXB9qjEUEbuU8iVWoo1CK&s=10',
         label: 'Ashwagandha & Curcumin',
       },
       {
-        url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZhbc5tWcXwXzP7LW9yJYDfuT9yohNQJDWOgFgT9nelea_KYgoTSvi48w&s=10',
         label: 'Herbal Extracts',
       },
     ],
@@ -137,11 +137,11 @@ const NAVIGATION_MEDIA: Record<
       'Organic Green Tea, Tulsi Ginger brews, Chamomile relaxation tea, Joshanda, and Detox Kahwa for warm soothing comfort.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTv2P5iSREqlsU2TlQtnlX1wjcY8_OzLxno6MHihknYqA&s=10',
         label: 'Green & Tulsi Tea',
       },
       {
-        url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSP_TMLKdrHWxR-J3Wyvpjy-aa5fZdOfgEdAcNZKXGLwjMGTE0jMY4tq_d_&s=10',
         label: 'Detox Kahwa & Joshanda',
       },
     ],
@@ -156,11 +156,11 @@ const NAVIGATION_MEDIA: Record<
       'High-potency Omega-3 fatty acids, EPA, DHA, and purified fish oil softgels for cardiovascular health and cognitive support.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSPgSVSCx_1stsoiFhmAgEeo8ayTar1rzdfJZ06t64DBw&s=10',
         label: 'Omega-3 Softgels',
       },
       {
-        url: 'https://images.unsplash.com/photo-1550572017-edf7b3b92a1a?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ5CZ8GjzC8qqZZvxGfB3l68mixMAfjFsmCPP_INA-O5bk2F1K6arellAI&s=10',
         label: 'Triple Strength Fish Oil',
       },
     ],
@@ -173,11 +173,11 @@ const NAVIGATION_MEDIA: Record<
       'Classic cod liver oil liquid & softgels enriched with essential Omega-3s, supporting immunity, vision, and bone strength.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2qIq_VxVLZwOBoRZlehrrKUcEVBcX8dqRLmWSk6JornTvEPX8T_drtoaE&s=10',
         label: 'Cod Liver Softgels',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://naturalpoland.com/wp-content/uploads/olej-z-watroby-dorsza.jpg',
         label: 'Immune & Vision Health',
       },
     ],
@@ -190,11 +190,11 @@ const NAVIGATION_MEDIA: Record<
       'Cold-pressed flaxseed oil capsules and organic linseed oil for vegetarian heart, digestive, and skin health.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTyk0WwDQK5HXDfinV7HCTrrpPN29tCWYuNt3ha-LBzpCqe8RgeufbFMzWz&s=10',
         label: 'Flaxseed Oil Softgels',
       },
       {
-        url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQbm8_TntLJXaVf1B2eVUFkdKMUbP4wo85LjhwpxgFiOqYh3Vf_S_czvIx3&s=10',
         label: 'Plant Omega 3-6-9',
       },
     ],
@@ -207,11 +207,11 @@ const NAVIGATION_MEDIA: Record<
       'Biotin 10000mcg, Collagen peptides, Glutathione brightening complex, and Vitamin E capsules for youthful glowing skin and hair growth.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTBC-C-BQgE8Yvyfe18m8GFT8IrTJuK1lgeXRpQgSLELK5XSgzd9Lsv7rIS&s=10',
         label: 'Biotin & Collagen',
       },
       {
-        url: 'https://images.unsplash.com/photo-1608248597261-0734005b4104?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTp1feERzf54Pg2FyOHf21NYDYgEd7ygE5yBeHbcTz0wWZLL-Jn_Ez7jnyL&s=10',
         label: 'Glutathione & Vitamin E',
       },
     ],
@@ -224,11 +224,11 @@ const NAVIGATION_MEDIA: Record<
       'CAC-1000, Calcium Carbonate, Citrate, Osteocare, and Calcium + Vitamin D3 formulas for bone density and joint mobility.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://healthyeatingclinic.com.au/wp-content/uploads/2022/11/Clinic-Website-Main-Image-1.jpg',
         label: 'CAC-1000 Effervescent',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSKN_Tt4JF3NvJ2LL1yrXll9zH_jcPkJ0gIFV6nFPoe_uA9Xl1Tw8FIphM&s=10',
         label: 'Calcium + D3 Tablets',
       },
     ],
@@ -241,11 +241,11 @@ const NAVIGATION_MEDIA: Record<
       'Vitamin B-Complex, Neurobion, Surbex Z, B12, B6, and Folic Acid supplements for nerve revitalization and everyday stamina.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT2NUuepY8HXYmnsBfKvum-9VZ3H_GBsbzGIoHrt6d74HI6iXTgNOdcj5o2&s=10',
         label: 'Neurobion & B-Complex',
       },
       {
-        url: 'https://images.unsplash.com/photo-1550572017-edf7b3b92a1a?auto=format&fit=crop&w=600&q=80',
+        url: 'https://cloudinary.images-iherb.com/image/upload/f_auto,q_auto:eco/images/blog/uploads/8-types-of-b-vitamins-and-their-health-benefits-large.jpg',
         label: 'Energy & Nerve Support',
       },
     ],
@@ -258,11 +258,11 @@ const NAVIGATION_MEDIA: Record<
       'Limcee, Cecon, C-Vites, and Ascorbic acid 500mg chewables to boost daily white blood cell immunity and collagen synthesis.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTnXnfY4Or8nLyaX0MFZGvSiOxSBI-2KmQPzlrBiy7RrFnNwyAw7pm2DJk&s=10',
         label: 'Vitamin C 500mg',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://missouripoisoncenter.org/wp-content/uploads/2020/06/bigstock-Yellow-Tablets-Vitamin-C-Medic-344734378.jpg',
         label: 'Immunity Shield',
       },
     ],
@@ -275,11 +275,11 @@ const NAVIGATION_MEDIA: Record<
       'Sunny D, Indrop-D 200,000 IU, Cholecalciferol, and Vitamin D3 softgels for daily bone calcification and cellular immunity.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpaGqrYB5u6he2Dyf81O0S_HTfMD0awHspRzSBbh-ZQGilE2PUFx2cnKM&s=10',
         label: 'Indrop-D Shots',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.usnews.com/object/image/0000017b-97de-df24-ab7f-ffdf2de40000/vitamins8.jpg?update-time=1630341367176&size=responsive640',
         label: 'Sunny D Softgels',
       },
     ],
@@ -294,11 +294,11 @@ const NAVIGATION_MEDIA: Record<
       'Water-based lubricants, moisturizing intimacy gels, and soothing massage oils for enhanced comfort.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80',
+        url: 'https://pyxis.nymag.com/v1/imgs/ca9/c54/f2e7faf684a138f5dd430d62bd7cefa698-bic-lube.rsquare.w700.jpg',
         label: 'Intimate Gels',
       },
       {
-        url: 'https://images.unsplash.com/photo-1608248597261-0734005b4104?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQQmxlDp_mWiSYvO2g4bmVEc4NS1_qRjb0-jdHCyl_sN5S4KmijjzO9Hq_N&s=10',
         label: 'Massage Oils',
       },
     ],
@@ -311,11 +311,11 @@ const NAVIGATION_MEDIA: Record<
       'Ergonomically designed intimate massagers, body relaxation wands, and pelvic floor exercise devices.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSmoE-PV3SV4wJVBcGElDRH8ZBNIKjv__q88gaybNoQO5BzI8LPAtWkhqs&s=10',
         label: 'Intimate Massagers',
       },
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVJVmHpdxfopbIzqC7sdOB7jO8af3588r7ttp1jsBrEvVQYfwTnv08AO0&s=10',
         label: 'Wellness Care',
       },
     ],
@@ -328,11 +328,11 @@ const NAVIGATION_MEDIA: Record<
       'Purified Shilajit, stamina boosters, delay sprays, and protective barriers formulated for stamina.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSjBp7WkZWfCzEU7ur6payQr2aYQYvNt44R0aiZ0AkAJPQu8ARv3Sic5k3x&s=10',
         label: 'Vitality Boosters',
       },
       {
-        url: 'https://images.unsplash.com/photo-1546483875-ad9014c88eba?auto=format&fit=crop&w=600&q=80',
+        url: 'https://s.abcnews.com/images/Health/gty_steroids_mi_130805_16x9_992.jpg',
         label: 'Shilajit & Tonics',
       },
     ],
@@ -345,11 +345,11 @@ const NAVIGATION_MEDIA: Record<
       'Certified daily birth control pills, emergency contraceptive options, and reproductive health care treatments.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.fertilityfamily.co.uk/wp-content/uploads/2024/10/contraceptive-pill-scaled.jpg',
         label: 'Family Planning',
       },
       {
-        url: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR9qcVLGLGdywxMZK93X1XBcf3bMUC8LIGkfQwCBIwOPwyqDAM5-4J9Ryc&s=10',
         label: 'Reproductive Care',
       },
     ],
@@ -364,11 +364,11 @@ const NAVIGATION_MEDIA: Record<
       'High-potency pea protein, vegan protein powder, soy protein isolate, and organic plant blends.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://dam.northwell.edu/m/566a7b0e549ed7f9/Drupal-TheWell_protein-with-less-meat_AS_542997454.jpg',
         label: 'Plant Protein',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTbKLbGPyYgAn150DXSK-Og1WMflIrRNcOxJXNq5fV0V5F6RCONCdp8uv0I&s=10',
         label: 'Vegan Blends',
       },
     ],
@@ -381,11 +381,11 @@ const NAVIGATION_MEDIA: Record<
       'High-calorie mass gainers, whey proteins, heavy weight gainers, and muscle building shake formulas.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQirpDDUqXfs2IuEDNfPwAdL4hSER2k9kIyH-VxCDyx-Q&s=10',
         label: 'Mass Gainers',
       },
       {
-        url: 'https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR6xLsfbk1vC6g9w_eVefA1QJFYBkEBM1zL_En9UW8qYT95RJD-bXUOYb_D&s=10',
         label: 'Whey & Mass Shakes',
       },
     ],
@@ -398,11 +398,11 @@ const NAVIGATION_MEDIA: Record<
       'High-energy pre-workout powders, BCAAs, creatine monohydrate, and amino acid muscle recovery boosters.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRuUo08cDRpVbbanVUKO6ne1myCsVz6831bFaube5ml3jHkbzTUII68cTa0&s=10',
         label: 'Pre-Workout Boosters',
       },
       {
-        url: 'https://images.unsplash.com/photo-1546483875-ad9014c88eba?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQDj-wXdQBvt675gcej_JpYK1nfLDTjIuP_wWumbAR_PL0cNMLvpa3Bavs&s=10',
         label: 'BCAA & Creatine',
       },
     ],
@@ -415,11 +415,11 @@ const NAVIGATION_MEDIA: Record<
       'Track heart rate, sleep quality, blood oxygen, and daily workout performance with advanced smartwatches and rings.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTV_Ws8ZWk8AJ-mqtfAAxxTeJ_SvUM8Z9-WA8iFoqZ91mMy2GvjvJIGaQY&s=10',
         label: 'Smartwatches',
       },
       {
-        url: 'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?auto=format&fit=crop&w=600&q=80',
+        url: 'https://cdn.shopify.com/s/files/1/0850/1769/0420/files/What_s_the_Point_of_Smart_Rings_The_Real_Value_Beyond_the_Hype.jpg?v=1752115596',
         label: 'Fitness Rings',
       },
     ],
@@ -432,11 +432,11 @@ const NAVIGATION_MEDIA: Record<
       'L-Carnitine, thermogenic fat burners, and weight management supplements formulated to boost metabolic energy.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://burjeel.com/wp-content/uploads/2023/04/Screenshot_19.jpg',
         label: 'Thermogenics',
       },
       {
-        url: 'https://images.unsplash.com/photo-1550572017-edf7b3b92a1a?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTr6xosZ6v4ewnTBCOK-NzsyK_jPa1GfY_AxR2dD4ft1qCiLj7zOfmKelM&s=10',
         label: 'L-Carnitine Formulas',
       },
     ],
@@ -451,11 +451,11 @@ const NAVIGATION_MEDIA: Record<
       'Intense repair masks, leave-in conditioners, spa masks, and nourishing styling creams for soft hair.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ-Vprxb-eV7vr7zKU1x5WpKZNDGP5nXlOymWjhJhRICY4C0qyM9FqamwB8&s=10',
         label: 'Hair Masks',
       },
       {
-        url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTOZRkf9FMYhXEyiOgBxb4Z6ShDmCx90e0YNea_GcAjYcGNNDc_DUNffdI&s=10',
         label: 'Nourishing Creams',
       },
     ],
@@ -468,11 +468,11 @@ const NAVIGATION_MEDIA: Record<
       'Nourish and illuminate your tresses with lightweight serums, keratin glosses, and argan oil elixirs.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQNkBWBwmLktfpLIeAp2aGmkBRBd0okIZV3disZudCIaStN9X5dcLSnWDkz&s=10',
         label: 'Hair Serums',
       },
       {
-        url: 'https://images.unsplash.com/photo-1608248597261-0734005b4104?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQn6PvoyJQDHhmAFWPBc3Mq6okTvW3VcrOGJG8WVpT-loSFyhzVrHvDoP8&s=10',
         label: 'Gloss Drops',
       },
     ],
@@ -485,11 +485,11 @@ const NAVIGATION_MEDIA: Record<
       'Herbal hair oils, onion seed blends, argan therapy, and scalp revitalizing oils.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1526947425960-945c6e72858f?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQZHuFKfdBJRqj_3ftxi1eIHQlJZpKX2W9gK0XynN3ShDfYC3dwKH1eTNA&s=10',
         label: 'Scalp Oils',
       },
       {
-        url: 'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRw-_lEOGLTN6N36d-EpjwGJRQKEhyRCGctnfBvZCvaqg&s',
         label: 'Herbal Extracts',
       },
     ],
@@ -502,11 +502,11 @@ const NAVIGATION_MEDIA: Record<
       'Anti-dandruff cleansers, sulfate-free shampoos, deep conditioners, and color-protect formulas.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1585232351009-aa87416fca90?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRpUcoZiPpJFkLzy9yUM53uGjrUAk3ADWkodlKL1GlhX-agthSewYGNKm95&s=10',
         label: 'Shampoos',
       },
       {
-        url: 'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRZmuJf3f1LEHtRn1sYjUuzI2K--_QtVqXzHNsUky1cXNzDjs7SyZ8hwkU&s=10',
         label: 'Conditioners',
       },
     ],
@@ -521,11 +521,11 @@ const NAVIGATION_MEDIA: Record<
       'Natural homeopathic remedies including Damiana, Yohimbinum, Agnus Castus, Acid Phos, and Selenium for stamina and sexual wellness.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.askdrshah.com/blog/wp-content/uploads/homeopathy.jpg',
         label: 'Damiana & Vigor',
       },
       {
-        url: 'https://images.unsplash.com/photo-1550572017-edf7b3b92a1a?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSiBHtCcl0kmD8LNo37-Z0OUyqEE7W3OS5morCDC9OghZLyb_YVm_HA9lgm&s=10',
         label: 'Acid Phos & Selenium',
       },
     ],
@@ -555,11 +555,11 @@ const NAVIGATION_MEDIA: Record<
       'Aesculus, Hamamelis, Ratanhia drops, and soothing hemorrhoid ointments for natural relief from piles and painful fissures.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://pilesfistulacure.com/wp-content/uploads/2024/05/2148643262-1080x675.jpg',
         label: 'Aesculus & Hamamelis',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://img.lb.wbmdstatic.com/vim/live/webmd/consumer_assets/site_images/articles/health_tools/advances_in_eczema_treatment_slideshow/1800ss_getty_rf_tube_of_medicated_cream.jpg?resize=750px:*&output-quality=75',
         label: 'Piles Relief Drops',
       },
     ],
@@ -572,11 +572,11 @@ const NAVIGATION_MEDIA: Record<
       'Phytolacca Berry drops, Fucus Vesiculosus, and natural homeopathic anti-obesity drops engineered for safe weight management.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTR4vPf3k0S5tUTkK4l-8xWlm07Edr3f3FeQTOFlWYE2aTTO1Lw-Avnu3tB&s=10',
         label: 'Phytolacca Berry Drops',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhXdWo7AtqEXNFmHmu0N72Mug6ZzzG40Wc2m97D91YD8m7yrqOMurIZSEl&s=10',
         label: 'Slimming Formulas',
       },
     ],
@@ -589,11 +589,11 @@ const NAVIGATION_MEDIA: Record<
       'Thuja Occidentalis 200C, Antim Crud, Causticum, Dulcamara, and specialized corn removers for painless skin tag elimination.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://media.post.rvohealth.io/wp-content/uploads/2020/09/732x549_Home_Remedies_for_Genital_Warts_What_Works.jpg',
         label: 'Thuja Drops',
       },
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://media.post.rvohealth.io/wp-content/uploads/sites/3/2020/04/GettyImages-864484044_thumb-732x549.jpg',
         label: 'Wart & Corn Removers',
       },
     ],
@@ -606,11 +606,11 @@ const NAVIGATION_MEDIA: Record<
       'Tellurium, Sepia, Petroleum, Sulphur, Graphites, and Chrysarobinum for ringworm, tinea, candidiasis, and athlete’s foot.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQxNMi8kBwfeZsxkV26W_8oqgsaRKvsPOSUaQsFkNumDTRRn8m8fn116p-D&s=10',
         label: 'Sulphur & Graphites',
       },
       {
-        url: 'https://images.unsplash.com/photo-1608248597261-0734005b4104?auto=format&fit=crop&w=600&q=80',
+        url: 'https://images.theconversation.com/files/238436/original/file-20180928-48647-12ud27s.jpg?ixlib=rb-4.1.1&q=75&auto=format&w=768&h=512&fit=crop&dpr=1',
         label: 'Ringworm & Tinea Care',
       },
     ],
@@ -623,11 +623,11 @@ const NAVIGATION_MEDIA: Record<
       'Syzygium Jambolanum, Gymnema Sylvestre, Cephalandra Indica, and Abroma Augusta for complementary glucose management.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQO9dlbzgfem_OKtKh58UOwf7Wc-qYMyajkXF-qmpXZlLHZdPOI7mapzZ8&s=10',
         label: 'Syzygium Jambolanum',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXidMBQyZPiED7MufLkhmmFJiWPEQJyxQJfmt4pv_U5HF78lYdqAN0IBlc&s=10',
         label: 'Sugar Control Drops',
       },
     ],
@@ -640,11 +640,11 @@ const NAVIGATION_MEDIA: Record<
       'Nux Vomica, Carbo Veg, Lycopodium, and gastric drops for quick relief from acidity, indigestion, gas, and stomach cramps.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://thumbs.dreamstime.com/b/gastritis-medication-drug-stomach-ache-gastroesophageal-reflux-disease-gerd-medicine-treatment-285820544.jpg',
         label: 'Nux Vomica 30C',
       },
       {
-        url: 'https://images.unsplash.com/photo-1550572017-edf7b3b92a1a?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSK0fOoSGZa7fkgVsI1AnAOYkkILQKGchDTCw_9V8T2Wu25iT5CJTjE1pUZ&s=10',
         label: 'Carbo Veg & Lycopodium',
       },
     ],
@@ -659,11 +659,11 @@ const NAVIGATION_MEDIA: Record<
       'Calcium syrups, Glucosamine joint support, Omega-3 coat conditioning oils, and probiotic multivitamins for dogs and cats.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=600&q=80',
+        url: 'https://drruthroberts.com/cdn/shop/files/dog_supplements.png?v=1730389402&width=1500',
         label: 'Pet Multivitamins',
       },
       {
-        url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=600&q=80',
+        url: 'https://img.petfoodindustry.com/mindful/watt/workspaces/default/uploads/2026/09/pet-supplement-formats-and-calm-dog-dall-e.G4IgDqdxrq.png?auto=format%2Ccompress&q=70&w=400',
         label: 'Joint & Coat Care',
       },
     ],
@@ -676,11 +676,11 @@ const NAVIGATION_MEDIA: Record<
       'Royal Canin, Whiskas, Me-O, Pedigree, Reflex puppy/kitten dry food, wet pouches, and crunchy training biscuits.',
     images: [
       {
-        url: 'https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&w=600&q=80',
+        url: 'https://www.petfoodinstitute.org/wp-content/uploads/2020/12/pet-food-types.jpg',
         label: 'Royal Canin & Pedigree',
       },
       {
-        url: 'https://images.unsplash.com/photo-1576602976047-174e57a47881?auto=format&fit=crop&w=600&q=80',
+        url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTOy7hT8hKLzKy0qe7fsS7x44p83oyfxMwVFVvnA3BL3Dll5dIr7BuZ1g&s=10',
         label: 'Whiskas & Me-O Treats',
       },
     ],
