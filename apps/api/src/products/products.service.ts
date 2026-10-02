@@ -12,7 +12,7 @@ import { UpdateProductDto } from './dto/update-product.dto.js';
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Create product
+  // Create product (Updated to include all form & schema fields)
   async create(createProductDto: CreateProductDto) {
     return this.prisma.product.create({
       data: {
@@ -22,10 +22,28 @@ export class ProductsService {
         genericName: createProductDto.genericName,
         brandName: createProductDto.brandName,
 
+        price: createProductDto.price,
+        originalPrice: createProductDto.originalPrice,
+
         description: createProductDto.description,
+        uses: createProductDto.uses,
+        benefits: createProductDto.benefits,
+        sideEffects: createProductDto.sideEffects,
+        howToUse: createProductDto.howToUse,
+        working: createProductDto.working,
+        safetyAdvice: createProductDto.safetyAdvice,
+        quickTips: createProductDto.quickTips,
+        storage: createProductDto.storage,
 
         category: createProductDto.category,
         subCategory: createProductDto.subCategory,
+        systemOfMedicine: createProductDto.systemOfMedicine ?? 'Allopathy',
+
+        healthConditions: createProductDto.healthConditions ?? [],
+        ingredients: createProductDto.ingredients ?? [],
+        tags: createProductDto.tags ?? [],
+
+        isFeatured: createProductDto.isFeatured ?? false,
 
         dosageForm: createProductDto.dosageForm,
         strength: createProductDto.strength,
@@ -37,11 +55,12 @@ export class ProductsService {
           createProductDto.prescriptionRequired ?? false,
 
         imageUrl: createProductDto.imageUrl,
+        isActive: createProductDto.isActive ?? true,
       },
     });
   }
 
-  // Get all products
+  // Get all products (UNTOUCHED - EXACTLY SAME)
   async findAll() {
     return this.prisma.product.findMany({
       orderBy: {
@@ -50,7 +69,7 @@ export class ProductsService {
     });
   }
 
-  // Search products & generic formulas (Accurate Search Method)
+  // Search products & generic formulas (UNTOUCHED - EXACTLY SAME)
   async searchProducts(query: string) {
     if (!query || query.trim().length < 2) {
       return { products: [], formulas: [] };
@@ -105,7 +124,7 @@ export class ProductsService {
     return { products, formulas };
   }
 
-  // Get single product
+  // Get single product (UNTOUCHED - EXACTLY SAME)
   async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: {

@@ -8,137 +8,138 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  phone     String?  @unique
-  email     String?  @unique
-  firstName String?
-  lastName  String?
-  healthcareProfessional Boolean  @default(false)
+  id                     String  @id @default(uuid())
+  phone                  String? @unique
+  email                  String? @unique
+  firstName              String?
+  lastName               String?
+  healthcareProfessional Boolean @default(false)
 
   addresses Address[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  cart Cart?
-  orders Order[]
-  prescriptions Prescription[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  cart              Cart?
+  orders            Order[]
+  prescriptions     Prescription[]
+  userNotifications UserNotification[]
 }
 
 model Address {
-  id            String   @id @default(uuid())
+  id String @id @default(uuid())
 
-  userId        String
+  userId String
 
   label         String
   recipientName String
   phone         String
 
-  addressLine1  String
-  addressLine2  String?
-  area          String?
-  city          String
-  province      String?
-  postalCode    String?
-  country       String
+  addressLine1 String
+  addressLine2 String?
+  area         String?
+  city         String
+  province     String?
+  postalCode   String?
+  country      String
 
-  latitude      Float?
-  longitude     Float?
+  latitude  Float?
+  longitude Float?
 
-  isDefault     Boolean  @default(false)
+  isDefault Boolean @default(false)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model OtpSession {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   phone      String
   otp        String
   expiresAt  DateTime
   verifiedAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([phone])
 }
 
 model Product {
-  id                   String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  name                 String
-  slug                 String   @unique
+  name String
+  slug String @unique
 
-  genericName          String?  // Salt Composition (e.g. Domperidone 30mg + Pantoprazole 40mg)
-  brandName            String?  // Marketer / Brand (e.g. Leeford Healthcare Ltd)
+  genericName String? // Salt Composition (e.g. Domperidone 30mg + Pantoprazole 40mg)
+  brandName   String? // Marketer / Brand (e.g. Leeford Healthcare Ltd)
 
   // Pricing & Discounts
-  price                Float?
-  originalPrice        Float?
+  price         Float?
+  originalPrice Float?
 
   // 1mg Detailed Medical Content Columns
-  description          String?  @db.Text // Overview / Summary
-  uses                 String?  @db.Text // Indications & Uses list
-  benefits             String?  @db.Text // Detailed benefits of medicine
-  sideEffects          String?  @db.Text // Common side effects
-  howToUse             String?  @db.Text // Directions for use & dosage
-  working              String?  @db.Text // How medicine works / Mechanism
-  safetyAdvice         String?  @db.Text // Alcohol, Pregnancy, Driving, Liver/Kidney warnings
-  quickTips            String?  @db.Text // Doctor advice / Patient quick tips
-  storage              String?           // Storage conditions (e.g. Store below 30°C)
+  description  String? @db.Text // Overview / Summary
+  uses         String? @db.Text // Indications & Uses list
+  benefits     String? @db.Text // Detailed benefits of medicine
+  sideEffects  String? @db.Text // Common side effects
+  howToUse     String? @db.Text // Directions for use & dosage
+  working      String? @db.Text // How medicine works / Mechanism
+  safetyAdvice String? @db.Text // Alcohol, Pregnancy, Driving, Liver/Kidney warnings
+  quickTips    String? @db.Text // Doctor advice / Patient quick tips
+  storage      String? // Storage conditions (e.g. Store below 30°C)
 
-  category             String?
-  subCategory          String?
+  category    String?
+  subCategory String?
 
   // ==========================================
   // NEW 1MG COLLECTION & FILTERING FIELDS
   // ==========================================
-  systemOfMedicine     String?  @default("Allopathy") // e.g., Allopathy, Homeopathy, Herbal, Ayurveda, Unani
-  healthConditions     String[]                       // e.g., ["diabetes", "cough-and-flu", "skin-care", "hair-care"]
-  ingredients          String[]                       // e.g., ["collagen", "vitamin-c", "salicylic-acid", "paracetamol"]
-  tags                 String[]                       // e.g., ["supplement-of-the-week", "bestseller", "trending", "deal-of-the-day"]
-  isFeatured           Boolean  @default(false)       // For collection hero sections & landing pages
+  systemOfMedicine String?  @default("Allopathy") // e.g., Allopathy, Homeopathy, Herbal, Ayurveda, Unani
+  healthConditions String[] // e.g., ["diabetes", "cough-and-flu", "skin-care", "hair-care"]
+  ingredients      String[] // e.g., ["collagen", "vitamin-c", "salicylic-acid", "paracetamol"]
+  tags             String[] // e.g., ["supplement-of-the-week", "bestseller", "trending", "deal-of-the-day"]
+  isFeatured       Boolean  @default(false) // For collection hero sections & landing pages
 
-  dosageForm           String?  // Capsule, Tablet, Syrup
-  strength             String?  // e.g. 30mg/40mg
-  packSize             String?  // e.g. 10 capsules in 1 strip
+  dosageForm String? // Capsule, Tablet, Syrup
+  strength   String? // e.g. 30mg/40mg
+  packSize   String? // e.g. 10 capsules in 1 strip
 
-  manufacturer         String?
+  manufacturer String?
 
-  prescriptionRequired Boolean  @default(false)
+  prescriptionRequired Boolean @default(false)
 
-  imageUrl             String?
+  imageUrl String?
 
-  isActive             Boolean  @default(true)
+  isActive Boolean @default(true)
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  pharmacyProducts     PharmacyProduct[]
-  cartItems CartItem[]
-  orderItems OrderItem[]
+  pharmacyProducts PharmacyProduct[]
+  cartItems        CartItem[]
+  orderItems       OrderItem[]
 }
 
 model PharmacyProduct {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  productId   String
-  pharmacyId  String
+  productId  String
+  pharmacyId String
 
-  price       Decimal  @db.Decimal(10, 2)
-  mrp         Decimal? @db.Decimal(10, 2)
+  price Decimal  @db.Decimal(10, 2)
+  mrp   Decimal? @db.Decimal(10, 2)
 
-  stock       Int      @default(0)
+  stock Int @default(0)
 
-  isAvailable Boolean  @default(true)
+  isAvailable Boolean @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  pharmacy    Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
   @@unique([productId, pharmacyId])
   @@index([productId])
@@ -146,73 +147,100 @@ model PharmacyProduct {
 }
 
 model Pharmacy {
-  id          String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  name        String
-  phone       String?
-  email       String?
+  // Phase 1: Pharmacy & Owner
+  name             String
+  ownerName        String?
+  pharmacyType     String?  @default("Retail") // Retail, Hospital, Chain, Online
+  pharmacistName   String?
+  pharmacistRegNum String?
+  logoUrl          String?
+  whatsappNumber   String?
+  phone            String?
+  email            String?
 
-  address     String?
-  city        String?
-  province    String?
-  postalCode  String?
-  country     String   @default("Pakistan")
+  // Phase 2: Documents
+  drugLicenseNumber   String?
+  drugLicensePhotoUrl String?
+  cnicNtnNumber       String?
+  cnicFrontPhotoUrl   String?
+  cnicBackPhotoUrl    String?
 
-  latitude    Float?
-  longitude   Float?
+  // Phase 3: Location & Hours
+  address    String?
+  city       String?
+  province   String?
+  postalCode String?
+  country    String  @default("Pakistan")
+  latitude   Float?
+  longitude  Float?
+  isOpen247  Boolean @default(false)
 
-  isActive    Boolean  @default(true)
+  // Phase 4: Payout & Agreement
+  paymentMethod    String? @default("JazzCash") // JazzCash, Easypaisa, Bank
+  accountTitle     String?
+  accountNumber    String?
+  coldChainStorage Boolean @default(false)
+  referralCode     String?
+  agreedToTerms    Boolean @default(false)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  products    PharmacyProduct[]
-}
-
-model Cart {
-  id        String     @id @default(cuid())
-  userId    String     @unique
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items     CartItem[]
-}
-
-model CartItem {
-  id        String   @id @default(cuid())
-  cartId    String
-  productId String
-  quantity  Int      @default(1)
+  // Application & Verification Status
+  status   String  @default("PENDING") // PENDING, APPROVED, REJECTED
+  isActive Boolean @default(false)     // Active after admin verification
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  products PharmacyProduct[]
+  notifications Notification[]
+}
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+}
+
+model CartItem {
+  id        String @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, productId])
 }
 
 model Order {
-  id                String      @id @default(uuid())
-  userId            String
-  status            String      @default("PENDING")
-  totalAmount       Float
-  shippingAddress   String?
-  paymentMethod     String      @default("COD")
-  paymentStatus     String      @default("PENDING")
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id              String   @id @default(uuid())
+  userId          String
+  status          String   @default("PENDING")
+  totalAmount     Float
+  shippingAddress String?
+  paymentMethod   String   @default("COD")
+  paymentStatus   String   @default("PENDING")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user              User        @relation(fields: [userId], references: [id])
+  user              User               @relation(fields: [userId], references: [id])
   items             OrderItem[]
   notifications     Notification[]
   prescriptions     Prescription[]
+  userNotifications UserNotification[]
 }
 
 model OrderItem {
-  id          String   @id @default(uuid())
+  id          String @id @default(uuid())
   orderId     String
   productId   String
   productName String
@@ -220,33 +248,51 @@ model OrderItem {
   price       Float
   total       Float
 
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product  @relation(fields: [productId], references: [id])
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+  isAvailable Boolean @default(true)
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  type        String
-  title       String
-  message     String
-  orderId     String?
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String    @id @default(uuid())
+  type       String
+  title      String
+  message    String
+  orderId    String?
+  pharmacyId String?   // <--- New Optional Field
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
 
-  order       Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order    Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy? @relation(fields: [pharmacyId], references: [id], onDelete: Cascade) // <--- Relation
 }
 
 model Prescription {
-  id          String   @id @default(uuid())
-  userId      String
-  orderId     String?
-  fileName    String
-  fileUrl     String
-  fileType    String
-  fileSize    Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  userId    String
+  orderId   String?
+  fileName  String
+  fileUrl   String
+  fileType  String
+  fileSize  Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  order       Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+}
+
+model UserNotification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  title     String
+  message   String
+  type      String // e.g. 'ORDER_STATUS_UPDATE', 'PRODUCT_UNAVAILABLE'
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

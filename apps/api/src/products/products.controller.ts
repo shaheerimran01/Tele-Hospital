@@ -20,31 +20,31 @@ export class ProductsController {
     private readonly productsService: ProductsService,
   ) {}
 
-  // POST /products
+  // POST /products (Add Product)
   @Post()
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.create(createProductDto);
   }
 
-  // GET /products
+  // GET /products (Fetch All Products)
   @Get()
   findAll() {
     return this.productsService.findAll();
   }
 
-  // GET /products/search?q=panadol
+  // GET /products/search?q=panadol (Search Products)
   @Get('search')
   searchProducts(@Query('q') query: string) {
     return this.productsService.searchProducts(query);
   }
 
-  // GET /products/:id
+  // GET /products/:id (Fetch Single Product)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
   }
 
-  // PATCH /products/:id
+  // PATCH /products/:id (Edit Product)
   @Patch(':id')
   update(
     @Param('id') id: string,
@@ -56,7 +56,7 @@ export class ProductsController {
     );
   }
 
-  // DELETE /products/:id
+  // DELETE /products/:id (Delete Product)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);

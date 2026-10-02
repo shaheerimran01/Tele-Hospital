@@ -11,6 +11,8 @@ import { CartModule } from './cart/cart.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module.js';
+import { UserNotificationsModule } from './user-notifications/user-notifications.module.js';
+import { PharmaciesModule } from './pharmacies/pharmacies.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -25,6 +27,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     OrdersModule,
     NotificationsModule,
     PrescriptionsModule,
+    UserNotificationsModule,
+    PharmaciesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

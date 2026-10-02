@@ -10,9 +10,12 @@ export class NotificationsService {
       include: {
         order: {
           include: {
+            user: true,
             items: true,
+            prescriptions: true,
           },
         },
+        pharmacy: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -27,6 +30,7 @@ export class NotificationsService {
       },
       include: {
         order: true,
+        prescriptions: true,
       },
       orderBy: {
         createdAt: 'desc',

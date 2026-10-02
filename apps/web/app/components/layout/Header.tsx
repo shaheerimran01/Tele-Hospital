@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { useCart } from '@/app/components/cart/CartContext';
 
 const LocationModal = dynamic(
@@ -149,8 +150,8 @@ const CATEGORY_PILLS: CategoryPill[] = [
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  
-  // Cart Context Connect Kiya
+
+  // Cart Context
   const { cartCount, openCart } = useCart();
 
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -160,7 +161,10 @@ export default function Header() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
-  // SEARCH STATES (ONLY SEARCH LOGIC ADDED)
+  // USER NOTIFICATIONS STATE
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
+
+  // SEARCH STATES
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{
     products: SearchProductItem[];
@@ -180,6 +184,7 @@ export default function Header() {
       : 'MEDICINES'
   );
 
+  // LOAD LOGGED IN USER
   useEffect(() => {
     const loadUser = () => {
       try {
@@ -208,6 +213,32 @@ export default function Header() {
       window.removeEventListener('storage', loadUser);
     };
   }, []);
+
+  // FETCH UNREAD USER NOTIFICATIONS COUNT
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      if (!user?.id) {
+        setUnreadNotificationsCount(0);
+        return;
+      }
+      try {
+        const res = await fetch(`http://localhost:4000/user-notifications?userId=${user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            const unread = data.filter((n: any) => !n.isRead).length;
+            setUnreadNotificationsCount(unread);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load user notifications count:', err);
+      }
+    };
+
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 15000); // Check every 15s
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   // CLICK OUTSIDE HANDLER (User menu + Search dropdown)
   useEffect(() => {
@@ -335,26 +366,20 @@ export default function Header() {
         {/* TOP NAV BAR */}
         <div className="border-b border-gray-100">
           <div className="mx-auto flex h-14 max-w-[1360px] items-center justify-between px-4 sm:px-6">
+            {/* LOGO IMAGE BUTTON */}
+            {/* LOGO IMAGE BUTTON */}
             <button
               onClick={() => router.push('/')}
-              className="flex items-center gap-2 shrink-0 group text-left mr-8 xl:mr-12 cursor-pointer"
+              className="flex items-center shrink-0 group text-left mr-6 xl:mr-10 cursor-pointer"
             >
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#ff6f61] text-white shadow-xs">
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                >
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </div>
-              <span className="text-xl font-bold tracking-tight text-gray-900">
-                Tabib<span className="text-[#ff6f61]">istan</span>
-              </span>
+              <Image
+                src="/logo.png"
+                alt="Tabibistan"
+                width={600}
+                height={65}
+                className="h-3 md:h-16 w-auto object-contain py-0.5"
+                priority
+              />
             </button>
 
             <nav className="hidden lg:flex items-center gap-3 xl:gap-6 h-full text-[12.5px] xl:text-[13px] font-bold">
@@ -396,9 +421,18 @@ export default function Header() {
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center gap-2 font-semibold text-gray-800 hover:text-[#ff6f61] transition cursor-pointer"
                   >
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#ff6f61] text-white text-xs font-bold shadow-2xs">
-                      {user.firstName ? user.firstName[0].toUpperCase() : 'U'}
+                    {/* USER AVATAR WITH UNREAD NOTIFICATION BADGE */}
+                    <div className="relative">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#ff6f61] text-white text-xs font-bold shadow-2xs">
+                        {user.firstName ? user.firstName[0].toUpperCase() : 'U'}
+                      </div>
+                      {unreadNotificationsCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 text-[9px] font-black text-white border-2 border-white animate-pulse">
+                          {unreadNotificationsCount}
+                        </span>
+                      )}
                     </div>
+
                     <span className="max-w-[110px] truncate text-xs font-bold text-gray-800">
                       {user.firstName || 'My Account'}
                     </span>
@@ -420,7 +454,7 @@ export default function Header() {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-52 rounded-xl border border-gray-100 bg-white py-1.5 shadow-lg z-50 divide-y divide-gray-100">
+                    <div className="absolute right-0 mt-2 w-56 rounded-xl border border-gray-100 bg-white py-1.5 shadow-lg z-50 divide-y divide-gray-100">
                       <div className="px-3.5 py-2">
                         <p className="text-xs font-bold text-gray-900 truncate">
                           {user.firstName} {user.lastName}
@@ -434,6 +468,31 @@ export default function Header() {
 
                       {/* USER NAVIGATION LINKS */}
                       <div className="p-1 space-y-0.5">
+                        {/* MY ORDERS */}
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            router.push('/my-orders');
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
+                        >
+                          <svg
+                            className="h-3.5 w-3.5 text-emerald-600"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                            />
+                          </svg>
+                          <span>My Orders</span>
+                        </button>
+
+                        {/* MY PRESCRIPTIONS */}
                         <button
                           onClick={() => {
                             setShowUserMenu(false);
@@ -457,6 +516,38 @@ export default function Header() {
                           <span>My Prescriptions</span>
                         </button>
 
+                        {/* NOTIFICATIONS WITH UNREAD BADGE */}
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            router.push('/notifications');
+                          }}
+                          className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg
+                              className="h-3.5 w-3.5 text-blue-600"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                              />
+                            </svg>
+                            <span>Notifications</span>
+                          </div>
+                          {unreadNotificationsCount > 0 && (
+                            <span className="rounded-full bg-red-500 px-1.5 py-0.2 text-[9px] font-bold text-white shadow-2xs">
+                              {unreadNotificationsCount}
+                            </span>
+                          )}
+                        </button>
+
+                        {/* LOGOUT */}
                         <button
                           onClick={handleLogout}
                           className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition cursor-pointer"
@@ -514,7 +605,7 @@ export default function Header() {
                 Offers
               </button>
 
-              {/* CART BUTTON WITH ACTIVE BADGE AND DRAWER OPEN TRIGGER */}
+              {/* CART BUTTON */}
               <button
                 type="button"
                 onClick={openCart}
