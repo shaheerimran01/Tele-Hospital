@@ -9,6 +9,8 @@ export interface PrescriptionResponse {
   createdAt: string;
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
 export async function uploadPrescriptionApi(
   userId: string,
   file: File
@@ -17,7 +19,7 @@ export async function uploadPrescriptionApi(
   formData.append('file', file);
 
   const response = await fetch(
-    `http://localhost:4000/prescriptions/upload?userId=${userId}`,
+    `${API_BASE}/prescriptions/upload?userId=${userId}`,
     {
       method: 'POST',
       body: formData,
@@ -37,12 +39,17 @@ export async function uploadPrescriptionApi(
 export async function analyzePrescriptionApi(
   userId: string,
   file: File
-): Promise<{ prescription: PrescriptionResponse; detectedProducts: any[] }> {
+): Promise<{
+  prescription: PrescriptionResponse;
+  detectedProducts: any[];
+  extractedText?: string;
+  matchMeta?: Array<{ id: string; score: number; reason: string; matchedOn: string }>;
+}> {
   const formData = new FormData();
   formData.append('file', file);
 
   const response = await fetch(
-    `http://localhost:4000/prescriptions/analyze?userId=${userId}`,
+    `${API_BASE}/prescriptions/analyze?userId=${userId}`,
     {
       method: 'POST',
       body: formData,
@@ -60,9 +67,14 @@ export async function analyzePrescriptionApi(
 export async function analyzeExistingPrescriptionApi(
   id: string,
   userId: string
-): Promise<{ prescription: PrescriptionResponse; detectedProducts: any[] }> {
+): Promise<{
+  prescription: PrescriptionResponse;
+  detectedProducts: any[];
+  extractedText?: string;
+  matchMeta?: Array<{ id: string; score: number; reason: string; matchedOn: string }>;
+}> {
   const response = await fetch(
-    `http://localhost:4000/prescriptions/${id}/analyze?userId=${userId}`,
+    `${API_BASE}/prescriptions/${id}/analyze?userId=${userId}`,
     {
       method: 'POST',
     }

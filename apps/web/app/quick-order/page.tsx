@@ -16,6 +16,8 @@ interface ExtractedMedicine {
   product: any;
   quantity: number;
   selected: boolean;
+  matchReason?: string;
+  matchedOn?: string;
 }
 
 export default function QuickOrderPage() {
@@ -30,10 +32,45 @@ export default function QuickOrderPage() {
   // Extracted Medicines State
   const [extractedMedicines, setExtractedMedicines] = useState<ExtractedMedicine[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [extractedText, setExtractedText] = useState<string>('');
+  const [showExtractedText, setShowExtractedText] = useState<boolean>(false);
+
+  // Manual Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
 
   const [showPastModal, setShowPastModal] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  // Live product search
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const res = await fetch(`${apiBase}/products/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          const prods = Array.isArray(data) ? data : (data.products || []);
+          setSearchResults(prods);
+          setShowSearchDropdown(true);
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // User session & past prescriptions load
   useEffect(() => {
@@ -87,11 +124,18 @@ export default function QuickOrderPage() {
         return [...prev, result.prescription];
       });
 
+      if (result.extractedText) {
+        setExtractedText(result.extractedText);
+      }
+
       if (result.detectedProducts && result.detectedProducts.length > 0) {
+        const metaMap = new Map((result.matchMeta || []).map((m: any) => [m.id, m]));
         const mapped: ExtractedMedicine[] = result.detectedProducts.map((prod: any) => ({
           product: prod,
           quantity: 1,
           selected: true,
+          matchReason: metaMap.get(prod.id)?.reason,
+          matchedOn: metaMap.get(prod.id)?.matchedOn,
         }));
 
         setExtractedMedicines((prev) => {
@@ -126,11 +170,18 @@ export default function QuickOrderPage() {
           return [...prev, result.prescription];
         });
 
+        if (result.extractedText) {
+          setExtractedText(result.extractedText);
+        }
+
         if (result.detectedProducts && result.detectedProducts.length > 0) {
+          const metaMap = new Map((result.matchMeta || []).map((m: any) => [m.id, m]));
           const mapped: ExtractedMedicine[] = result.detectedProducts.map((prod: any) => ({
             product: prod,
             quantity: 1,
             selected: true,
+            matchReason: metaMap.get(prod.id)?.reason,
+            matchedOn: metaMap.get(prod.id)?.matchedOn,
           }));
 
           setExtractedMedicines((prev) => {
@@ -153,9 +204,31 @@ export default function QuickOrderPage() {
       const updated = prev.filter((p) => p.id !== id);
       if (updated.length === 0) {
         setExtractedMedicines([]);
+        setExtractedText('');
       }
       return updated;
     });
+  };
+
+  const addManualProduct = (prod: any) => {
+    setExtractedMedicines((prev) => {
+      if (prev.some((m) => m.product.id === prod.id)) {
+        return prev.map((m) =>
+          m.product.id === prod.id ? { ...m, quantity: m.quantity + 1, selected: true } : m
+        );
+      }
+      return [
+        ...prev,
+        { product: prod, quantity: 1, selected: true, matchReason: 'Manually Added' },
+      ];
+    });
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchDropdown(false);
+  };
+
+  const removeMedicine = (index: number) => {
+    setExtractedMedicines((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -382,17 +455,118 @@ export default function QuickOrderPage() {
           </div>
 
           {/* RIGHT COLUMN: RECOMMENDED/EXTRACTED MEDICINES WITH PRODUCT IMAGES & CONTINUE BUTTON */}
-          <div className="lg:col-span-5 border-t lg:border-t-0 lg:border-l border-gray-200 pt-6 lg:pt-0 lg:pl-8 space-y-6 flex flex-col justify-between min-h-[420px]">
+          <div className="lg:col-span-5 border-t lg:border-t-0 lg:border-l border-gray-200 pt-6 lg:pt-0 lg:pl-8 space-y-5 flex flex-col justify-between min-h-[440px]">
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">
-                Medicines in Prescription
-              </h3>
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">
+                    Medicines in Prescription
+                  </h3>
+                  {extractedMedicines.length > 0 && (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-[#ff6f61]/10 text-[#ff6f61] rounded-full">
+                      {extractedMedicines.length} found
+                    </span>
+                  )}
+                </div>
 
+                {extractedText && (
+                  <button
+                    type="button"
+                    onClick={() => setShowExtractedText(!showExtractedText)}
+                    className="text-[11px] font-semibold text-[#ff6f61] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    {showExtractedText ? '▲ Hide Scanned Text' : '📋 View Scanned Text'}
+                  </button>
+                )}
+              </div>
+
+              {/* SCANNED OCR TEXT COLLAPSIBLE ACCORDION */}
+              {showExtractedText && extractedText && (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-[11px] font-mono text-gray-700 whitespace-pre-wrap max-h-40 overflow-y-auto leading-relaxed shadow-inner">
+                  <div className="text-[10px] font-sans font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Scanned Prescription Text</span>
+                    <span className="text-[9px] text-gray-400">OCR Read</span>
+                  </div>
+                  {extractedText}
+                </div>
+              )}
+
+              {/* SEARCH & ADD MEDICINES MANUALLY */}
+              {selectedPrescriptions.length > 0 && (
+                <div className="relative">
+                  <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2 bg-gray-50/70 focus-within:bg-white focus-within:border-[#ff6f61] focus-within:ring-1 focus-within:ring-[#ff6f61] transition">
+                    <span className="text-gray-400 text-xs">🔍</span>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (searchResults.length > 0) setShowSearchDropdown(true);
+                      }}
+                      placeholder="+ Search and add any medicine..."
+                      className="w-full text-xs text-gray-800 outline-none bg-transparent placeholder-gray-400"
+                    />
+                    {isSearching && <span className="animate-spin text-xs">⏳</span>}
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSearchResults([]);
+                          setShowSearchDropdown(false);
+                        }}
+                        className="text-gray-400 hover:text-gray-600 text-xs px-1 cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {showSearchDropdown && searchResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-30 max-h-60 overflow-y-auto divide-y divide-gray-100">
+                      {searchResults.map((prod) => (
+                        <div
+                          key={prod.id}
+                          onClick={() => addManualProduct(prod)}
+                          className="p-2.5 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition gap-2"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-gray-900 truncate">
+                              {prod.name}
+                            </p>
+                            <p className="text-[10px] text-gray-500 truncate">
+                              {prod.genericName || prod.brandName || ''}
+                            </p>
+                            <p className="text-[11px] font-semibold text-[#ff6f61]">
+                              Rs. {prod.price}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addManualProduct(prod);
+                            }}
+                            className="text-xs font-bold bg-[#ff6f61]/10 text-[#ff6f61] hover:bg-[#ff6f61] hover:text-white px-2.5 py-1 rounded-lg transition shrink-0 cursor-pointer"
+                          >
+                            + Add
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MEDICINE LIST / STATES */}
               {isAnalyzing ? (
-                <div className="p-8 bg-gray-50 rounded-2xl text-center space-y-2">
+                <div className="p-8 bg-gray-50 rounded-2xl text-center space-y-2 border border-dashed border-gray-200">
                   <div className="animate-spin text-2xl">⏳</div>
-                  <p className="text-xs font-bold text-gray-600">
+                  <p className="text-xs font-bold text-gray-700">
                     Scanning prescription & matching medicines...
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    Analyzing active salts, dosage, and brand names
                   </p>
                 </div>
               ) : extractedMedicines.length > 0 ? (
@@ -411,7 +585,7 @@ export default function QuickOrderPage() {
 
                     return (
                       <div
-                        key={idx}
+                        key={item.product.id || idx}
                         className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition ${
                           item.selected
                             ? 'bg-white border-green-300 shadow-2xs'
@@ -444,29 +618,47 @@ export default function QuickOrderPage() {
                             <h4 className="text-xs font-bold text-gray-900 truncate">
                               {item.product.name}
                             </h4>
-                            <p className="text-[10px] text-gray-500">
-                              Rs. {item.product.price || 180}
-                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-[10px] text-gray-500">
+                                Rs. {item.product.price || 180}
+                              </p>
+                              {item.matchReason && (
+                                <span className="text-[9px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded border border-green-200">
+                                  {item.matchReason}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden bg-white">
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(idx, -1)}
+                              className="px-2 py-0.5 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <span className="px-2.5 py-0.5 text-xs font-bold text-gray-800">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => updateQuantity(idx, 1)}
+                              className="px-2 py-0.5 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+
                           <button
                             type="button"
-                            onClick={() => updateQuantity(idx, -1)}
-                            className="px-2 py-0.5 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600"
+                            onClick={() => removeMedicine(idx)}
+                            title="Remove medicine"
+                            className="text-gray-400 hover:text-red-500 p-1 text-xs cursor-pointer transition"
                           >
-                            -
-                          </button>
-                          <span className="px-2.5 py-0.5 text-xs font-bold text-gray-800">
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(idx, 1)}
-                            className="px-2 py-0.5 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600"
-                          >
-                            +
+                            ✕
                           </button>
                         </div>
                       </div>
@@ -474,18 +666,40 @@ export default function QuickOrderPage() {
                   })}
                 </div>
               ) : selectedPrescriptions.length > 0 ? (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-relaxed">
-                  Prescription attached! Pharmacist orders verify karke aapko call karenge. Continue button daba kar order place karein.
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 leading-relaxed space-y-1">
+                  <p className="font-bold">📄 Prescription attached!</p>
+                  <p>
+                    Humare certified pharmacist prescription verify karke aapko call karenge aur order arrange karenge. Aap upar search bar se bhi medicines add kar sakte hain.
+                  </p>
                 </div>
               ) : (
-                <p className="text-xs text-gray-400 italic">
-                  Prescription upload karne par extracted medicines yahan show hongi.
-                </p>
+                <div className="p-6 bg-gray-50 border border-dashed border-gray-200 rounded-2xl text-center space-y-1">
+                  <p className="text-xs text-gray-600 font-semibold">
+                    No prescription uploaded yet
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    Upload your prescription to automatically detect and match medicines.
+                  </p>
+                </div>
               )}
             </div>
 
-            {/* CONTINUE BUTTON AT BOTTOM */}
+            {/* SUMMARY & CONTINUE BUTTON */}
             <div className="pt-4 border-t border-gray-100 space-y-4">
+              {extractedMedicines.length > 0 && (
+                <div className="flex items-center justify-between text-xs px-1">
+                  <span className="text-gray-500">
+                    {extractedMedicines.filter((m) => m.selected).length} of {extractedMedicines.length} medicines selected
+                  </span>
+                  <span className="font-bold text-gray-800">
+                    Subtotal: Rs.{' '}
+                    {extractedMedicines
+                      .filter((m) => m.selected)
+                      .reduce((sum, m) => sum + (m.product.price || 180) * m.quantity, 0)}
+                  </span>
+                </div>
+              )}
+
               <button
                 type="button"
                 disabled={selectedPrescriptions.length === 0}
@@ -496,10 +710,14 @@ export default function QuickOrderPage() {
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
               >
-                Continue
+                {selectedPrescriptions.length > 0
+                  ? extractedMedicines.filter((m) => m.selected).length > 0
+                    ? `Proceed to Checkout (${extractedMedicines.filter((m) => m.selected).length} items)`
+                    : 'Continue with Prescription'
+                  : 'Upload Prescription to Continue'}
               </button>
 
-              <div className="space-y-2 text-[11px] text-gray-500 leading-relaxed">
+              <div className="space-y-1 text-[11px] text-gray-500 leading-relaxed">
                 <p>🔒 All uploads are encrypted & visible only to certified pharmacists.</p>
                 <p>Any prescription you upload is validated before processing the order.</p>
               </div>

@@ -29,8 +29,14 @@ export class NotificationsService {
         isRead: false,
       },
       include: {
-        order: true,
-        prescriptions: true,
+        order: {
+          include: {
+            user: true,
+            items: true,
+            prescriptions: true,
+          },
+        },
+        pharmacy: true, // 👈 Pharmacy relation attach kar di hai
       },
       orderBy: {
         createdAt: 'desc',
@@ -45,6 +51,25 @@ export class NotificationsService {
       },
       data: {
         isRead: true,
+      },
+    });
+  }
+
+  // 👈 NEW: Notification DB mein save karne ka service method
+  async createNotification(data: {
+    type?: string;
+    title?: string;
+    message: string;
+    pharmacyId?: string;
+    orderId?: string;
+  }) {
+    return this.prisma.notification.create({
+      data: {
+        type: data.type || 'ADMIN_MESSAGE',
+        title: data.title || 'Message from Admin',
+        message: data.message,
+        pharmacyId: data.pharmacyId || null,
+        orderId: data.orderId || null,
       },
     });
   }
