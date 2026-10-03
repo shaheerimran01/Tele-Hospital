@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { CartProvider } from './components/cart/CartContext';
 import CartDrawer from './components/cart/CartDrawer';
 import LoginForm from './auth/LoginForm'; 
+import AuthModalProvider from './components/auth/PharmacyAuthModal';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,7 +36,8 @@ export default function RootLayout({
         <CartProvider>
           {children}
           <CartDrawer />
-          <LoginForm /> 
+          <LoginForm />
+          <AuthModalProvider /> 
         </CartProvider>
       </body>
     </html>

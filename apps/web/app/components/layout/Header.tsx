@@ -357,7 +357,6 @@ export default function Header() {
     { name: 'AYURVEDA', href: '/ayurveda' },
     { name: 'PARTNERSHIPS', href: '#partnerships' },
     { name: 'CORPORATES', href: '#corporates' },
-    { name: 'CARE PLAN', href: '#care-plan', badge: 'Save More' },
   ];
 
   return (
@@ -401,11 +400,6 @@ export default function Header() {
                     }`}
                   >
                     <span>{tab.name}</span>
-                    {tab.badge && (
-                      <span className="rounded bg-[#ff574d] px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-white">
-                        {tab.badge}
-                      </span>
-                    )}
                     {isActive && (
                       <span className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#ff6f61] rounded-t-sm" />
                     )}
@@ -414,7 +408,7 @@ export default function Header() {
               })}
             </nav>
 
-            <div className="flex items-center gap-4 xl:gap-5 text-xs text-gray-700 shrink-0 ml-8 xl:ml-12">
+            <div className="flex items-center gap-4 xl:gap-5 text-xs text-gray-700 shrink-0 ml-auto">
               {user ? (
                 <div ref={userMenuRef} className="relative">
                   <button
@@ -433,7 +427,7 @@ export default function Header() {
                       )}
                     </div>
 
-                    <span className="max-w-[110px] truncate text-xs font-bold text-gray-800">
+                    <span className="max-w-[90px] truncate text-xs font-bold text-gray-800">
                       {user.firstName || 'My Account'}
                     </span>
                     <svg
@@ -601,8 +595,18 @@ export default function Header() {
                 </div>
               )}
 
-              <button className="hidden sm:block hover:text-[#ff6f61] transition cursor-pointer">
-                Offers
+              {/* REGISTER PHARMACY BUTTON */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new Event('open-pharmacy-auth'));
+                  }
+                }}
+                className="flex items-center gap-1.5 border border-emerald-600 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white font-bold text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 rounded-lg transition cursor-pointer shrink-0 whitespace-nowrap shadow-2xs"
+              >
+                <span>🏪</span>
+                <span>Register Pharmacy</span>
               </button>
 
               {/* CART BUTTON */}

@@ -15,7 +15,9 @@ import {
   ChevronLeft,
   Info,
   Loader2,
-  Home
+  Home,
+  FileSpreadsheet,
+  Check
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -25,7 +27,16 @@ export default function PharmacyRegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  // Form State across all 4 Phases
+  // Auto-redirect to dashboard after successful submission
+  useEffect(() => {
+    if (!isSubmitted) return;
+    const timer = setTimeout(() => {
+      router.push('/pharmacy-dashboard');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [isSubmitted, router]);
+
+  // Form State across 4 Phases
   const [formData, setFormData] = useState({
     // Phase 1: Pharmacy & Owner
     pharmacyName: '',
@@ -34,7 +45,7 @@ export default function PharmacyRegisterPage() {
     pharmacistName: '',
     pharmacistRegNum: '',
     pharmacyLogo: null as File | null,
-    whatsappNumber: '', // Optional
+    whatsappNumber: '',
 
     // Phase 2: Documents
     drugLicenseNumber: '',
@@ -50,10 +61,11 @@ export default function PharmacyRegisterPage() {
     lat: null as number | null,
     lng: null as number | null,
 
-    // Phase 4: Payout & Agreement
+    // Phase 4: Payout, Products CSV & Agreement
     paymentMethod: 'JazzCash', // JazzCash | Easypaisa | Bank
     accountTitle: '',
     accountNumber: '',
+    productsCsv: null as File | null, // Optional CSV
     coldChainStorage: false,
     referralCode: '',
     agreedToTerms: false,
@@ -310,13 +322,33 @@ export default function PharmacyRegisterPage() {
     return false;
   };
 
-  // BACKEND API SUBMISSION HANDLER
+  // BACKEND API SUBMISSION HANDLER WITH GUARANTEED PHONE & EMAIL MAPPING
   const handleSubmitApplication = async () => {
     if (!isPhase4Valid()) return;
     setIsSubmitting(true);
 
     try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
       const bodyData = new FormData();
+
+      // Retrieve verified phone & email from localStorage saved during Auth modal step
+      const savedPhone = typeof window !== 'undefined' 
+        ? (localStorage.getItem('pharmacyPhone') || localStorage.getItem('verifiedPhone') || '') 
+        : '';
+      const savedEmail = typeof window !== 'undefined' 
+        ? (localStorage.getItem('pharmacyEmail') || '') 
+        : '';
+
+      if (!savedPhone) {
+        alert('Session expired or phone number missing! Kripya pehle mobile number se OTP verify karein.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 👈 Send Phone & Email strictly to Backend
+      bodyData.append('phone', savedPhone);
+      if (savedEmail) bodyData.append('email', savedEmail);
+
       bodyData.append('name', formData.pharmacyName);
       bodyData.append('ownerName', formData.ownerName);
       bodyData.append('pharmacyType', formData.pharmacyType);
@@ -342,23 +374,51 @@ export default function PharmacyRegisterPage() {
       if (formData.referralCode) bodyData.append('referralCode', formData.referralCode);
       bodyData.append('agreedToTerms', String(formData.agreedToTerms));
 
-      // Append Files
+      // Append Document Files
       if (formData.pharmacyLogo) bodyData.append('logo', formData.pharmacyLogo);
       if (formData.drugLicensePhoto) bodyData.append('drugLicensePhoto', formData.drugLicensePhoto);
       if (formData.cnicFrontPhoto) bodyData.append('cnicFrontPhoto', formData.cnicFrontPhoto);
       if (formData.cnicBackPhoto) bodyData.append('cnicBackPhoto', formData.cnicBackPhoto);
 
-      const res = await fetch('http://localhost:4000/pharmacies/register', {
+      // STEP 1: Submit Main Pharmacy Registration
+      const res = await fetch(`${baseUrl}/pharmacies/register`, {
         method: 'POST',
         body: bodyData,
       });
 
+      const resData = await res.json();
+
       if (res.ok) {
+        const createdPharmacyId = resData?.pharmacy?.id || resData?.id;
+
+        // Save generated pharmacy ID locally for future dashboard requests
+        if (createdPharmacyId && typeof window !== 'undefined') {
+          localStorage.setItem('pharmacyId', createdPharmacyId);
+        }
+
+        // STEP 2: If CSV file is attached, upload it to pharmacy-products endpoint
+        if (formData.productsCsv && createdPharmacyId) {
+          try {
+            const csvFormData = new FormData();
+            csvFormData.append('productsCsv', formData.productsCsv);
+
+            const csvRes = await fetch(`${baseUrl}/pharmacy-products/${createdPharmacyId}/upload-csv`, {
+              method: 'POST',
+              body: csvFormData,
+            });
+
+            if (!csvRes.ok) {
+              console.warn('Pharmacy registered, but CSV products processing faced an issue.');
+            }
+          } catch (csvErr) {
+            console.error('CSV Upload Error:', csvErr);
+          }
+        }
+
         setIsSubmitted(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        const errJson = await res.json().catch(() => null);
-        alert(errJson?.message || 'Application submit karne mein masla aaya. Dobara koshish karein.');
+        alert(resData?.message || 'Application submit karne mein masla aaya. Dobara koshish karein.');
       }
     } catch (err) {
       console.error('Pharmacy submission error:', err);
@@ -429,15 +489,24 @@ export default function PharmacyRegisterPage() {
             <p className="font-bold text-slate-700">Pharmacy: {formData.pharmacyName}</p>
             <p className="text-slate-500">City: {formData.city}</p>
             <p className="text-slate-500">Owner: {formData.ownerName}</p>
+            {formData.productsCsv && (
+              <p className="text-blue-600 font-semibold">Products CSV: Uploaded & Processed ({formData.productsCsv.name})</p>
+            )}
             <p className="text-emerald-600 font-semibold pt-1">Status: Under Verification (PENDING)</p>
           </div>
 
+          {/* Auto-redirect notice */}
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+            Redirecting to your dashboard automatically...
+          </div>
+
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push('/pharmacy-dashboard')}
             className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
           >
             <Home className="w-4 h-4" />
-            Back to Home Page
+            Go to Pharmacy Dashboard Now
           </button>
         </div>
       </div>
@@ -672,7 +741,7 @@ export default function PharmacyRegisterPage() {
 
             <div className="space-y-5 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Drug License Number *</label>
+                <label className="block font-bold text-slate-700 mb-1">Pharmacist License Number *</label>
                 <input
                   type="text"
                   name="drugLicenseNumber"
@@ -684,7 +753,7 @@ export default function PharmacyRegisterPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Drug License Photo *</label>
+                <label className="block font-bold text-slate-700 mb-1">Pharmacist License Photo *</label>
                 <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-6 text-center block cursor-pointer transition">
                   <UploadCloud className="w-6 h-6 text-blue-500 mx-auto mb-2" />
                   <span className="text-xs font-bold text-blue-600 block">
@@ -877,9 +946,11 @@ export default function PharmacyRegisterPage() {
           </div>
         )}
 
-        {/* Phase 4: Payout & Agreement */}
+        {/* Phase 4: Payout, Products CSV & Agreement */}
         {currentStep === 4 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Card 1: Payout Details */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
               <div className="flex items-start gap-3 border-b border-slate-100 pb-4">
                 <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
@@ -944,6 +1015,7 @@ export default function PharmacyRegisterPage() {
               </div>
             </div>
 
+            {/* Card 2: Storage, Products CSV & Agreement */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-5">
               <div className="flex items-start gap-3 border-b border-slate-100 pb-4">
                 <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
@@ -951,12 +1023,43 @@ export default function PharmacyRegisterPage() {
                 </div>
                 <div>
                   <span className="text-[11px] font-bold uppercase tracking-wider text-blue-600">STEP 04</span>
-                  <h2 className="text-base font-bold text-slate-900">Cold-chain & Agreement</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">A few final details to complete your registration.</p>
+                  <h2 className="text-base font-bold text-slate-900">Products Catalog & Agreement</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Upload inventory CSV and complete agreement.</p>
                 </div>
               </div>
 
               <div className="space-y-4 text-xs">
+                {/* OPTIONAL PRODUCTS CSV UPLOAD FIELD */}
+                <div className="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                      Import Products Catalog (CSV)
+                    </label>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-700 font-extrabold px-2 py-0.5 rounded-full">
+                      OPTIONAL
+                    </span>
+                  </div>
+                  <label className="border border-dashed border-emerald-300 hover:border-emerald-500 bg-white rounded-xl p-3 text-center block cursor-pointer transition">
+                    <span className="text-xs font-bold text-emerald-600 block">
+                      {formData.productsCsv ? (
+                        <span className="flex items-center justify-center gap-1">
+                          <Check className="w-3.5 h-3.5 text-emerald-600" /> {formData.productsCsv.name}
+                        </span>
+                      ) : (
+                        'Upload Inventory CSV File'
+                      )}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">.csv format (Product, Brand, Price, Stock)</span>
+                    <input
+                      type="file"
+                      accept=".csv,text/csv,application/vnd.ms-excel"
+                      className="hidden"
+                      onChange={(e) => handleFileChange('productsCsv', e.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
+
                 <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
                   <div>
                     <span className="font-bold text-slate-800 block">Cold-chain storage</span>

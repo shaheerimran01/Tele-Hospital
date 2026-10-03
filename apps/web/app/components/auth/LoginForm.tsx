@@ -1,146 +1,119 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+import { Phone, ArrowRight } from 'lucide-react';
 
-export default function LoginForm() {
-  const router = useRouter();
+interface LoginFormProps {
+  onSubmitPhone: (phone: string) => void;
+}
 
-  const [phone, setPhone] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
+  const [phone, setPhone] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
+  // 1. Strict Input Control: Sirf digits allow honge aur MAX 11 digits (e.g., 03001234567)
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, '');
+    if (digitsOnly.length <= 11) {
+      setPhone(digitsOnly);
+      if (error) setError('');
+    }
+  };
 
-    setError('');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    if (phone.length !== 10) {
-      setError('Please enter a valid 10 digit mobile number.');
+    const cleanDigits = phone.replace(/\D/g, '');
+    if (cleanDigits.length < 10) {
+      setError('A valid 10 or 11 digit mobile number is required.');
       return;
     }
 
-    try {
-      setLoading(true);
+    // 2. Exact Standard Format (+923001234567)
+    const formattedPhone = cleanDigits.startsWith('92')
+      ? `+${cleanDigits}`
+      : `+92${cleanDigits.replace(/^0+/, '')}`;
 
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/send-otp`,
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/pharmacies/auth/send-otp`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            phone: `+92${phone}`,
-          }),
-        },
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: formattedPhone }),
+        }
       );
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Unable to send OTP');
+      if (res.ok && data.success) {
+        // 3. Pass EXACT +92 formatted phone to OTP step
+        onSubmitPhone(formattedPhone);
+      } else {
+        setError(data.message || 'Failed to send OTP code.');
       }
-
-      router.push(
-        `/auth/verify-otp?phone=${encodeURIComponent(
-          `+92${phone}`,
-        )}&flow=login`,
-      );
-    } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : 'Something went wrong',
-      );
+    } catch (err) {
+      console.error('OTP Send Error:', err);
+      setError('Unable to connect to backend server.');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f7f7f7] px-5">
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="text-center mb-5">
+        <h3 className="text-xl font-bold text-slate-900">Pharmacy Partner Login</h3>
+        <p className="text-xs text-slate-500 mt-1">
+          Enter your mobile number to receive a 6-digit OTP code
+        </p>
+      </div>
 
-      <div className="w-full max-w-[430px]">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl font-medium text-center">
+          {error}
+        </div>
+      )}
 
-        <button
-          onClick={() => router.push('/')}
-          className="mb-8 flex items-center justify-center gap-2.5 w-full text-center group cursor-pointer"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#ff6f61] text-white shadow-sm">
-            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </div>
-          <span className="text-2xl font-black tracking-tight text-gray-900">
-            Tabib<span className="text-[#ff6f61]">istan</span>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+          Mobile Number
+        </label>
+        <div className="relative flex items-center">
+          <span className="absolute left-3.5 text-slate-500 text-sm font-semibold border-r border-slate-200 pr-2.5">
+            +92
           </span>
-        </button>
-
-        <div className="rounded-xl bg-white p-8 shadow-sm">
-
-          <h1 className="text-center text-xl font-semibold">
-            Sign in to your account
-          </h1>
-
-          <p className="mt-2 text-center text-sm text-gray-500">
-            Enter your mobile number
-          </p>
-
-          <form
-            onSubmit={handleSubmit}
-            className="mt-7"
-          >
-            <div className="flex h-12 overflow-hidden rounded-md border border-gray-300">
-
-              <div className="flex items-center border-r bg-gray-50 px-4 text-sm">
-                +92
-              </div>
-
-              <input
-                value={phone}
-                onChange={(event) =>
-                  setPhone(
-                    event.target.value
-                      .replace(/\D/g, '')
-                      .slice(0, 10),
-                  )
-                }
-                placeholder="3001234567"
-                className="w-full px-4 text-sm outline-none"
-              />
-
-            </div>
-
-            {error && (
-              <p className="mt-3 text-sm text-red-500">
-                {error}
-              </p>
-            )}
-
-            <button
-              disabled={loading}
-              className="mt-5 h-12 w-full rounded-md bg-[#ff6b6b] text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {loading ? 'Sending OTP...' : 'Get verification code'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account?{' '}
-            <button
-              onClick={() => router.push('/auth/signup')}
-              className="font-semibold text-[#ff6b6b]"
-            >
-              Sign up
-            </button>
-          </div>
-
+          <input
+            type="tel"
+            required
+            maxLength={11}
+            placeholder="3001234567"
+            value={phone}
+            onChange={handlePhoneChange}
+            className="w-full pl-16 pr-10 py-3 text-sm border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-700 font-medium tracking-wide"
+          />
+          <Phone className="w-4 h-4 absolute right-3.5 text-slate-400" />
+        </div>
+        <div className="flex justify-between items-center text-[11px] text-slate-400 mt-1">
+          <span>Format: 03001234567 or 3001234567</span>
+          <span className={phone.length >= 10 ? 'text-teal-700 font-bold' : ''}>
+            {phone.length}/11
+          </span>
         </div>
       </div>
-    </main>
+
+      <button
+        type="submit"
+        disabled={loading || phone.length < 10}
+        className="w-full py-3.5 bg-teal-800 hover:bg-teal-900 text-white rounded-xl text-xs font-bold transition shadow-md disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+      >
+        {loading ? 'Sending OTP...' : 'Continue with Phone'}
+        <ArrowRight className="w-4 h-4" />
+      </button>
+    </form>
   );
 }

@@ -13,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module.js';
 import { UserNotificationsModule } from './user-notifications/user-notifications.module.js';
 import { PharmaciesModule } from './pharmacies/pharmacies.module.js';
+import { PharmacyProductsModule } from './pharmacy-products/pharmacy-products.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -29,6 +30,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     PrescriptionsModule,
     UserNotificationsModule,
     PharmaciesModule,
+    PharmacyProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

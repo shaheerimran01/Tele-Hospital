@@ -122,37 +122,13 @@ model Product {
   orderItems       OrderItem[]
 }
 
-model PharmacyProduct {
-  id String @id @default(cuid())
-
-  productId  String
-  pharmacyId String
-
-  price Decimal  @db.Decimal(10, 2)
-  mrp   Decimal? @db.Decimal(10, 2)
-
-  stock Int @default(0)
-
-  isAvailable Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
-
-  @@unique([productId, pharmacyId])
-  @@index([productId])
-  @@index([pharmacyId])
-}
-
 model Pharmacy {
   id String @id @default(cuid())
 
   // Phase 1: Pharmacy & Owner
   name             String
   ownerName        String?
-  pharmacyType     String?  @default("Retail") // Retail, Hospital, Chain, Online
+  pharmacyType     String? @default("Retail") // Retail, Hospital, Chain, Online
   pharmacistName   String?
   pharmacistRegNum String?
   logoUrl          String?
@@ -187,13 +163,52 @@ model Pharmacy {
 
   // Application & Verification Status
   status   String  @default("PENDING") // PENDING, APPROVED, REJECTED
-  isActive Boolean @default(false)     // Active after admin verification
+  isActive Boolean @default(false) // Active after admin verification
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products PharmacyProduct[]
+  products      PharmacyProduct[]
   notifications Notification[]
+}
+
+model PharmacyRegistration {
+  id           String   @id @default(uuid())
+  phone        String   @unique
+  email        String?  @unique
+  isFormFilled Boolean  @default(false)
+  status       String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([phone])
+}
+
+model PharmacyProduct {
+  id String @id @default(cuid())
+
+  productId  String
+  pharmacyId String
+
+  sku      String? // Internal Barcode/SKU code
+  price    Decimal  @db.Decimal(10, 2)
+  mrp      Decimal? @db.Decimal(10, 2)
+  discount Float?   @default(0)
+  stock    Int      @default(0)
+
+  isAvailable Boolean @default(true)
+
+  metadata Json? // 👈 Pharmacy specific extra info (e.g. Rack location, Expiry date, Supplier)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, pharmacyId])
+  @@index([productId])
+  @@index([pharmacyId])
 }
 
 model Cart {
@@ -254,14 +269,14 @@ model OrderItem {
 }
 
 model Notification {
-  id         String    @id @default(uuid())
+  id         String   @id @default(uuid())
   type       String
   title      String
   message    String
   orderId    String?
-  pharmacyId String?   // <--- New Optional Field
-  isRead     Boolean   @default(false)
-  createdAt  DateTime  @default(now())
+  pharmacyId String? // <--- New Optional Field
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   order    Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   pharmacy Pharmacy? @relation(fields: [pharmacyId], references: [id], onDelete: Cascade) // <--- Relation
