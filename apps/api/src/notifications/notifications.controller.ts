@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Body,
+  Delete,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service.js';
 
@@ -35,5 +36,10 @@ export class NotificationsController {
     @Body() body: { type?: string; title?: string; message: string; pharmacyId?: string; orderId?: string },
   ) {
     return this.notificationsService.createNotification(body);
+  }
+
+  @Delete(':id')
+  deleteNotification(@Param('id') id: string) {
+    return this.notificationsService.deleteNotification(id);
   }
 }

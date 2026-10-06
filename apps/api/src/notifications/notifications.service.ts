@@ -73,4 +73,10 @@ export class NotificationsService {
       },
     });
   }
+
+  async deleteNotification(id: string) {
+    return this.prisma.notification.delete({
+      where: { id },
+    });
+  }
 }

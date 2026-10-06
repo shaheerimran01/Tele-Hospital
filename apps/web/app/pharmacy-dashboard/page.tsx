@@ -45,6 +45,19 @@ export default function SellerDashboardPage() {
   // Dynamic Document Issues / Notifications matched by Pharmacy ID
   const [documentIssues, setDocumentIssues] = useState<DocumentIssue[]>([]);
 
+  const resolveHighlight = (issue: DocumentIssue): string | undefined => {
+    const text = `${issue.title} ${issue.message}`.toLowerCase();
+    if (text.includes('cnic number') || text.includes('cnic no') || text.includes('ntn')) return 'cnic';
+    if (text.includes('cnic back') || text.includes('cnic rear')) return 'cnicBackPic';
+    if (text.includes('registration no') || text.includes('pharmacist reg')) return 'pharmacistRegNo';
+    if (text.includes('pharmacist name') || text.includes('qualified pharmacist')) return 'qualifiedPharmacist';
+    if (text.includes('email')) return 'email';
+    if (text.includes('cnic') || text.includes('front')) return 'cnicFrontPic';
+    if (text.includes('license no')) return 'pharmacistLicenseNo';
+    if (text.includes('license photo') || text.includes('document')) return 'pharmacistLicensePic';
+    return undefined;
+  };
+
   // Fetch Logged-in Pharmacy Details, Products Count & Specific Notifications
   useEffect(() => {
     async function loadDashboardData() {
@@ -387,8 +400,15 @@ export default function SellerDashboardPage() {
                       Action Required
                     </span>
 
-                    <button 
-                      onClick={() => router.push('/pharmacy-register')}
+                    <button
+                      onClick={() => {
+                        const highlight = resolveHighlight(doc);
+                        router.push(
+                          highlight
+                            ? `/pharmacy-dashboard/personal-details?highlight=${highlight}`
+                            : '/pharmacy-dashboard/personal-details',
+                        );
+                      }}
                       className="px-4 py-2 bg-[#0F5A47] hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs whitespace-nowrap flex items-center gap-1"
                     >
                       Fix Document

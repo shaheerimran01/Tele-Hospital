@@ -20,14 +20,12 @@ import {
   Eye,
   Boxes,
   Globe,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
-  fetchPharmacyById, 
-  updatePharmacyStatus, 
-  sendPharmacyNotification 
-} from '@/lib/api/pharmacies';
+import { fetchPharmacyById, updatePharmacyStatus, sendPharmacyNotification } from '@/lib/api/pharmacies';
+import { deleteNotification } from '@/lib/api/notifications';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -58,6 +56,10 @@ export default function PharmacyDetailsPage({ params }: { params: Promise<{ id: 
   const [sendingNotification, setSendingNotification] = useState<boolean>(false);
   const [notificationSentSuccess, setNotificationSentSuccess] = useState<boolean>(false);
 
+  // Sent Notifications List State
+  const [notificationsList, setNotificationsList] = useState<Array<{ id: string; message: string; createdAt: string }>>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState<boolean>(false);
+
   useEffect(() => {
     if (resolvedParams?.id) {
       loadDetails(resolvedParams.id);
@@ -69,6 +71,7 @@ export default function PharmacyDetailsPage({ params }: { params: Promise<{ id: 
       setLoading(true);
       const data = await fetchPharmacyById(id);
       setPharmacy(data);
+      await loadNotifications(id);
     } catch (err) {
       console.error('Failed to load pharmacy details:', err);
     } finally {
@@ -105,6 +108,51 @@ export default function PharmacyDetailsPage({ params }: { params: Promise<{ id: 
     }));
   };
 
+  const formatDate = (dateStr?: string | Date) => {
+    if (!dateStr) return 'Recent';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const loadNotifications = async (id: string) => {
+    setLoadingNotifications(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications?pharmacyId=${id}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Failed to fetch notifications');
+      const raw = await res.json();
+      const filtered = Array.isArray(raw)
+        ? raw
+            .filter((n: any) => n.pharmacyId === id)
+            .map((n: any) => ({
+              id: n.id,
+              message: n.message,
+              createdAt: formatDate(n.createdAt),
+            }))
+        : [];
+      setNotificationsList(filtered);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
+
+  const handleDeleteNotification = async (notifId: string) => {
+    try {
+      await deleteNotification(notifId);
+      setNotificationsList((prev) => prev.filter((n) => n.id !== notifId));
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+      alert('Notification delete karne mein masla aaya.');
+    }
+  };
+
   const handleSendNotification = async () => {
     if (!notificationMessage.trim() || !pharmacy?.id) return;
     setSendingNotification(true);
@@ -116,6 +164,7 @@ export default function PharmacyDetailsPage({ params }: { params: Promise<{ id: 
         setNotificationSentSuccess(true);
         setNotificationMessage('');
         setTimeout(() => setNotificationSentSuccess(false), 4000);
+        loadNotifications(pharmacy.id);
       } else {
         alert('Notification send karne mein masla aaya.');
       }
@@ -521,6 +570,40 @@ export default function PharmacyDetailsPage({ params }: { params: Promise<{ id: 
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Sent Notifications List */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Bell className="w-4 h-4 text-slate-500" />
+                Sent Notifications
+              </h3>
+
+              {loadingNotifications ? (
+                <p className="text-[11px] text-slate-400 font-medium">Notifications load ho rahi hain...</p>
+              ) : notificationsList.length === 0 ? (
+                <p className="text-[11px] text-slate-400 font-medium">Abhi tak koi notification nahi bheja gaya.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {notificationsList.map((notif) => (
+                    <li
+                      key={notif.id}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/60 text-xs"
+                    >
+                      <span className="font-medium text-slate-800 break-words flex-1 min-w-0">{notif.message}</span>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">{notif.createdAt}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteNotification(notif.id)}
+                        className="shrink-0 p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-md transition cursor-pointer border border-transparent hover:border-rose-200"
+                        title="Delete notification"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
 

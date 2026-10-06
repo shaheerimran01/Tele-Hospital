@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Package, 
@@ -48,7 +49,6 @@ interface PharmacyData {
   mobileAccount: string;
   coldChainProducts: string;
   status: string;
-  commission: string;
   createdAt?: string;
 }
 
@@ -61,6 +61,10 @@ export default function PersonalDetailsPage() {
   
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
   const [pharmacyId, setPharmacyId] = useState<string>('cmusaneom00007sv5rz5cdtrm');
+
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('highlight');
+  const [highlighting, setHighlighting] = useState<string | null>(null);
 
   const [pharmacy, setPharmacy] = useState<PharmacyData>({
     id: '',
@@ -86,7 +90,6 @@ export default function PersonalDetailsPage() {
     mobileAccount: 'N/A',
     coldChainProducts: 'Disabled',
     status: 'PENDING',
-    commission: '8%',
   });
 
   // Helper to append Backend Base URL to relative `/uploads/...` paths
@@ -120,7 +123,7 @@ export default function PersonalDetailsPage() {
           openingHours: '9 AM - 11 PM',
           open247: data.isOpen247 ? 'Yes' : 'No',
           
-          pharmacistLicenseNo: data.pharmacistRegNum || data.drugLicenseNumber || 'N/A',
+          pharmacistLicenseNo: data.drugLicenseNumber || data.drugLicenseNo || data.pharmacistLicenseNo || data.pharmacistRegNum || 'N/A',
           cnic: data.cnicNtnNumber || 'N/A',
           
           // Construct Full Image URLs
@@ -133,7 +136,6 @@ export default function PersonalDetailsPage() {
           mobileAccount: data.accountNumber || 'N/A',
           coldChainProducts: data.coldChainStorage ? 'Enabled' : 'Disabled',
           status: data.status || 'PENDING',
-          commission: '8%',
           createdAt: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : 'N/A',
         });
       }
@@ -146,15 +148,31 @@ export default function PersonalDetailsPage() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const activeId = 
-        localStorage.getItem('pharmacyId') || 
-        localStorage.getItem('userPharmacyId') || 
-        'cmushkfj60000fgv5zinowcrt';
-      setPharmacyId(activeId);
-      fetchPharmacyDetails(activeId);
-    }
+    if (typeof window === 'undefined') return;
+
+    const activeId = 
+      localStorage.getItem('pharmacyId') || 
+      localStorage.getItem('userPharmacyId') || 
+      'cmushkfj60000fgv5zinowcrt';
+    setPharmacyId(activeId);
+    fetchPharmacyDetails(activeId);
   }, []);
+
+  useEffect(() => {
+    if (!highlightId) return;
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(highlightId);
+      if (!el) return;
+
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlighting(highlightId);
+
+      setTimeout(() => setHighlighting(null), 5000);
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [highlightId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -392,10 +410,6 @@ export default function PersonalDetailsPage() {
                   <span className="font-bold text-slate-900">{pharmacy.createdAt || 'N/A'}</span>
                 </div>
 
-                <div className="py-3 flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">Commission</span>
-                  <span className="font-bold text-slate-900">{pharmacy.commission}</span>
-                </div>
               </div>
             </div>
 
@@ -424,7 +438,7 @@ export default function PersonalDetailsPage() {
                   )}
                 </div>
 
-                <div className="py-3 flex justify-between items-center">
+                <div className={`py-3 flex justify-between items-center ${highlighting === 'qualifiedPharmacist' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`} id="qualifiedPharmacist">
                   <span className="text-slate-500 font-medium">Qualified pharmacist</span>
                   {isEditing ? (
                     <input
@@ -439,7 +453,7 @@ export default function PersonalDetailsPage() {
                   )}
                 </div>
 
-                <div className="py-3 flex justify-between items-center">
+                <div className={`py-3 flex justify-between items-center ${highlighting === 'pharmacistRegNo' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`} id="pharmacistRegNo">
                   <span className="text-slate-500 font-medium">Registration no.</span>
                   <div className="flex items-center gap-2">
                     {isEditing ? (
@@ -453,9 +467,6 @@ export default function PersonalDetailsPage() {
                     ) : (
                       <span className="font-bold text-slate-900">{pharmacy.registrationNo}</span>
                     )}
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-extrabold border border-emerald-200">
-                      Verified
-                    </span>
                   </div>
                 </div>
               </div>
@@ -506,7 +517,7 @@ export default function PersonalDetailsPage() {
                   )}
                 </div>
 
-                <div className="py-3 flex justify-between items-center">
+                <div className={`py-3 flex justify-between items-center ${highlighting === 'email' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`} id="email">
                   <span className="text-slate-500 font-medium">Email</span>
                   {isEditing ? (
                     <input
@@ -607,11 +618,11 @@ export default function PersonalDetailsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs pb-3 border-b border-slate-100">
-                <div className="flex justify-between items-center bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                <div className={`flex justify-between items-center bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 ${highlighting === 'pharmacistLicenseNo' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`} id="pharmacistLicenseNo">
                   <span className="text-slate-500 font-medium">Pharmacist License Number:</span>
                   <span className="font-extrabold text-slate-900">{pharmacy.pharmacistLicenseNo}</span>
                 </div>
-                <div className="flex justify-between items-center bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+                <div className={`flex justify-between items-center bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 ${highlighting === 'cnic' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`} id="cnic">
                   <span className="text-slate-500 font-medium">CNIC / NTN Number:</span>
                   <span className="font-extrabold text-slate-900">{pharmacy.cnic}</span>
                 </div>
@@ -621,7 +632,7 @@ export default function PersonalDetailsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-2">
                 
                 {/* 1. Pharmacist License Photo */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+                <div id="pharmacistLicensePic" className={`bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between ${highlighting === 'pharmacistLicensePic' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`}>
                   <div>
                     <span className="text-[11px] font-extrabold text-slate-900 uppercase tracking-wider block mb-2">
                       Pharmacist License Photo
@@ -659,7 +670,7 @@ export default function PersonalDetailsPage() {
                 </div>
 
                 {/* 2. CNIC Front Picture */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+                <div id="cnicFrontPic" className={`bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between ${highlighting === 'cnicFrontPic' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`}>
                   <div>
                     <span className="text-[11px] font-extrabold text-slate-900 uppercase tracking-wider block mb-2">
                       CNIC Front Picture
@@ -697,7 +708,7 @@ export default function PersonalDetailsPage() {
                 </div>
 
                 {/* 3. CNIC Back Picture */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between">
+                <div id="cnicBackPic" className={`bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3 flex flex-col justify-between ${highlighting === 'cnicBackPic' ? 'border-2 border-red-500 ring-4 ring-rose-200 animate-pulse bg-rose-50/40' : ''}`}>
                   <div>
                     <span className="text-[11px] font-extrabold text-slate-900 uppercase tracking-wider block mb-2">
                       CNIC Back Picture

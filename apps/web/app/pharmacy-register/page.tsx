@@ -71,6 +71,29 @@ export default function PharmacyRegisterPage() {
     agreedToTerms: false,
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validateWhatsApp = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 0) return '';
+    if (digits.length < 11) return 'WhatsApp number must be exactly 11 digits.';
+    if (digits.length > 11) return 'WhatsApp number cannot exceed 11 digits.';
+    if (!/^\d{11}$/.test(digits)) return 'WhatsApp number must contain digits only.';
+    return '';
+  };
+
+  const validateCNIC = (value: string) => {
+    if (!value) return '';
+    if (!/^\d{5}-\d{7}-\d{1}$/.test(value)) return 'CNIC must be in format: 12345-1234567-1';
+    return '';
+  };
+
+  const validatePharmacistReg = (value: string) => {
+    if (!value) return '';
+    if (!/^[A-Za-z]-\d{4,6}$/.test(value)) return 'Format must be like A-12345 or P-123456';
+    return '';
+  };
+
   // OpenStreetMap States
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [isSearchingMap, setIsSearchingMap] = useState(false);
@@ -270,7 +293,25 @@ export default function PharmacyRegisterPage() {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData((prev) => ({ ...prev, [name]: checked }));
     } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => {
+        const next = { ...prev, [name]: value };
+        if (name === 'whatsappNumber') {
+          const digits = value.replace(/\D/g, '').slice(0, 11);
+          setErrors((prev) => ({ ...prev, whatsappNumber: validateWhatsApp(digits) }));
+          return { ...next, whatsappNumber: digits };
+        }
+        if (name === 'cnicNtnNumber') {
+          const formatted = value.replace(/[^\d-]/g, '').slice(0, 15);
+          setErrors((prev) => ({ ...prev, cnicNtnNumber: validateCNIC(formatted) }));
+          return { ...next, cnicNtnNumber: formatted };
+        }
+        if (name === 'pharmacistRegNum') {
+          const formatted = value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 8);
+          setErrors((prev) => ({ ...prev, pharmacistRegNum: validatePharmacistReg(formatted) }));
+          return { ...next, pharmacistRegNum: formatted };
+        }
+        return next;
+      });
     }
   };
 
@@ -278,22 +319,34 @@ export default function PharmacyRegisterPage() {
     setFormData((prev) => ({ ...prev, [field]: file }));
   };
 
+  const getFilePreview = (file: File | null) => {
+    if (!file) return null;
+    return URL.createObjectURL(file);
+  };
+
   // Phase Validation Rules
   const isPhase1Valid = () => {
+    const wa = formData.whatsappNumber.replace(/\D/g, '');
+    const cnic = validateCNIC(formData.cnicNtnNumber);
+    const reg = validatePharmacistReg(formData.pharmacistRegNum);
     return (
       formData.pharmacyName.trim() !== '' &&
       formData.ownerName.trim() !== '' &&
       formData.pharmacyType !== '' &&
       formData.pharmacistName.trim() !== '' &&
-      formData.pharmacistRegNum.trim() !== ''
+      formData.pharmacistRegNum.trim() !== '' &&
+      reg === '' &&
+      (formData.whatsappNumber.trim() === '' || wa.length === 11)
     );
   };
 
   const isPhase2Valid = () => {
+    const cnic = validateCNIC(formData.cnicNtnNumber);
     return (
       formData.drugLicenseNumber.trim() !== '' &&
       formData.drugLicensePhoto !== null &&
       formData.cnicNtnNumber.trim() !== '' &&
+      cnic === '' &&
       formData.cnicFrontPhoto !== null &&
       formData.cnicBackPhoto !== null
     );
@@ -301,7 +354,6 @@ export default function PharmacyRegisterPage() {
 
   const isPhase3Valid = () => {
     return (
-      formData.city.trim() !== '' &&
       formData.fullAddress.trim() !== ''
     );
   };
@@ -324,6 +376,20 @@ export default function PharmacyRegisterPage() {
 
   // BACKEND API SUBMISSION HANDLER WITH GUARANTEED PHONE & EMAIL MAPPING
   const handleSubmitApplication = async () => {
+    const wa = formData.whatsappNumber.replace(/\D/g, '');
+    const cnic = validateCNIC(formData.cnicNtnNumber);
+    const reg = validatePharmacistReg(formData.pharmacistRegNum);
+    const newErrors: Record<string, string> = {};
+    if (reg) newErrors.pharmacistRegNum = reg;
+    if (formData.whatsappNumber && wa.length !== 11) newErrors.whatsappNumber = 'WhatsApp number must be exactly 11 digits.';
+    if (cnic) newErrors.cnicNtnNumber = cnic;
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      alert('Please fix the validation errors before submitting.');
+      return;
+    }
+
     if (!isPhase4Valid()) return;
     setIsSubmitting(true);
 
@@ -456,7 +522,6 @@ export default function PharmacyRegisterPage() {
     if (formData.cnicNtnNumber) count++;
     if (formData.cnicFrontPhoto) count++;
     if (formData.cnicBackPhoto) count++;
-    if (formData.city) count++;
     if (formData.fullAddress) count++;
     if (formData.paymentMethod) count++;
     if (formData.accountTitle) count++;
@@ -465,7 +530,7 @@ export default function PharmacyRegisterPage() {
     return count;
   };
 
-  const totalRequiredFields = 16;
+  const totalRequiredFields = 15;
   const completedFields = getCompletedFieldsCount();
   const progressPercentage = Math.round((completedFields / totalRequiredFields) * 100);
 
@@ -487,7 +552,6 @@ export default function PharmacyRegisterPage() {
 
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-left text-xs space-y-1.5">
             <p className="font-bold text-slate-700">Pharmacy: {formData.pharmacyName}</p>
-            <p className="text-slate-500">City: {formData.city}</p>
             <p className="text-slate-500">Owner: {formData.ownerName}</p>
             {formData.productsCsv && (
               <p className="text-blue-600 font-semibold">Products CSV: Uploaded & Processed ({formData.productsCsv.name})</p>
@@ -682,9 +746,13 @@ export default function PharmacyRegisterPage() {
                   name="pharmacistRegNum"
                   value={formData.pharmacistRegNum}
                   onChange={handleInputChange}
-                  placeholder="e.g. PHR-123456"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  placeholder="e.g. A-12345"
+                  maxLength={8}
+                  className={`w-full px-3.5 py-2.5 border rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${errors.pharmacistRegNum ? 'border-red-400' : 'border-slate-200'}`}
                 />
+                {errors.pharmacistRegNum && (
+                  <p className="text-red-600 text-[11px] mt-1 font-medium">{errors.pharmacistRegNum}</p>
+                )}
               </div>
 
               <div>
@@ -692,19 +760,38 @@ export default function PharmacyRegisterPage() {
                   <label className="font-bold text-slate-700">Pharmacy Logo</label>
                   <span className="text-[11px] text-slate-400">Optional</span>
                 </div>
-                <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-6 text-center block cursor-pointer transition">
-                  <UploadCloud className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-                  <span className="text-xs font-bold text-blue-600 block">
-                    {formData.pharmacyLogo ? formData.pharmacyLogo.name : 'Tap to upload logo'}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={(e) => handleFileChange('pharmacyLogo', e.target.files?.[0] || null)}
-                  />
-                </label>
+                {formData.pharmacyLogo ? (
+                  <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                    <img
+                      src={getFilePreview(formData.pharmacyLogo) || ''}
+                      alt="Logo preview"
+                      className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-700 truncate">{formData.pharmacyLogo.name}</p>
+                      <p className="text-[10px] text-slate-400">{(formData.pharmacyLogo.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleFileChange('pharmacyLogo', null)}
+                      className="text-red-600 hover:text-red-700 text-xs font-bold px-2 py-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-6 text-center block cursor-pointer transition">
+                    <UploadCloud className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+                    <span className="text-xs font-bold text-blue-600 block">Tap to upload logo</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileChange('pharmacyLogo', e.target.files?.[0] || null)}
+                    />
+                  </label>
+                )}
               </div>
 
               <div>
@@ -717,9 +804,13 @@ export default function PharmacyRegisterPage() {
                   name="whatsappNumber"
                   value={formData.whatsappNumber}
                   onChange={handleInputChange}
-                  placeholder="0300 1234567"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="03001234567"
+                  maxLength={11}
+                  className={`w-full px-3.5 py-2.5 border rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.whatsappNumber ? 'border-red-400' : 'border-slate-200'}`}
                 />
+                {errors.whatsappNumber && (
+                  <p className="text-red-600 text-[11px] mt-1 font-medium">{errors.whatsappNumber}</p>
+                )}
               </div>
             </div>
           </div>
@@ -754,19 +845,38 @@ export default function PharmacyRegisterPage() {
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Pharmacist License Photo *</label>
-                <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-6 text-center block cursor-pointer transition">
-                  <UploadCloud className="w-6 h-6 text-blue-500 mx-auto mb-2" />
-                  <span className="text-xs font-bold text-blue-600 block">
-                    {formData.drugLicensePhoto ? formData.drugLicensePhoto.name : 'Tap to upload document'}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={(e) => handleFileChange('drugLicensePhoto', e.target.files?.[0] || null)}
-                  />
-                </label>
+                {formData.drugLicensePhoto ? (
+                  <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                    <img
+                      src={getFilePreview(formData.drugLicensePhoto) || ''}
+                      alt="License preview"
+                      className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-700 truncate">{formData.drugLicensePhoto.name}</p>
+                      <p className="text-[10px] text-slate-400">{(formData.drugLicensePhoto.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleFileChange('drugLicensePhoto', null)}
+                      className="text-red-600 hover:text-red-700 text-xs font-bold px-2 py-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-6 text-center block cursor-pointer transition">
+                    <UploadCloud className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+                    <span className="text-xs font-bold text-blue-600 block">Tap to upload document</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileChange('drugLicensePhoto', e.target.files?.[0] || null)}
+                    />
+                  </label>
+                )}
               </div>
 
               <div>
@@ -777,43 +887,85 @@ export default function PharmacyRegisterPage() {
                   value={formData.cnicNtnNumber}
                   onChange={handleInputChange}
                   placeholder="37201-1234567-1"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  maxLength={15}
+                  className={`w-full px-3.5 py-2.5 border rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono ${errors.cnicNtnNumber ? 'border-red-400' : 'border-slate-200'}`}
                 />
+                {errors.cnicNtnNumber && (
+                  <p className="text-red-600 text-[11px] mt-1 font-medium">{errors.cnicNtnNumber}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">CNIC Front Side Photo *</label>
-                  <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-5 text-center block cursor-pointer transition">
-                    <UploadCloud className="w-5 h-5 text-blue-500 mx-auto mb-1.5" />
-                    <span className="text-xs font-bold text-blue-600 block">
-                      {formData.cnicFrontPhoto ? formData.cnicFrontPhoto.name : 'Tap to upload document'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="hidden"
-                      onChange={(e) => handleFileChange('cnicFrontPhoto', e.target.files?.[0] || null)}
-                    />
-                  </label>
+                  {formData.cnicFrontPhoto ? (
+                    <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                      <img
+                        src={getFilePreview(formData.cnicFrontPhoto) || ''}
+                        alt="CNIC front preview"
+                        className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-700 truncate">{formData.cnicFrontPhoto.name}</p>
+                        <p className="text-[10px] text-slate-400">{(formData.cnicFrontPhoto.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFileChange('cnicFrontPhoto', null)}
+                        className="text-red-600 hover:text-red-700 text-xs font-bold px-2 py-1"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-5 text-center block cursor-pointer transition">
+                      <UploadCloud className="w-5 h-5 text-blue-500 mx-auto mb-1.5" />
+                      <span className="text-xs font-bold text-blue-600 block">Tap to upload document</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => handleFileChange('cnicFrontPhoto', e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">CNIC Back Side Photo *</label>
-                  <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-5 text-center block cursor-pointer transition">
-                    <UploadCloud className="w-5 h-5 text-blue-500 mx-auto mb-1.5" />
-                    <span className="text-xs font-bold text-blue-600 block">
-                      {formData.cnicBackPhoto ? formData.cnicBackPhoto.name : 'Tap to upload document'}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
-                    <input
-                      type="file"
-                      accept="image/*,.pdf"
-                      className="hidden"
-                      onChange={(e) => handleFileChange('cnicBackPhoto', e.target.files?.[0] || null)}
-                    />
-                  </label>
+                  {formData.cnicBackPhoto ? (
+                    <div className="flex items-center gap-3 p-3 border border-slate-200 rounded-xl bg-slate-50">
+                      <img
+                        src={getFilePreview(formData.cnicBackPhoto) || ''}
+                        alt="CNIC back preview"
+                        className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-700 truncate">{formData.cnicBackPhoto.name}</p>
+                        <p className="text-[10px] text-slate-400">{(formData.cnicBackPhoto.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFileChange('cnicBackPhoto', null)}
+                        className="text-red-600 hover:text-red-700 text-xs font-bold px-2 py-1"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/20 rounded-2xl p-5 text-center block cursor-pointer transition">
+                      <UploadCloud className="w-5 h-5 text-blue-500 mx-auto mb-1.5" />
+                      <span className="text-xs font-bold text-blue-600 block">Tap to upload document</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">PNG, JPG, PDF - Max 5 MB</span>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="hidden"
+                        onChange={(e) => handleFileChange('cnicBackPhoto', e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
             </div>
@@ -835,27 +987,7 @@ export default function PharmacyRegisterPage() {
             </div>
 
             <div className="space-y-5 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">City *</label>
-                <select
-                  name="city"
-                  value={formData.city}
-                  onChange={handleInputChange}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                >
-                  <option value="">Select your city</option>
-                  <option value="Islamabad">Islamabad</option>
-                  <option value="Rawalpindi">Rawalpindi</option>
-                  <option value="Lahore">Lahore</option>
-                  <option value="Karachi">Karachi</option>
-                  <option value="Peshawar">Peshawar</option>
-                  <option value="Quetta">Quetta</option>
-                  <option value="Faisalabad">Faisalabad</option>
-                  <option value="Multan">Multan</option>
-                </select>
-              </div>
-
-              {/* REAL OPENSTREETMAP INTERACTIVE PICKER */}
+            {/* REAL OPENSTREETMAP INTERACTIVE PICKER */}
               <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 space-y-3">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
                   <span className="flex items-center gap-1.5 uppercase tracking-wider">

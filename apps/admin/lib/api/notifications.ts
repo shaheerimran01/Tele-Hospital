@@ -123,3 +123,10 @@ export async function markNotificationAsRead(id: string): Promise<void> {
     method: 'PATCH',
   });
 }
+
+export async function deleteNotification(id: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE_URL}/notifications/${id}`, {
+    method: 'DELETE',
+  });
+  return res.ok;
+}
