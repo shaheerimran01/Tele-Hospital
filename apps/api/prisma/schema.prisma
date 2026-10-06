@@ -118,6 +118,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   pharmacyProducts PharmacyProduct[]
+  matchedPharmacyOffers PharmacyProduct[] @relation("PharmacyProductMatchedProduct")
   cartItems        CartItem[]
   orderItems       OrderItem[]
 }
@@ -187,8 +188,25 @@ model PharmacyRegistration {
 model PharmacyProduct {
   id String @id @default(cuid())
 
-  productId  String
+  // Global catalog link. Stays NULL while the offer is only an uploaded draft -
+  // nothing reaches the Product table until an admin pushes it.
+  productId  String?
   pharmacyId String
+
+  // Uploaded catalog details (CSV row / seller form)
+  draftName        String?
+  draftSlug        String?
+  draftGenericName String?
+  draftBrandName   String?
+  draftCategory    String?
+  draftSubCategory String?
+  draftDescription String?
+  draftImageUrl    String?
+
+  // Admin review workflow
+  approvalStatus String @default("PENDING") // PENDING | APPROVED | REJECTED
+  matchedProductId String? // Global product this offer was recognized as similar to
+  syncedAt       DateTime?
 
   sku      String? // Internal Barcode/SKU code
   price    Decimal  @db.Decimal(10, 2)
@@ -203,12 +221,15 @@ model PharmacyProduct {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product        Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  matchedProduct Product?  @relation("PharmacyProductMatchedProduct", fields: [matchedProductId], references: [id], onDelete: SetNull)
+  pharmacy       Pharmacy  @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
 
-  @@unique([productId, pharmacyId])
   @@index([productId])
   @@index([pharmacyId])
+  @@index([productId, pharmacyId])
+  @@index([pharmacyId, approvalStatus])
+  @@index([matchedProductId])
 }
 
 model Cart {

@@ -12,10 +12,10 @@ export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
-  // 1. Strict Input Control: Sirf digits allow honge aur MAX 11 digits (e.g., 03001234567)
+  // 1. Strict Input Control: Sirf digits allow honge aur MAX 10 digits (e.g., 03001234567)
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const digitsOnly = e.target.value.replace(/\D/g, '');
-    if (digitsOnly.length <= 11) {
+    if (digitsOnly.length <= 10) {
       setPhone(digitsOnly);
       if (error) setError('');
     }
@@ -26,7 +26,7 @@ export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
 
     const cleanDigits = phone.replace(/\D/g, '');
     if (cleanDigits.length < 10) {
-      setError('A valid 10 or 11 digit mobile number is required.');
+      setError('A valid 10 digit mobile number is required.');
       return;
     }
 
@@ -101,7 +101,7 @@ export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
         <div className="flex justify-between items-center text-[11px] text-slate-400 mt-1">
           <span>Format: 03001234567 or 3001234567</span>
           <span className={phone.length >= 10 ? 'text-teal-700 font-bold' : ''}>
-            {phone.length}/11
+            {phone.length}/10
           </span>
         </div>
       </div>

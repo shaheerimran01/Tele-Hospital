@@ -93,6 +93,13 @@ export default function LoginForm({ isOpen: propIsOpen, onClose }: LoginFormProp
       return;
     }
 
+    // Do not show customer login popup on pharmacy portal pages
+    const PHARMACY_ROUTES = ['/pharmacy-dashboard', '/pharmacy-register', '/pharmacy-'];
+    if (pathname && PHARMACY_ROUTES.some((route) => pathname.startsWith(route))) {
+      setIsVisible(false);
+      return;
+    }
+
     const syncAuthState = () => {
       const loggedIn = checkIsLoggedIn();
       if (!loggedIn) {

@@ -11,7 +11,9 @@ import {
   Search,
   RotateCw,
   Eye,
-  Building2
+  Building2,
+  Boxes,
+  Globe,
 } from 'lucide-react';
 import Link from 'next/link';
 import { fetchPharmacies } from '@/lib/api/pharmacies';
@@ -82,6 +84,14 @@ export default function PharmaciesPage() {
           <Link href="/products" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
             <Package className="w-5 h-5" />
             Products
+          </Link>
+          <Link href="/pharmacy-products" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
+            <Boxes className="w-5 h-5" />
+            Pharmacy Products
+          </Link>
+          <Link href="/global-catalog" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
+            <Globe className="w-5 h-5" />
+            Global Catalog
           </Link>
           <Link href="/users" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
             <Users className="w-5 h-5" />

@@ -16,7 +16,10 @@ import {
   FileText,
   RotateCcw,
   Star,
-  AlertCircle
+  AlertCircle,
+  Building2,
+  Boxes,
+  Globe,
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -233,6 +236,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
           <Link href="/products" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
             <Package className="w-5 h-5" />
             Products
+          </Link>
+          <Link href="/pharmacy-products" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
+            <Boxes className="w-5 h-5" />
+            Pharmacy Products
+          </Link>
+          <Link href="/global-catalog" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
+            <Globe className="w-5 h-5" />
+            Global Catalog
+          </Link>
+          <Link href="/pharmacies" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
+            <Building2 className="w-5 h-5" />
+            Pharmacies
           </Link>
           <Link href="/users" className="flex items-center gap-3 px-4 py-3 bg-[#1A3A5C] text-white rounded-lg font-medium text-sm">
             <Users className="w-5 h-5" />
