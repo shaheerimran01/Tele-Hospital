@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Phone, ArrowRight } from 'lucide-react';
 
 interface LoginFormProps {
-  onSubmitPhone: (phone: string) => void;
+  onSubmitPhone?: (phone: string) => void;
 }
 
 export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
@@ -52,7 +52,7 @@ export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
 
       if (res.ok && data.success) {
         // 3. Pass EXACT +92 formatted phone to OTP step
-        onSubmitPhone(formattedPhone);
+        onSubmitPhone?.(formattedPhone);
       } else {
         setError(data.message || 'Failed to send OTP code.');
       }

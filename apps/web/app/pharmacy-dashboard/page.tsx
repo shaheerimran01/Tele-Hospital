@@ -2,23 +2,20 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  LayoutDashboard, 
-  Package, 
-  User, 
-  LogOut, 
   MapPin, 
   AlertCircle,
   ArrowUpRight,
   TrendingUp,
   ShoppingBag,
-  ChevronRight,
   ShieldCheck,
   FileText,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Package
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { PharmacySidebar } from '@/components/pharmacy/Sidebar';
 
 interface DocumentIssue {
   id: string;
@@ -28,14 +25,20 @@ interface DocumentIssue {
   createdAt: string;
 }
 
+interface PharmacyInfo {
+  name: string;
+  city: string;
+  status: string;
+  productsCount: number;
+}
+
 export default function SellerDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'personal'>('dashboard');
   const [pharmacyId, setPharmacyId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   
   // Dynamic State for Logged-In Pharmacy
-  const [pharmacyInfo, setPharmacyInfo] = useState({
+  const [pharmacyInfo, setPharmacyInfo] = useState<PharmacyInfo>({
     name: 'Pharmacy Partner',
     city: 'Location Pending',
     status: 'PENDING',
@@ -133,106 +136,11 @@ export default function SellerDashboardPage() {
   return (
     <div className="flex min-h-screen bg-[#F4F7F5] text-slate-800 font-sans">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-emerald-100 flex flex-col justify-between shrink-0 shadow-xs">
-        <div>
-          {/* Logo Banner */}
-          <div className="p-6 flex items-center gap-3 border-b border-emerald-50">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0F5A47] to-emerald-700 text-white flex items-center justify-center font-black text-xl shadow-md shadow-emerald-900/20">
-              +
-            </div>
-            <div>
-              <h2 className="font-extrabold text-slate-900 text-lg leading-none tracking-tight">
-                Tabibistan
-              </h2>
-              <span className="text-[10px] font-extrabold text-emerald-700 tracking-wider uppercase block mt-1">
-                SELLER PORTAL
-              </span>
-            </div>
-          </div>
-
-          {/* Navigation Items */}
-          <nav className="p-4 space-y-1.5">
-            <button
-              onClick={() => setActiveTab('dashboard')}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                activeTab === 'dashboard'
-                  ? 'bg-[#0F5A47] text-white shadow-md shadow-emerald-900/20'
-                  : 'text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <LayoutDashboard className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-emerald-300' : 'text-slate-500'}`} />
-                Dashboard
-              </div>
-              {documentIssues.length > 0 && (
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-rose-500 text-white">
-                  {documentIssues.length}
-                </span>
-              )}
-            </button>
-
-            <Link
-              href="/pharmacy-dashboard/products"
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                activeTab === 'products'
-                  ? 'bg-[#0F5A47] text-white shadow-md shadow-emerald-900/20'
-                  : 'text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Package className="w-4 h-4 text-slate-500" />
-                Products Catalog
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            </Link>
-
-            {/* Added Link Route for Personal Details */}
-            <Link
-              href="/pharmacy-dashboard/personal-details"
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                activeTab === 'personal'
-                  ? 'bg-[#0F5A47] text-white shadow-md shadow-emerald-900/20'
-                  : 'text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <User className="w-4 h-4 text-slate-500" />
-                Personal Details
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-            </Link>
-          </nav>
-        </div>
-
-        {/* Dynamic User Profile & Logout */}
-        <div className="p-4 border-t border-emerald-50 space-y-3 bg-emerald-50/30">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-10 h-10 rounded-xl bg-[#0F5A47] text-white flex items-center justify-center font-bold text-sm shadow-sm uppercase">
-              {pharmacyInfo.name.substring(0, 2)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h4 className="text-xs font-bold text-slate-900 truncate leading-tight">{pharmacyInfo.name}</h4>
-              <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">
-                {pharmacyInfo.status === 'APPROVED' ? 'Verified Partner' : 'Verification Pending'}
-              </span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('pharmacyId');
-                localStorage.removeItem('pharmacyPhone');
-                router.push('/');
-              }
-            }}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-xl transition cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
-        </div>
-      </aside>
+      <PharmacySidebar 
+        pharmacyName={pharmacyInfo.name} 
+        pharmacyStatus={pharmacyInfo.status} 
+        pharmacyId={pharmacyId} 
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 p-8 overflow-y-auto">

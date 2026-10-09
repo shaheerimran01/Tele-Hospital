@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Query,
+  Headers,
 } from '@nestjs/common';
 
 import { OrdersService } from './orders.service.js';
@@ -31,6 +32,33 @@ export class OrdersController {
     return this.ordersService.findAll();
   }
 
+  @Get('pharmacy-orders/analytics')
+  getPharmacyOrderRequestAnalytics(@Headers('x-pharmacy-id') pharmacyId: string) {
+    return this.ordersService.getPharmacyOrderRequestAnalytics(pharmacyId);
+  }
+
+  @Get('pharmacy-orders')
+  getPharmacyOrderRequests(@Headers('x-pharmacy-id') pharmacyId: string) {
+    return this.ordersService.getPharmacyOrderRequests(pharmacyId);
+  }
+
+  @Get('pharmacy-orders/:id')
+  getPharmacyOrderRequestById(
+    @Param('id') id: string,
+    @Headers('x-pharmacy-id') pharmacyId?: string,
+  ) {
+    return this.ordersService.getPharmacyOrderRequestById(id, pharmacyId);
+  }
+
+  @Patch('pharmacy-orders/:id/respond')
+  respondToPharmacyOrderRequest(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Headers('x-pharmacy-id') pharmacyId?: string,
+  ) {
+    return this.ordersService.respondToPharmacyOrderRequest(id, status, pharmacyId);
+  }
+
   @Get(':id')
   getOrderById(
     @Param('id') orderId: string,
@@ -54,5 +82,27 @@ export class OrdersController {
     @Body('isAvailable') isAvailable: boolean,
   ) {
     return this.ordersService.updateOrderItemAvailability(orderId, itemId, isAvailable);
+  }
+
+  @Get(':id/matching-pharmacies')
+  getMatchingPharmacies(@Param('id') orderId: string) {
+    return this.ordersService.getMatchingPharmacies(orderId);
+  }
+
+  @Get(':id/nearby-pharmacies')
+  getNearbyPharmacies(
+    @Param('id') orderId: string,
+    @Query('radius') radius?: string,
+  ) {
+    const radiusKm = radius ? parseFloat(radius) : 20;
+    return this.ordersService.getNearbyPharmacies(orderId, radiusKm);
+  }
+
+  @Post(':id/send-to-pharmacies')
+  sendPharmacyOrderRequest(
+    @Param('id') orderId: string,
+    @Body('pharmacyIds') pharmacyIds: string[],
+  ) {
+    return this.ordersService.sendPharmacyOrderRequest(orderId, pharmacyIds);
   }
 }

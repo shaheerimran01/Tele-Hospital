@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Bell, 
@@ -24,6 +24,7 @@ import {
   Building2,
   Boxes,
   Globe,
+  Send,
 } from 'lucide-react';
 import { fetchOrderById, updateOrderStatusApi, updateItemAvailabilityApi } from '@/lib/api/orderDetails';
 
@@ -46,6 +47,7 @@ export default function OrderDetailsPage() {
   const [updatingItem, setUpdatingItem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedPrescription, setSelectedPrescription] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (orderId) {
@@ -96,6 +98,12 @@ export default function OrderDetailsPage() {
       alert(err.message || 'Item availability update nahi ho saki.');
     } finally {
       setUpdatingItem(null);
+    }
+  };
+
+  const handleSendToPharmacy = () => {
+    if (orderId) {
+      router.push(`/orders/${orderId}/send-to-pharmacy`);
     }
   };
 
@@ -182,6 +190,15 @@ export default function OrderDetailsPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendToPharmacy}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  Send to Pharmacy
+                </button>
+
                 <span className="text-xs font-bold text-slate-500">Update Status:</span>
                 <select
                   disabled={updatingStatus}

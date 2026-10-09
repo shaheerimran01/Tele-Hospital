@@ -8,7 +8,9 @@ export interface OrderItemPayload {
 export interface CreateOrderPayload {
   shippingAddress: string;
   paymentMethod: string;
-  items?: OrderItemPayload[]; // 👈 Is line ki waja se TS error khatam ho jayega
+  items?: OrderItemPayload[];
+  lat?: number;
+  lng?: number;
 }
 
 export async function placeOrderApi(userId: string, payload: CreateOrderPayload) {

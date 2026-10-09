@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { PharmacySidebar } from '@/components/pharmacy/Sidebar';
 
 interface ProductItem {
   id: string;
@@ -438,81 +439,11 @@ export default function ProductsPage() {
       />
 
       {/* Sidebar Navigation */}
-      <aside className="w-64 bg-white border-r border-emerald-100 flex flex-col justify-between shrink-0 shadow-xs">
-        <div>
-          <div className="p-6 flex items-center gap-3 border-b border-emerald-50">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0F5A47] to-emerald-700 text-white flex items-center justify-center font-black text-xl shadow-md shadow-emerald-900/20">
-              +
-            </div>
-            <div>
-              <h2 className="font-extrabold text-slate-900 text-lg leading-none tracking-tight">
-                Tabibistan
-              </h2>
-              <span className="text-[10px] font-extrabold text-emerald-700 tracking-wider uppercase block mt-1">
-                SELLER PORTAL
-              </span>
-            </div>
-          </div>
-
-          <nav className="p-4 space-y-1.5">
-            <Link
-              href="/pharmacy-dashboard"
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-900 transition-all duration-200 cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <LayoutDashboard className="w-4 h-4 text-slate-500" />
-                Dashboard
-              </div>
-            </Link>
-
-            <div className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold bg-[#0F5A47] text-white shadow-md shadow-emerald-900/20">
-              <div className="flex items-center gap-3">
-                <Package className="w-4 h-4 text-emerald-300" />
-                Products Catalog
-              </div>
-              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-800 text-emerald-100">
-                {products.length}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => alert('Personal details coming soon.')}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-900 transition-all duration-200 cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <User className="w-4 h-4 text-slate-500" />
-                Personal Details
-              </div>
-            </button>
-          </nav>
-        </div>
-
-        <div className="p-4 border-t border-emerald-50 space-y-3 bg-emerald-50/30">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-10 h-10 rounded-xl bg-[#0F5A47] text-white flex items-center justify-center font-bold text-sm shadow-sm uppercase">
-              {pharmacyName.substring(0, 2)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h4 className="text-xs font-bold text-slate-900 truncate leading-tight">{pharmacyName}</h4>
-              <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">Pharmacy Owner</span>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                localStorage.removeItem('pharmacyId');
-                router.push('/');
-              }
-            }}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-100 rounded-xl transition cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            Logout
-          </button>
-        </div>
-      </aside>
+      <PharmacySidebar 
+        pharmacyName={pharmacyName} 
+        pharmacyStatus="" 
+        pharmacyId={pharmacyId} 
+      />
 
       {/* Main Area */}
       <main className="flex-1 p-8 overflow-y-auto">

@@ -14,6 +14,13 @@ import {
   PrescriptionResponse,
 } from '@/app/lib/api/prescriptions';
 
+interface SavedLocation {
+  address: string;
+  city: string;
+  lat: number;
+  lng: number;
+}
+
 function CheckoutContent() {
   // LocalStorage se logged-in user state
   const [user, setUser] = useState<{ id: string; email?: string; name?: string } | null>(null);
@@ -47,6 +54,8 @@ function CheckoutContent() {
     city: 'Islamabad',
     postalCode: '',
     orderNotes: '',
+    lat: 0,
+    lng: 0,
   });
 
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'CARD' | 'WALLET'>('COD');
@@ -101,7 +110,7 @@ function CheckoutContent() {
     initUserAndPrescriptions();
   }, []);
 
-  // Fetch specific product if Buy Now was clicked
+// Fetch specific product if Buy Now was clicked
   useEffect(() => {
     async function fetchBuyNowProduct() {
       if (!buyNowProductId) return;
@@ -117,8 +126,8 @@ function CheckoutContent() {
           const products = Array.isArray(allData)
             ? allData
             : Array.isArray(allData.data)
-            ? allData.data
-            : allData.products || [];
+              ? allData.data
+              : allData.products || [];
           const found = products.find(
             (p: any) => p.id === buyNowProductId || p._id === buyNowProductId
           );
@@ -134,6 +143,26 @@ function CheckoutContent() {
 
     fetchBuyNowProduct();
   }, [buyNowProductId]);
+
+  // Load saved location from header picker
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem('selected_location');
+      if (saved) {
+        const loc: SavedLocation = JSON.parse(saved);
+        setFormData((prev) => ({
+          ...prev,
+          address: loc.address || prev.address,
+          city: loc.city || prev.city,
+          lat: loc.lat || 0,
+          lng: loc.lng || 0,
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading saved location:', err);
+    }
+  }, []);
 
   // Determine Items Mode
   const checkoutItems = buyNowProductId
@@ -213,11 +242,6 @@ function CheckoutContent() {
     setErrorMessage(null);
 
     try {
-      // 1. Agar Buy Now Mode se aaya hai, toh pehle backend DB Cart me add karein
-      if (buyNowProductId) {
-        await addProductToCart(buyNowProductId, buyNowQuantity);
-      }
-
       // 2. Full Shipping Address string banayein
       const fullShippingAddress = `${formData.address}, ${formData.city}${
         formData.postalCode ? ` (${formData.postalCode})` : ''
@@ -236,6 +260,8 @@ function CheckoutContent() {
         shippingAddress: fullShippingAddress,
         paymentMethod: paymentMethod,
         items: orderItemsPayload,
+        lat: formData.lat || 0,
+        lng: formData.lng || 0,
       });
 
       // 5. Set Placed Order State & reset pending prescriptions

@@ -469,6 +469,16 @@ export default function LocationModal({
       const savedAddress: UserAddress =
         await response.json();
 
+      // Also save to localStorage for checkout pre-fill
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('selected_location', JSON.stringify({
+          address: addressDetails.addressLine1,
+          city: addressDetails.city,
+          lat: selectedLocation.latitude,
+          lng: selectedLocation.longitude,
+        }));
+      }
+
       onAddressSaved(savedAddress);
     } catch (error) {
       console.error(

@@ -7,6 +7,38 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PharmacyRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  OUT_OF_STOCK
+  EXPIRED
+  PARTIALLY_AVAILABLE
+}
+
+model PharmacyOrderRequest {
+  id                  String                @id @default(uuid())
+  orderId             String
+  pharmacyId          String
+  status              PharmacyRequestStatus @default(PENDING)
+  requestedAt         DateTime              @default(now())
+  expiresAt           DateTime
+  respondedAt         DateTime?
+  responseTimeSeconds Int?
+
+  availableOrderItemIds String[]            @default([])
+  order               Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pharmacy            Pharmacy              @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  @@index([orderId])
+  @@index([pharmacyId])
+  @@index([status])
+  @@index([pharmacyId, status])
+}
+
 model User {
   id                     String  @id @default(uuid())
   phone                  String? @unique
@@ -155,12 +187,13 @@ model Pharmacy {
   isOpen247  Boolean @default(false)
 
   // Phase 4: Payout & Agreement
+  userId          String?  // Link to the pharmacy's user account (if applicable)
   paymentMethod    String? @default("JazzCash") // JazzCash, Easypaisa, Bank
   accountTitle     String?
   accountNumber    String?
   coldChainStorage Boolean @default(false)
   referralCode     String?
-  agreedToTerms    Boolean @default(false)
+  agreedToTerms    Boolean @default(false) // Application & Verification Status
 
   // Application & Verification Status
   status   String  @default("PENDING") // PENDING, APPROVED, REJECTED
@@ -171,6 +204,8 @@ model Pharmacy {
 
   products      PharmacyProduct[]
   notifications Notification[]
+  pharmacyOrderRequests PharmacyOrderRequest[]
+  fulfilledOrderItems OrderItem[]
 }
 
 model PharmacyRegistration {
@@ -265,6 +300,8 @@ model Order {
   shippingAddress String?
   paymentMethod   String   @default("COD")
   paymentStatus   String   @default("PENDING")
+  lat             Float?
+  lng             Float?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -273,20 +310,32 @@ model Order {
   notifications     Notification[]
   prescriptions     Prescription[]
   userNotifications UserNotification[]
+  pharmacyOrderRequests PharmacyOrderRequest[]
+}
+
+// 👇 NEW ENUM for tracking individual item status
+enum OrderItemStatus {
+  PENDING
+  ASSIGNED
 }
 
 model OrderItem {
-  id          String @id @default(uuid())
-  orderId     String
-  productId   String
-  productName String
-  quantity    Int
-  price       Float
-  total       Float
+  id                 String          @id @default(uuid())
+  orderId            String
+  productId          String
+  productName        String
+  quantity           Int
+  price              Float
+  total              Float
 
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product @relation(fields: [productId], references: [id])
-  isAvailable Boolean @default(true)
+  // 👇 NEW FIELDS
+  status             OrderItemStatus @default(PENDING)
+  assignedPharmacyId String?
+  assignedPharmacy   Pharmacy?       @relation(fields: [assignedPharmacyId], references: [id], onDelete: SetNull)
+
+  order              Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product            Product         @relation(fields: [productId], references: [id])
+  isAvailable        Boolean         @default(true)
 }
 
 model Notification {

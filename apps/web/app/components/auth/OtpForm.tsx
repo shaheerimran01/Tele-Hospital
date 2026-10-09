@@ -3,9 +3,9 @@
 import React, { useState } from 'react';
 
 interface OtpFormProps {
-  phone: string;
-  onVerified: (data: { exists: boolean; isFormFilled: boolean }) => void;
-  onBack: () => void;
+  phone?: string;
+  onVerified?: (data: { exists: boolean; isFormFilled: boolean }) => void;
+  onBack?: () => void;
 }
 
 export default function OtpForm({ phone, onVerified, onBack }: OtpFormProps) {
@@ -35,13 +35,13 @@ export default function OtpForm({ phone, onVerified, onBack }: OtpFormProps) {
       if (res.ok && data.success) {
         // 👈 Phone, Email, and IDs to LocalStorage mein save karein
         if (typeof window !== 'undefined') {
-          localStorage.setItem('pharmacyPhone', phone);
+          localStorage.setItem('pharmacyPhone', phone || '');
           if (data.email) localStorage.setItem('pharmacyEmail', data.email);
           if (data.pharmacyId) localStorage.setItem('pharmacyId', data.pharmacyId);
           if (data.pharmacyRegId) localStorage.setItem('pharmacyRegId', data.pharmacyRegId);
         }
 
-        onVerified({
+        onVerified?.({
           exists: Boolean(data.exists),
           isFormFilled: Boolean(data.isFormFilled),
         });
