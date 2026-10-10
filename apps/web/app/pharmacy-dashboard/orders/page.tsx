@@ -267,7 +267,7 @@ export default function PharmacyOrdersPage() {
     const expiryTime = requestTime + 60 * 1000; // 1 minute (60 seconds) from request time
     const currentTime = now.getTime();
     const diff = expiryTime - currentTime;
-    return diff > 0 ? diff : 0;
+    return diff; // Can be negative when expired
   };
 
   const formatTimeLeft = (ms: number): string => {
@@ -276,6 +276,10 @@ export default function PharmacyOrdersPage() {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const isTimerExpired = (requestedAt: string): boolean => {
+    return calculateTimeLeft(requestedAt) <= 0;
   };
 
   if (!pharmacyId) {
@@ -384,6 +388,12 @@ export default function PharmacyOrdersPage() {
                   const timeLeft = req.status === 'PENDING' ? calculateTimeLeft(req.requestedAt) : 0;
                   const timeLeftFormatted = formatTimeLeft(timeLeft);
 
+                  // Keep all products visible for split requests so the pharmacy can
+                  // distinguish its assigned items from the rest of the order.
+                  const hasAssignedItems = Array.isArray(req.availableOrderItemIds);
+                  const isSplitRequest = hasAssignedItems && req.availableOrderItemIds!.length > 0;
+                  const displayItems = req.order?.items;
+
                   const getStatusInfo = (status: string) => {
                     switch (status) {
                       case 'ACCEPTED':
@@ -407,13 +417,13 @@ export default function PharmacyOrdersPage() {
                   return (
                     <div
                       key={req.id}
-                      className={`border rounded-2xl bg-white shadow-xs overflow-hidden ${statusInfo.border}`}
+                      className={`border rounded-2xl bg-white shadow-xs overflow-hidden ${isSplitRequest ? 'border-indigo-300 ring-1 ring-indigo-200' : statusInfo.border}`}
                     >
                       <div className="p-6 space-y-4">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-xl ${statusInfo.bg}`}>
-                              <StatusIcon className={`w-5 h-5 ${statusInfo.text}`} />
+                            <div className={`p-2 rounded-xl ${isSplitRequest ? 'bg-indigo-50' : statusInfo.bg}`}>
+                              <StatusIcon className={`w-5 h-5 ${isSplitRequest ? 'text-indigo-600' : statusInfo.text}`} />
                             </div>
                             <div>
                               <h3 className="text-sm font-bold text-slate-900">
@@ -425,25 +435,37 @@ export default function PharmacyOrdersPage() {
                             </div>
                           </div>
 
-                          <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold border ${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}>
-                            {statusInfo.label}
-                          </span>
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold border ${isSplitRequest ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : `${statusInfo.bg} ${statusInfo.text} ${statusInfo.border}`}`}>
+                              {isSplitRequest ? 'Split Order' : statusInfo.label}
+                            </span>
+                            {isSplitRequest && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-blue-50 text-blue-700 border-blue-200">
+                                {req.availableOrderItemIds!.length} item(s) assigned to you
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {req.status === 'PENDING' && (
-                          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-                            <Clock className="w-4 h-4 text-blue-600" />
-                            <span className="text-xs font-bold text-blue-800">
-                              Time remaining: <span className={`font-mono ${timeLeft < 60000 ? 'text-rose-600 animate-pulse' : ''}`}>{timeLeftFormatted}</span>
+                          <div className={`flex items-center gap-2 rounded-xl p-3 mb-4 ${timeLeft <= 0 || timeLeft < 20000 ? 'bg-rose-50 border border-rose-200' : isSplitRequest ? 'bg-indigo-50 border border-indigo-200' : 'bg-blue-50 border border-blue-200'}`}>
+                            <Clock className={`w-4 h-4 ${timeLeft <= 0 || timeLeft < 20000 ? 'text-rose-600' : isSplitRequest ? 'text-indigo-600' : 'text-blue-600'}`} />
+                            <span className={`text-xs font-bold ${timeLeft <= 0 || timeLeft < 20000 ? 'text-rose-800' : isSplitRequest ? 'text-indigo-800' : 'text-blue-800'}`}>
+                              Time remaining: <span className={`font-mono ${timeLeft <= 0 || timeLeft < 20000 ? 'text-rose-600' : ''}`}>{timeLeftFormatted}</span>
                             </span>
+                            {timeLeft <= 0 && (
+                              <span className="ml-auto px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                                OVERDUE / EXPIRED
+                              </span>
+                            )}
                           </div>
                         )}
 
-                        {req.order?.items && req.order.items.length > 0 ? (
+                        {displayItems && displayItems.length > 0 ? (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                Ordered Items ({req.order.items.length})
+                                {isSplitRequest ? `Your Assigned Items (${displayItems.length})` : `Ordered Items (${displayItems.length})`}
                               </h4>
                               {req.status === 'PARTIALLY_AVAILABLE' && (
                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300 shadow-xs">
@@ -451,22 +473,45 @@ export default function PharmacyOrdersPage() {
                                 </span>
                               )}
                             </div>
-                            {req.order.items.map((item) => {
-                              const isMarked = req.availableOrderItemIds?.includes(item.id);
+                            {displayItems.map((item) => {
+                              const isMarked = req.availableOrderItemIds?.includes(item.id) ?? false;
+                              const isAssignedSplitItem = isSplitRequest && isMarked;
+                              const isUnassignedSplitItem = isSplitRequest && !isMarked;
                               return (
                                 <div
                                   key={item.id}
                                   className={`flex items-center justify-between py-2.5 px-3 rounded-xl border transition ${
-                                    req.status === 'PARTIALLY_AVAILABLE'
+                                    isAssignedSplitItem
+                                      ? 'bg-emerald-50 border-l-4 border-l-emerald-500 border-emerald-200'
+                                      : isUnassignedSplitItem
+                                        ? 'bg-slate-50 border-slate-200 opacity-40'
+                                        : req.status === 'PARTIALLY_AVAILABLE'
                                       ? isMarked
                                         ? 'bg-emerald-50/70 border-emerald-300 shadow-xs'
                                         : 'bg-slate-50/60 border-slate-200 opacity-60'
-                                      : 'bg-slate-50 border-slate-100'
+                                      : isSplitRequest
+                                        ? 'bg-indigo-50/40 border-indigo-200'
+                                        : 'bg-slate-50 border-slate-100'
                                   }`}
                                 >
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
                                       <p className="text-sm font-bold text-slate-900">{item.productName || item.product?.name}</p>
+                                      {isAssignedSplitItem && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                          ✓ Assigned to this order
+                                        </span>
+                                      )}
+                                      {isUnassignedSplitItem && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                          Not included in this split request
+                                        </span>
+                                      )}
+                                      {req.status === 'ACCEPTED' && isAssignedSplitItem && (
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-600 text-white">
+                                          ACCEPTED
+                                        </span>
+                                      )}
                                       {req.status === 'PARTIALLY_AVAILABLE' && (
                                         isMarked ? (
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -519,38 +564,38 @@ export default function PharmacyOrdersPage() {
                           </div>
                         )}
 
-                        {req.status === 'PENDING' && (
-                          <div className="flex gap-2 pt-4 border-t border-slate-100">
-                            <button
-                              onClick={() => handleResponse(req.id, 'ACCEPTED')}
-                              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              Accept
-                            </button>
-                            <button
-                              onClick={() => handleResponse(req.id, 'DECLINED')}
-                              className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                            >
-                              <XCircle className="w-4 h-4" />
-                              Decline
-                            </button>
-                            <button
-                              onClick={() => handleResponse(req.id, 'OUT_OF_STOCK')}
-                              className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                            >
-                              <AlertCircle className="w-4 h-4" />
-                              Out of Stock
-                            </button>
-                            <button
-                              onClick={() => openPartialModal(req)}
-                              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
-                            >
-                              <CheckSquare className="w-4 h-4" />
-                              Partially Available
-                            </button>
-                          </div>
-                        )}
+{req.status === 'PENDING' && (
+                            <div className="flex gap-2 pt-4 border-t border-slate-100">
+                              <button
+                                onClick={() => handleResponse(req.id, 'ACCEPTED')}
+                                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Accept Order
+                              </button>
+                              <button
+                                onClick={() => handleResponse(req.id, 'DECLINED')}
+                                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                              >
+                                <XCircle className="w-4 h-4" />
+                                Decline
+                              </button>
+                              <button
+                                onClick={() => handleResponse(req.id, 'OUT_OF_STOCK')}
+                                className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                              >
+                                <AlertCircle className="w-4 h-4" />
+                                Out of Stock
+                              </button>
+                              <button
+                                onClick={() => openPartialModal(req)}
+                                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                              >
+                                <CheckSquare className="w-4 h-4" />
+                                Partially Available
+                              </button>
+                            </div>
+                          )}
                       </div>
                     </div>
                   );

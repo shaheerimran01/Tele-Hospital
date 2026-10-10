@@ -386,11 +386,9 @@ export class OrdersService {
           pharmLat,
           pharmLng
         );
+        // Get the latest request for this pharmacy (already sorted by requestedAt desc)
         const pharmRequests = existingRequests.filter((r) => r.pharmacyId === pharmacy.id);
-        const req = pharmRequests.sort((a, b) => {
-          const priority = (s: string) => (s === 'PARTIALLY_AVAILABLE' ? 3 : s === 'ACCEPTED' ? 2 : s === 'PENDING' ? 1 : 0);
-          return priority(b.status) - priority(a.status) || b.requestedAt.getTime() - a.requestedAt.getTime();
-        })[0];
+        const req = pharmRequests[0]; // Latest request takes precedence
         return {
           ...pharmacy,
           lat: pharmacy.latitude,
@@ -500,6 +498,7 @@ export class OrdersService {
       orderBy: { requestedAt: 'desc' },
     });
 
+    // Auto-expire pending requests
     for (const req of requests) {
       if (req.status === 'PENDING' && req.expiresAt < now) {
         await this.prisma.pharmacyOrderRequest.update({
@@ -510,7 +509,18 @@ export class OrdersService {
       }
     }
 
-    return requests.map((req) => ({
+    // Filter: for each order, only keep the latest request (by requestedAt)
+    // This prevents old EXPIRED/PARTIALLY_AVAILABLE from showing when a new PENDING exists
+    const latestByOrder = new Map<string, typeof requests[0]>();
+    for (const req of requests) {
+      if (!latestByOrder.has(req.orderId)) {
+        latestByOrder.set(req.orderId, req);
+      }
+    }
+
+    const filteredRequests = Array.from(latestByOrder.values());
+
+    return filteredRequests.map((req) => ({
       id: req.id,
       orderId: req.orderId,
       pharmacyId: req.pharmacyId,
@@ -876,7 +886,7 @@ export class OrdersService {
       }
     }
 
-    // Update each order item
+    // Update each order item with assigned pharmacy
     for (const allocation of allocations) {
       await this.prisma.orderItem.update({
         where: { id: allocation.orderItemId },
@@ -887,12 +897,11 @@ export class OrdersService {
       });
     }
 
-    // Fetch updated items
+    // Fetch updated items to determine overall order status
     const updatedItems = await this.prisma.orderItem.findMany({
       where: { orderId },
     });
 
-    // Check if all items are now assigned
     const allItemsAssigned = updatedItems.every((item) => item.status === 'ASSIGNED');
 
     const updatedOrder = await this.prisma.order.update({
@@ -904,14 +913,53 @@ export class OrdersService {
     const orderCode = `TB-${orderId.slice(0, 8).toUpperCase()}`;
     const distinctPharmacyIds = [...new Set(allocations.map((a) => a.pharmacyId))];
 
-    // Send notifications to pharmacies
+    // --- Mark old PARTIALLY_AVAILABLE / PENDING requests for affected pharmacies as EXPIRED ---
     for (const pid of distinctPharmacyIds) {
-      const pharmItemCount = allocations.filter((a) => a.pharmacyId === pid).length;
+      await this.prisma.pharmacyOrderRequest.updateMany({
+        where: {
+          orderId,
+          pharmacyId: pid,
+          status: { in: ['PARTIALLY_AVAILABLE', 'PENDING'] },
+        },
+        data: { status: 'EXPIRED' },
+      });
+    }
+
+    // --- Create new PENDING split requests per pharmacy with fresh 1-minute expiry ---
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 60 * 1000); // 1 minute from now
+
+    const createdRequests: any[] = [];
+    for (const pid of distinctPharmacyIds) {
+      const assignedItemIds = allocations
+        .filter((a) => a.pharmacyId === pid)
+        .map((a) => a.orderItemId);
+
+      const newRequest = await this.prisma.pharmacyOrderRequest.create({
+        data: {
+          orderId,
+          pharmacyId: pid,
+          status: 'PENDING',
+          requestedAt: now,
+          expiresAt,
+          availableOrderItemIds: assignedItemIds,
+        },
+      });
+
+      createdRequests.push({
+        id: newRequest.id,
+        pharmacyId: pid,
+        itemCount: assignedItemIds.length,
+        assignedItemIds,
+        expiresAt: expiresAt.toISOString(),
+      });
+
+      // Notify pharmacy about their split order dispatch
       await this.prisma.notification.create({
         data: {
           type: 'SPLIT_ASSIGNMENT',
-          title: 'Order Items Assigned',
-          message: `${pharmItemCount} item(s) from Order ${orderCode} have been assigned to you.`,
+          title: 'Split Order Request',
+          message: `${assignedItemIds.length} item(s) from Order ${orderCode} have been assigned to you. Please respond within 1 minute.`,
           orderId,
           pharmacyId: pid,
         },
@@ -934,6 +982,7 @@ export class OrdersService {
       orderStatus: updatedOrder.status,
       allocatedItems: allocations.length,
       totalItems: order.items.length,
+      createdRequests,
     };
   }
-}
+}

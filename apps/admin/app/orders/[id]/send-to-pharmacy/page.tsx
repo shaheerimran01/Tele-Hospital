@@ -84,19 +84,25 @@ export default function SendToPharmacyPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync request statuses from backend pharmacy objects into local state without losing PARTIALLY_AVAILABLE
+  // Sync request statuses from backend pharmacy objects into local state.
+  // Always trusts backend status — allows PARTIALLY_AVAILABLE to transition to COMPLETED,
+  // and re-starts sentAt when a new PENDING request appears after a split dispatch.
   const syncPharmacyRequests = (data: any[]) => {
     setPharmacyRequestStatus((prev) => {
       const next = { ...prev };
       data.forEach((p: any) => {
         if (p.requestId || p.requestStatus) {
           const existing = next[p.id];
+          const backendStatus = p.requestStatus;
+          const backendRequestId = p.requestId;
+          // Always use the backend status when it's available and different
+          const resolvedStatus = backendStatus || existing?.status || 'PENDING';
           const availableItems = (p.availableOrderItemIds && p.availableOrderItemIds.length > 0)
             ? p.availableOrderItemIds
             : (existing?.availableOrderItemIds || []);
           next[p.id] = {
-            status: p.requestStatus || existing?.status || 'PENDING',
-            requestId: p.requestId || existing?.requestId || '',
+            status: resolvedStatus,
+            requestId: backendRequestId || existing?.requestId || '',
             availableOrderItemIds: availableItems,
           };
         }
@@ -108,11 +114,14 @@ export default function SendToPharmacyPage() {
       const map = new Map(prev.map((r) => [r.pharmacyId, r]));
       data.forEach((p: any) => {
         if (p.requestId || p.requestStatus) {
-          if (!map.has(p.id)) {
+          const existing = map.get(p.id);
+          const backendRequestId = p.requestId;
+          // If the backend has a new requestId (split dispatch), reset sentAt so the countdown restarts
+          if (!existing || (backendRequestId && existing.requestId !== backendRequestId)) {
             map.set(p.id, {
               pharmacyId: p.id,
               sentAt: p.requestedAt ? new Date(p.requestedAt).getTime() : Date.now(),
-              requestId: p.requestId,
+              requestId: backendRequestId,
             });
           }
         }
@@ -716,6 +725,8 @@ export default function SendToPharmacyPage() {
               const isPending = requestStatus === 'PENDING';
               const isPartiallyAvailable = requestStatus === 'PARTIALLY_AVAILABLE';
               const isResponded = requestStatus && requestStatus !== 'PENDING';
+              // Split dispatch: PENDING request with assigned items (fresh 1-min timer)
+              const isSplitDispatch = isPending && availableOrderItemIds.length > 0;
 
               return (
                 <div key={pharmacy.id} className="border border-slate-200 rounded-2xl p-6 bg-white shadow-xs space-y-4 hover:shadow-md transition-shadow">
@@ -746,17 +757,17 @@ export default function SendToPharmacyPage() {
                   {/* Request Status Display */}
                   {hasSentRequest && (
                     <div className="space-y-2">
-                      {/* Countdown Timer - ONLY for PENDING status */}
+                      {/* Countdown Timer - for PENDING status (including split dispatch) */}
                       {isPending && (
-                        <div className={`flex items-center gap-2 p-3 rounded-xl ${isExpired ? 'bg-rose-50 border border-rose-200' : 'bg-blue-50 border border-blue-200'}`}>
-                          <Clock className={`w-4 h-4 ${isExpired ? 'text-rose-600' : 'text-blue-600'}`} />
-                          <span className={`text-xs font-bold font-mono ${isExpired ? 'text-rose-600' : 'text-blue-800'}`}>
+                        <div className={`flex items-center gap-2 p-3 rounded-xl ${isExpired ? 'bg-rose-50 border border-rose-200' : isSplitDispatch ? 'bg-emerald-50 border border-emerald-200' : 'bg-blue-50 border border-blue-200'}`}>
+                          <Clock className={`w-4 h-4 ${isExpired ? 'text-rose-600' : isSplitDispatch ? 'text-emerald-600' : 'text-blue-600'}`} />
+                          <span className={`text-xs font-bold font-mono ${isExpired ? 'text-rose-600' : isSplitDispatch ? 'text-emerald-800' : 'text-blue-800'}`}>
                             {isExpired ? 'EXPIRED' : `Time remaining: ${formatTimeRemaining(timeRemaining)}`}
                           </span>
                         </div>
                       )}
                       
-                      {/* Response Badges - for ACCEPTED, DECLINED, OUT_OF_STOCK, EXPIRED, PARTIALLY_AVAILABLE */}
+                      {/* Response Badges */}
                       {isResponded && (
                         <div className="space-y-2">
                           {isPartiallyAvailable ? (
@@ -783,6 +794,17 @@ export default function SendToPharmacyPage() {
                               <span className={getResponseBadgeStyle(requestStatus || '').replace('px-3 py-1 rounded-xl text-xs font-bold border ', '')}>
                                 {requestStatus}
                               </span>
+                            </div>
+                          )}
+                          {/* Split dispatch badge when pharmacy accepts */}
+                          {isSplitDispatch && (
+                            <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border-2 border-emerald-300">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span className="text-xs font-black text-emerald-900 uppercase">
+                                  SPLIT ORDER DISPATCHED ({availableOrderItemIds.length} ITEMS)
+                                </span>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -860,6 +882,15 @@ export default function SendToPharmacyPage() {
                       <ChevronRight className="w-4 h-4" />
                       View Partial Matrix ({availableOrderItemIds.length}/{order.items?.length || 0} items) ➔
                     </Link>
+                  ) : isSplitDispatch ? (
+                    <button
+                      type="button"
+                      disabled={true}
+                      className="w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs bg-emerald-600 text-white cursor-default"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Split Order Dispatched ({availableOrderItemIds.length} items)
+                    </button>
                   ) : (
                     <button
                       type="button"
