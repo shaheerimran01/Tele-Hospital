@@ -7,6 +7,11 @@ interface OrderItemInput {
   quantity: number;
 }
 
+interface PartialAllocationInput {
+  orderItemId: string;
+  pharmacyId: string;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -366,6 +371,11 @@ export class OrdersService {
       },
     });
 
+    const existingRequests = await this.prisma.pharmacyOrderRequest.findMany({
+      where: { orderId },
+      orderBy: { requestedAt: 'desc' },
+    });
+
     const nearby = pharmacies
       .map((pharmacy) => {
         const pharmLat = parseFloat(String(pharmacy.latitude));
@@ -376,11 +386,31 @@ export class OrdersService {
           pharmLat,
           pharmLng
         );
+        const pharmRequests = existingRequests.filter((r) => r.pharmacyId === pharmacy.id);
+        const req = pharmRequests.sort((a, b) => {
+          const priority = (s: string) => (s === 'PARTIALLY_AVAILABLE' ? 3 : s === 'ACCEPTED' ? 2 : s === 'PENDING' ? 1 : 0);
+          return priority(b.status) - priority(a.status) || b.requestedAt.getTime() - a.requestedAt.getTime();
+        })[0];
         return {
           ...pharmacy,
           lat: pharmacy.latitude,
           lng: pharmacy.longitude,
           distanceInKm: Math.round(distance * 10) / 10,
+          requestId: req?.id || null,
+          requestStatus: req?.status || null,
+          availableOrderItemIds: req?.availableOrderItemIds || [],
+          requestedAt: req?.requestedAt || null,
+          respondedAt: req?.respondedAt || null,
+          request: req
+            ? {
+                id: req.id,
+                status: req.status,
+                requestedAt: req.requestedAt,
+                expiresAt: req.expiresAt,
+                respondedAt: req.respondedAt,
+                availableOrderItemIds: req.availableOrderItemIds || [],
+              }
+            : null,
         };
       })
       .filter((p) => p.distanceInKm <= radiusKm)
@@ -489,6 +519,7 @@ export class OrdersService {
       expiresAt: req.expiresAt,
       respondedAt: req.respondedAt,
       responseTimeSeconds: req.responseTimeSeconds,
+      availableOrderItemIds: req.availableOrderItemIds || [],
       order: {
         id: req.order.id,
         shippingAddress: req.order.shippingAddress,
@@ -539,18 +570,37 @@ export class OrdersService {
     }
 
     if (pharmacyId && request.pharmacyId !== pharmacyId) {
-      throw new NotFoundException(`Pharmacy order request with ID ${id} not found`);
+      const pharmacy = await this.prisma.pharmacy.findFirst({
+        where: { userId: pharmacyId },
+      });
+      if (!pharmacy || request.pharmacyId !== pharmacy.id) {
+        throw new NotFoundException(`Pharmacy order request with ID ${id} not found`);
+      }
     }
 
     return request;
   }
 
-  async respondToPharmacyOrderRequest(id: string, status: string, pharmacyId?: string) {
-    const validStatuses = ['ACCEPTED', 'DECLINED', 'OUT_OF_STOCK'];
+  async respondToPharmacyOrderRequest(
+    id: string,
+    status: string,
+    pharmacyId?: string,
+    selectedOrderItemIds?: string[],
+  ) {
+    const validStatuses = ['ACCEPTED', 'DECLINED', 'OUT_OF_STOCK', 'PARTIALLY_AVAILABLE'];
     const normalizedStatus = status.toUpperCase();
 
     if (!validStatuses.includes(normalizedStatus)) {
       throw new BadRequestException(`Invalid response status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    if (normalizedStatus === 'PARTIALLY_AVAILABLE') {
+      return this.respondToPharmacyOrderRequestPartial(
+        id,
+        normalizedStatus,
+        selectedOrderItemIds || [],
+        pharmacyId,
+      );
     }
 
     const request = await this.prisma.pharmacyOrderRequest.findUnique({
@@ -608,9 +658,13 @@ export class OrdersService {
     });
 
     const responded = requests.filter(
-      (r) => r.status === 'ACCEPTED' || r.status === 'DECLINED' || r.status === 'OUT_OF_STOCK'
+      (r) =>
+        r.status === 'ACCEPTED' ||
+        r.status === 'DECLINED' ||
+        r.status === 'OUT_OF_STOCK' ||
+        r.status === 'PARTIALLY_AVAILABLE'
     );
-    const accepted = responded.filter((r) => r.status === 'ACCEPTED');
+    const accepted = responded.filter((r) => r.status === 'ACCEPTED' || r.status === 'PARTIALLY_AVAILABLE');
     const declined = responded.filter((r) => r.status === 'DECLINED');
     const outOfStock = responded.filter((r) => r.status === 'OUT_OF_STOCK');
     const expired = requests.filter((r) => r.status === 'EXPIRED');
@@ -638,6 +692,248 @@ export class OrdersService {
       expired: expired.length,
       avgResponseTimeSeconds: avgResponseTime,
       acceptanceRate: `${acceptanceRate}%`,
+    };
+  }
+
+  async respondToPharmacyOrderRequestPartial(
+    id: string,
+    status: string,
+    selectedOrderItemIds: string[] = [],
+    pharmacyId?: string,
+  ) {
+    const validStatuses = ['PARTIALLY_AVAILABLE'];
+    const normalizedStatus = status.toUpperCase();
+
+    if (!validStatuses.includes(normalizedStatus)) {
+      throw new BadRequestException(`Invalid response status. Must be: PARTIALLY_AVAILABLE`);
+    }
+
+    const request = await this.prisma.pharmacyOrderRequest.findUnique({
+      where: { id },
+      include: {
+        order: { include: { items: true } },
+        pharmacy: true,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException(`Pharmacy order request with ID ${id} not found`);
+    }
+
+    if (pharmacyId && request.pharmacyId !== pharmacyId) {
+      throw new NotFoundException(`Pharmacy order request with ID ${id} not found`);
+    }
+
+    if (request.status !== 'PENDING' && request.status !== 'PARTIALLY_AVAILABLE') {
+      throw new BadRequestException(`Request has already been responded to (current status: ${request.status})`);
+    }
+
+    // Validate that all selected order item IDs belong to this order
+    const orderItemIds = request.order.items.map((item) => item.id);
+    const invalidItems = selectedOrderItemIds.filter((itemId) => !orderItemIds.includes(itemId));
+    if (invalidItems.length > 0) {
+      throw new BadRequestException(`Invalid order item IDs: ${invalidItems.join(', ')}`);
+    }
+
+    const now = new Date();
+    const responseTimeSeconds = request.responseTimeSeconds ?? Math.floor(
+      (now.getTime() - request.requestedAt.getTime()) / 1000
+    );
+
+    const updatedRequest = await this.prisma.pharmacyOrderRequest.update({
+      where: { id },
+      data: {
+        status: normalizedStatus as any,
+        respondedAt: request.respondedAt || now,
+        responseTimeSeconds,
+        availableOrderItemIds: selectedOrderItemIds,
+      },
+      include: {
+        order: true,
+        pharmacy: true,
+      },
+    });
+
+    await this.prisma.notification.create({
+      data: {
+        type: 'PHARMACY_RESPONSE',
+        title: 'Pharmacy Partially Available',
+        message: `${request.pharmacy?.name || request.pharmacyId} marked ${selectedOrderItemIds.length} item(s) as available for order ${request.orderId.slice(0, 8)}`,
+        orderId: request.orderId,
+        pharmacyId: request.pharmacyId,
+      },
+    });
+
+    return updatedRequest;
+  }
+
+  async getPartialSummary(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: true,
+        items: {
+          include: {
+            product: {
+              select: { name: true, genericName: true, manufacturer: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+
+    const partialRequests = await this.prisma.pharmacyOrderRequest.findMany({
+      where: {
+        orderId,
+        status: { in: ['PARTIALLY_AVAILABLE', 'ACCEPTED'] },
+      },
+      include: {
+        pharmacy: true,
+      },
+      orderBy: { requestedAt: 'desc' },
+    });
+
+    return {
+      order: {
+        id: order.id,
+        orderCode: `TB-${order.id.slice(0, 8).toUpperCase()}`,
+        user: order.user
+          ? {
+              id: order.user.id,
+              firstName: order.user.firstName,
+              lastName: order.user.lastName,
+              phone: order.user.phone,
+              email: order.user.email,
+            }
+          : null,
+        shippingAddress: order.shippingAddress,
+        totalAmount: order.totalAmount,
+        status: order.status,
+        createdAt: order.createdAt,
+        items: order.items.map((item) => ({
+          id: item.id,
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+          product: item.product,
+          status: item.status,
+          assignedPharmacyId: item.assignedPharmacyId,
+        })),
+      },
+      partialResponses: partialRequests.map((req) => ({
+        id: req.id,
+        pharmacyId: req.pharmacyId,
+        status: req.status,
+        pharmacy: req.pharmacy
+          ? {
+              id: req.pharmacy.id,
+              name: req.pharmacy.name,
+              pharmacyType: req.pharmacy.pharmacyType,
+              phone: req.pharmacy.phone,
+              whatsappNumber: req.pharmacy.whatsappNumber,
+              email: req.pharmacy.email,
+            }
+          : null,
+        availableOrderItemIds: req.status === 'ACCEPTED' && (!req.availableOrderItemIds || req.availableOrderItemIds.length === 0)
+          ? order.items.map((i) => i.id)
+          : req.availableOrderItemIds || [],
+        respondedAt: req.respondedAt,
+      })),
+    };
+  }
+
+  async confirmSplitAssignment(orderId: string, allocations: PartialAllocationInput[]) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true, user: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID ${orderId} not found`);
+    }
+
+    if (!allocations || allocations.length === 0) {
+      throw new BadRequestException('No allocations provided');
+    }
+
+    // Validate all allocations
+    const orderItemIds = order.items.map((item) => item.id);
+    for (const allocation of allocations) {
+      if (!orderItemIds.includes(allocation.orderItemId)) {
+        throw new BadRequestException(`Invalid order item ID: ${allocation.orderItemId}`);
+      }
+      const pharmacy = await this.prisma.pharmacy.findUnique({
+        where: { id: allocation.pharmacyId },
+        select: { id: true },
+      });
+      if (!pharmacy) {
+        throw new BadRequestException(`Invalid pharmacy ID: ${allocation.pharmacyId}`);
+      }
+    }
+
+    // Update each order item
+    for (const allocation of allocations) {
+      await this.prisma.orderItem.update({
+        where: { id: allocation.orderItemId },
+        data: {
+          status: 'ASSIGNED',
+          assignedPharmacyId: allocation.pharmacyId,
+        },
+      });
+    }
+
+    // Fetch updated items
+    const updatedItems = await this.prisma.orderItem.findMany({
+      where: { orderId },
+    });
+
+    // Check if all items are now assigned
+    const allItemsAssigned = updatedItems.every((item) => item.status === 'ASSIGNED');
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { status: allItemsAssigned ? 'PROCESSING' : 'PARTIALLY_ASSIGNED' },
+      include: { items: true, user: true },
+    });
+
+    const orderCode = `TB-${orderId.slice(0, 8).toUpperCase()}`;
+    const distinctPharmacyIds = [...new Set(allocations.map((a) => a.pharmacyId))];
+
+    // Send notifications to pharmacies
+    for (const pid of distinctPharmacyIds) {
+      const pharmItemCount = allocations.filter((a) => a.pharmacyId === pid).length;
+      await this.prisma.notification.create({
+        data: {
+          type: 'SPLIT_ASSIGNMENT',
+          title: 'Order Items Assigned',
+          message: `${pharmItemCount} item(s) from Order ${orderCode} have been assigned to you.`,
+          orderId,
+          pharmacyId: pid,
+        },
+      });
+    }
+
+    // Send notification to user
+    await this.prisma.userNotification.create({
+      data: {
+        userId: order.userId,
+        orderId,
+        title: allItemsAssigned ? 'Order Dispatched' : 'Order Partially Dispatched',
+        message: `Your Order ${orderCode} has been confirmed and assigned to ${distinctPharmacyIds.length} pharmacy partner(s).`,
+        type: 'ORDER_STATUS_UPDATE',
+      },
+    });
+
+    return {
+      success: true,
+      orderStatus: updatedOrder.status,
+      allocatedItems: allocations.length,
+      totalItems: order.items.length,
     };
   }
 }

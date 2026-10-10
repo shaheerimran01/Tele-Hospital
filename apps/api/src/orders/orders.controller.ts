@@ -12,6 +12,11 @@ import {
 import { OrdersService } from './orders.service.js';
 import { CreateOrderDto } from './dto/create-order.dto.js';
 
+interface PartialAllocationInput {
+  orderItemId: string;
+  pharmacyId: string;
+}
+
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -54,9 +59,33 @@ export class OrdersController {
   respondToPharmacyOrderRequest(
     @Param('id') id: string,
     @Body('status') status: string,
+    @Body('selectedOrderItemIds') selectedOrderItemIds?: string[],
     @Headers('x-pharmacy-id') pharmacyId?: string,
   ) {
-    return this.ordersService.respondToPharmacyOrderRequest(id, status, pharmacyId);
+    return this.ordersService.respondToPharmacyOrderRequest(id, status, pharmacyId, selectedOrderItemIds);
+  }
+
+  @Patch('pharmacy-orders/:id/respond-partial')
+  respondToPharmacyOrderRequestPartial(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Body('selectedOrderItemIds') selectedOrderItemIds: string[],
+    @Headers('x-pharmacy-id') pharmacyId?: string,
+  ) {
+    return this.ordersService.respondToPharmacyOrderRequestPartial(id, status, selectedOrderItemIds, pharmacyId);
+  }
+
+  @Get(':id/partial-summary')
+  getPartialSummary(@Param('id') orderId: string) {
+    return this.ordersService.getPartialSummary(orderId);
+  }
+
+  @Post(':id/confirm-split-assignment')
+  confirmSplitAssignment(
+    @Param('id') orderId: string,
+    @Body('allocations') allocations: PartialAllocationInput[],
+  ) {
+    return this.ordersService.confirmSplitAssignment(orderId, allocations);
   }
 
   @Get(':id')
@@ -106,3 +135,19 @@ export class OrdersController {
     return this.ordersService.sendPharmacyOrderRequest(orderId, pharmacyIds);
   }
 }
+
+@Controller('pharmacy-dashboard/orders')
+export class PharmacyDashboardOrdersController {
+  constructor(private readonly ordersService: OrdersService) {}
+
+  @Patch(':id/respond')
+  respond(
+    @Param('id') id: string,
+    @Body('status') status: string,
+    @Body('selectedOrderItemIds') selectedOrderItemIds?: string[],
+    @Headers('x-pharmacy-id') pharmacyId?: string,
+  ) {
+    return this.ordersService.respondToPharmacyOrderRequest(id, status, pharmacyId, selectedOrderItemIds);
+  }
+}
+

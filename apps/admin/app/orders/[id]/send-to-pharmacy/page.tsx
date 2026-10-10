@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Bell, 
@@ -36,6 +36,7 @@ import {
   XCircle,
   CheckCircle,
   AlertTriangle,
+  ChevronRight,
 } from 'lucide-react';
 import { fetchOrderById } from '@/lib/api/orderDetails';
 
@@ -43,6 +44,7 @@ const RADIUS_OPTIONS = [5, 10, 15, 20, 25, 30];
 
 export default function SendToPharmacyPage() {
   const params = useParams();
+  const router = useRouter();
   const orderId = params?.id as string;
 
   const [order, setOrder] = useState<any>(null);
@@ -56,8 +58,9 @@ export default function SendToPharmacyPage() {
   const [sendingRequest, setSendingRequest] = useState<boolean>(false);
   const [sentRequests, setSentRequests] = useState<{ pharmacyId: string; sentAt: number; requestId?: string }[]>([]);
   const [pharmacyRequestStatus, setPharmacyRequestStatus] = useState<Record<string, {
-    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'OUT_OF_STOCK' | 'EXPIRED';
+    status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'OUT_OF_STOCK' | 'EXPIRED' | 'PARTIALLY_AVAILABLE';
     requestId: string;
+    availableOrderItemIds?: string[];
   }>>({});
   const [pharmacyAnalytics, setPharmacyAnalytics] = useState<Record<string, {
     acceptanceRate: number;
@@ -81,64 +84,65 @@ export default function SendToPharmacyPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Polling for real-time pharmacy request status updates (every 4 seconds)
-  useEffect(() => {
-    // Use ref to avoid dependency on pharmacyRequestStatus
-    const getRequestIds = () => Object.values(pharmacyRequestStatusRef.current).map(r => r.requestId);
-    
-    const pollStatus = async () => {
-      const currentStatus = pharmacyRequestStatusRef.current;
-      const requestIds = Object.values(currentStatus).map(r => r.requestId);
-      if (requestIds.length === 0) return;
+  // Sync request statuses from backend pharmacy objects into local state without losing PARTIALLY_AVAILABLE
+  const syncPharmacyRequests = (data: any[]) => {
+    setPharmacyRequestStatus((prev) => {
+      const next = { ...prev };
+      data.forEach((p: any) => {
+        if (p.requestId || p.requestStatus) {
+          const existing = next[p.id];
+          const availableItems = (p.availableOrderItemIds && p.availableOrderItemIds.length > 0)
+            ? p.availableOrderItemIds
+            : (existing?.availableOrderItemIds || []);
+          next[p.id] = {
+            status: p.requestStatus || existing?.status || 'PENDING',
+            requestId: p.requestId || existing?.requestId || '',
+            availableOrderItemIds: availableItems,
+          };
+        }
+      });
+      return next;
+    });
 
-      try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-        const statusUpdates: Record<string, { status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'OUT_OF_STOCK' | 'EXPIRED'; requestId: string }> = { ...currentStatus };
-        let hasPending = false;
-        let hasChanges = false;
-
-        for (const [pharmacyId, requestInfo] of Object.entries(currentStatus)) {
-          if (requestInfo.status === 'PENDING') {
-            hasPending = true;
-            try {
-              const res = await fetch(`${baseUrl}/orders/pharmacy-orders/${requestInfo.requestId}`, {
-                headers: { 'Content-Type': 'application/json' },
-              });
-              if (res.ok) {
-                const data = await res.json();
-                const newStatus = data.status;
-                if (newStatus !== requestInfo.status) {
-                  hasChanges = true;
-                  statusUpdates[pharmacyId] = {
-                    status: newStatus,
-                    requestId: requestInfo.requestId,
-                  };
-                }
-              }
-            } catch (err) {
-              console.error(`Failed to fetch status for ${pharmacyId}:`, err);
-            }
+    setSentRequests((prev) => {
+      const map = new Map(prev.map((r) => [r.pharmacyId, r]));
+      data.forEach((p: any) => {
+        if (p.requestId || p.requestStatus) {
+          if (!map.has(p.id)) {
+            map.set(p.id, {
+              pharmacyId: p.id,
+              sentAt: p.requestedAt ? new Date(p.requestedAt).getTime() : Date.now(),
+              requestId: p.requestId,
+            });
           }
         }
+      });
+      return Array.from(map.values());
+    });
+  };
 
-        // Only update state if there are actual changes
-        if (hasChanges) {
-          setPharmacyRequestStatus(statusUpdates);
-        }
+  // Background polling for nearby pharmacies and statuses (every 4 seconds)
+  useEffect(() => {
+    if (!orderId) return;
 
-        // If no pending requests, we can stop polling (but keep the effect for new requests)
-        if (!hasPending) {
-          // Still keep polling in case new requests are sent
+    const pollInterval = setInterval(async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const res = await fetch(`${baseUrl}/orders/${orderId}/nearby-pharmacies?radius=${selectedRadius}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setPharmacies(data);
+            syncPharmacyRequests(data);
+          }
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        console.error('Background poll error:', err);
       }
-    };
+    }, 4000);
 
-    pollStatus(); // Initial fetch
-    const interval = setInterval(pollStatus, 4000); // Poll every 4 seconds
-    return () => clearInterval(interval);
-  }, [orderId]);
+    return () => clearInterval(pollInterval);
+  }, [orderId, selectedRadius]);
 
   useEffect(() => {
     if (orderId) {
@@ -238,7 +242,9 @@ export default function SendToPharmacyPage() {
         throw new Error(errData.message || 'Failed to fetch nearby pharmacies');
       }
       const data = await res.json();
-      setPharmacies(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setPharmacies(list);
+      syncPharmacyRequests(list);
     } catch (err: any) {
       setError(err.message || 'Nearby pharmacies load nahi ho saken.');
     } finally {
@@ -365,6 +371,7 @@ export default function SendToPharmacyPage() {
       OUT_OF_STOCK: 'bg-amber-100 text-amber-800 border-amber-200',
       EXPIRED: 'bg-slate-100 text-slate-800 border-slate-200',
       PENDING: 'bg-blue-100 text-blue-800 border-blue-200',
+      PARTIALLY_AVAILABLE: 'bg-amber-100 text-amber-800 border-amber-200',
     };
     return `px-3 py-1 rounded-xl text-xs font-bold border ${styles[st] || 'bg-slate-100 text-slate-800 border-slate-200'}`;
   };
@@ -377,6 +384,7 @@ export default function SendToPharmacyPage() {
       OUT_OF_STOCK: 'bg-amber-50 border-amber-200',
       EXPIRED: 'bg-slate-50 border-slate-200',
       PENDING: 'bg-blue-50 border-blue-200',
+      PARTIALLY_AVAILABLE: 'bg-amber-50 border-amber-200',
     };
     return `flex items-center gap-2 p-3 rounded-xl ${styles[st] || 'bg-slate-50 border-slate-200'}`;
   };
@@ -387,6 +395,7 @@ export default function SendToPharmacyPage() {
     if (st === 'DECLINED') return <XCircle className="w-3.5 h-3.5" />;
     if (st === 'OUT_OF_STOCK') return <AlertTriangle className="w-3.5 h-3.5" />;
     if (st === 'EXPIRED') return <Clock className="w-3.5 h-3.5" />;
+    if (st === 'PARTIALLY_AVAILABLE') return <AlertTriangle className="w-3.5 h-3.5" />;
     return <Clock className="w-3.5 h-3.5" />;
   };
 
@@ -546,6 +555,36 @@ export default function SendToPharmacyPage() {
             Back to Order Details
           </Link>
 
+          {/* Persistent Top Alert Banner if any pharmacy has reported PARTIALLY_AVAILABLE */}
+          {pharmacies.some((p) => (pharmacyRequestStatus[p.id]?.status || p.requestStatus) === 'PARTIALLY_AVAILABLE') && (
+            <div className="mb-6 p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border-2 border-amber-400 bg-amber-50 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start md:items-center gap-3.5">
+                <div className="p-3 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-extrabold text-amber-950">
+                      ⚡ Partial Availability Reported!
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-300">
+                      Action Required
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-900/90 mt-1">
+                    One or more pharmacies have reported partial stock availability for this order. You can open the comparison matrix to allocate items and confirm split dispatch.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href={`/orders/${orderId}/partial-fulfillment`}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-amber-900/15 transition whitespace-nowrap cursor-pointer hover:scale-[1.02]"
+              >
+                View Partial Matrix ➔
+              </Link>
+            </div>
+          )}
+
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
               <div>
@@ -554,6 +593,15 @@ export default function SendToPharmacyPage() {
                   <span className="px-3 py-1 rounded-md font-bold text-xs border bg-emerald-50 text-emerald-700 border-emerald-200">
                     Send to Pharmacy
                   </span>
+                  {pharmacies.some((p) => (pharmacyRequestStatus[p.id]?.status || p.requestStatus) === 'PARTIALLY_AVAILABLE') && (
+                    <Link
+                      href={`/orders/${orderId}/partial-fulfillment`}
+                      className="px-3 py-1 rounded-md font-extrabold text-xs border bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 flex items-center gap-1.5 transition"
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      Partial Stock Reported ➔
+                    </Link>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -657,14 +705,17 @@ export default function SendToPharmacyPage() {
               const timeRemaining = getTimeRemaining(pharmacy.id);
               const analytics = pharmacyAnalytics[pharmacy.id] || getMockAnalytics(pharmacy.id);
               const sentRequest = sentRequests.find(r => r.pharmacyId === pharmacy.id);
-              const hasSentRequest = !!sentRequest;
+              const reqInfo = pharmacyRequestStatus[pharmacy.id];
+              const requestStatus = reqInfo?.status || pharmacy.requestStatus;
+              const availableOrderItemIds = (reqInfo?.availableOrderItemIds && reqInfo.availableOrderItemIds.length > 0)
+                ? reqInfo.availableOrderItemIds
+                : (pharmacy.availableOrderItemIds || []);
+              const requestId = reqInfo?.requestId || pharmacy.requestId || sentRequest?.requestId;
+              const hasSentRequest = !!(requestId || requestStatus || sentRequest);
               const isExpired = timeRemaining <= 0;
-              
-              // Get real-time request status from polling
-              const requestStatus = pharmacyRequestStatus[pharmacy.id]?.status;
               const isPending = requestStatus === 'PENDING';
+              const isPartiallyAvailable = requestStatus === 'PARTIALLY_AVAILABLE';
               const isResponded = requestStatus && requestStatus !== 'PENDING';
-              const requestId = pharmacyRequestStatus[pharmacy.id]?.requestId || sentRequest?.requestId;
 
               return (
                 <div key={pharmacy.id} className="border border-slate-200 rounded-2xl p-6 bg-white shadow-xs space-y-4 hover:shadow-md transition-shadow">
@@ -705,13 +756,35 @@ export default function SendToPharmacyPage() {
                         </div>
                       )}
                       
-                      {/* Response Badges - for ACCEPTED, DECLINED, OUT_OF_STOCK, EXPIRED */}
+                      {/* Response Badges - for ACCEPTED, DECLINED, OUT_OF_STOCK, EXPIRED, PARTIALLY_AVAILABLE */}
                       {isResponded && (
-                        <div className={getResponseBadgeContainerStyle(requestStatus || '')}>
-                          {getResponseBadgeIcon(requestStatus || 'PENDING')}
-                          <span className={getResponseBadgeStyle(requestStatus || '').replace('px-3 py-1 rounded-xl text-xs font-bold border ', '')}>
-                            {requestStatus}
-                          </span>
+                        <div className="space-y-2">
+                          {isPartiallyAvailable ? (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50 border-2 border-amber-300">
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                  <span className="text-xs font-black text-amber-900 uppercase">
+                                    PARTIALLY AVAILABLE ({availableOrderItemIds.length}/{order.items?.length || 0} ITEMS)
+                                  </span>
+                                </div>
+                              </div>
+                              <Link
+                                href={`/orders/${orderId}/partial-fulfillment`}
+                                className="w-full py-2.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.01]"
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                                View Partial Matrix ➔
+                              </Link>
+                            </div>
+                          ) : (
+                            <div className={getResponseBadgeContainerStyle(requestStatus || '')}>
+                              {getResponseBadgeIcon(requestStatus || 'PENDING')}
+                              <span className={getResponseBadgeStyle(requestStatus || '').replace('px-3 py-1 rounded-xl text-xs font-bold border ', '')}>
+                                {requestStatus}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -779,21 +852,33 @@ export default function SendToPharmacyPage() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleSendToSinglePharmacy(pharmacy.id)}
-                    disabled={sendingRequest || hasSentRequest}
-                    className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer ${
-                      hasSentRequest
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                        : 'bg-[#0F2942] hover:bg-[#1A3A5C] text-white'
-                    }`}
-                  >
-                    <Send className="w-4 h-4" />
-                    {hasSentRequest
-                      ? (isPending ? 'Request Sent (Pending)' : requestStatus || 'Request Sent')
-                      : 'Send Request'}
-                  </button>
+                  {isPartiallyAvailable ? (
+                    <Link
+                      href={`/orders/${orderId}/partial-fulfillment`}
+                      className="w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                      View Partial Matrix ({availableOrderItemIds.length}/{order.items?.length || 0} items) ➔
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleSendToSinglePharmacy(pharmacy.id)}
+                      disabled={sendingRequest || hasSentRequest}
+                      className={`w-full py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs disabled:opacity-50 cursor-pointer ${
+                        hasSentRequest
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : 'bg-[#0F2942] hover:bg-[#1A3A5C] text-white'
+                      }`}
+                    >
+                      <Send className="w-4 h-4" />
+                      {hasSentRequest
+                        ? (isPending
+                            ? 'Request Sent (Pending)'
+                            : requestStatus || 'Request Sent')
+                        : 'Send Request'}
+                    </button>
+                  )}
                 </div>
               );
             })}
