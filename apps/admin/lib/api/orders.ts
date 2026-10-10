@@ -66,6 +66,7 @@ export async function fetchAdminOrders(): Promise<OrderTableItem[]> {
       items: itemsList,
       totalQuantity,
       status: order.status || 'Pending',
+      dispatchStatus: order.dispatchStatus || 'NOT_DISPATCHED',
       paymentStatus: order.paymentStatus || 'Pending',
       paymentMethod: order.paymentMethod || 'COD',
       totalAmount: order.totalAmount || 0,
@@ -79,6 +80,7 @@ export async function fetchAdminOrders(): Promise<OrderTableItem[]> {
           })
         : 'Recent',
       rawDate: order.createdAt || new Date().toISOString(),
+      createdAt: order.createdAt || new Date().toISOString(),
       prescriptionStatus,
       prescriptionUrl,
     };

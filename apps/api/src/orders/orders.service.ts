@@ -119,13 +119,26 @@ export class OrdersService {
   }
 
   async findAll() {
-    return this.prisma.order.findMany({
+    const orders = await this.prisma.order.findMany({
       include: {
         user: true,
         items: true,
         prescriptions: true,
+        pharmacyOrderRequests: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return orders.map(({ pharmacyOrderRequests, ...order }) => {
+      const latestRequest = pharmacyOrderRequests[0];
+      const dispatchStatus = latestRequest?.status === 'EXPIRED'
+        ? 'NOT_DISPATCHED'
+        : latestRequest?.status ?? 'NOT_DISPATCHED';
+
+      return { ...order, dispatchStatus, createdAt: order.createdAt };
     });
   }
 

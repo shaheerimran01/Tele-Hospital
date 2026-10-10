@@ -17,6 +17,9 @@ import {
   Building2,
   Boxes,
   Globe,
+  Clock,
+  CheckCircle2,
+  LoaderCircle,
 } from 'lucide-react';
 import { fetchAdminOrders } from '@/lib/api/orders';
 import { OrderTableItem } from '@/types/order';
@@ -30,20 +33,27 @@ export default function OrdersPage() {
   
   // Prescription Modal Preview State
   const [selectedPrescription, setSelectedPrescription] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     loadOrdersData();
+    const refreshInterval = window.setInterval(() => loadOrdersData(false), 5000);
+    const clockInterval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      window.clearInterval(refreshInterval);
+      window.clearInterval(clockInterval);
+    };
   }, []);
 
-  const loadOrdersData = async () => {
+  const loadOrdersData = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const data = await fetchAdminOrders();
       setOrders(data);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -85,6 +95,39 @@ export default function OrdersPage() {
       return <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md font-bold text-[11px] border border-emerald-100">Paid</span>;
     }
     return <span className="bg-rose-50 text-rose-700 px-2.5 py-1 rounded-md font-bold text-[11px] border border-rose-100">Unpaid</span>;
+  };
+
+  const getDispatchStatusBadge = (status: OrderTableItem['dispatchStatus']) => {
+    const styles: Record<OrderTableItem['dispatchStatus'], string> = {
+      ACCEPTED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      PARTIALLY_AVAILABLE: 'bg-amber-50 text-amber-800 border-amber-200',
+      DECLINED: 'bg-rose-50 text-rose-700 border-rose-200',
+      OUT_OF_STOCK: 'bg-orange-50 text-orange-800 border-orange-200',
+      PENDING: 'bg-blue-50 text-blue-700 border-blue-200',
+      NOT_DISPATCHED: 'bg-slate-50 text-slate-600 border-slate-200',
+    };
+    const label = status.replaceAll('_', ' ');
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-[10px] border ${styles[status]}`}>
+        {status === 'PENDING' && <LoaderCircle className="w-3 h-3 animate-spin" />}
+        {status === 'PENDING' && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />}
+        {label}
+      </span>
+    );
+  };
+
+  const getSlaDisplay = (order: OrderTableItem) => {
+    if (order.dispatchStatus === 'ACCEPTED' || order.status.toUpperCase() === 'ACCEPTED') {
+      return <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3.5 h-3.5" />Completed</span>;
+    }
+    const remainingMs = Math.max(0, new Date(order.createdAt).getTime() + 5 * 60 * 1000 - now);
+    if (remainingMs === 0) {
+      return <span className="px-2.5 py-1 rounded-md font-extrabold text-[10px] bg-rose-50 text-rose-700 border border-rose-200">00:00 (SLA EXPIRED)</span>;
+    }
+    const seconds = Math.floor(remainingMs / 1000);
+    const time = `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
+    const urgent = remainingMs <= 60_000;
+    return <span className={`inline-flex items-center gap-1.5 font-mono font-bold ${urgent ? 'text-amber-700' : 'text-blue-700'}`}><Clock className="w-3.5 h-3.5" />{time}</span>;
   };
 
   const getPrescriptionBadge = (item: OrderTableItem) => {
@@ -221,7 +264,7 @@ export default function OrdersPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
+            <table className="w-full text-left border-collapse min-w-[1250px]">
               <thead>
                 <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100/60">
                   <th className="py-3.5 px-5 whitespace-nowrap">Order ID</th>
@@ -229,6 +272,8 @@ export default function OrdersPage() {
                   <th className="py-3.5 px-5 min-w-[280px]">Products & Quantity</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap">QTY</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">SLA Timer (5 Mins)</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Pharmacy Status</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Payment</th>
                   <th className="py-3.5 px-4 whitespace-nowrap">Method</th>
                   <th className="py-3.5 px-5 whitespace-nowrap">Amount</th>
@@ -240,13 +285,13 @@ export default function OrdersPage() {
               <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
                 {loading ? (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-slate-400 font-medium">
+                    <td colSpan={13} className="py-12 text-center text-slate-400 font-medium">
                       Orders load ho rahe hain...
                     </td>
                   </tr>
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-slate-400 font-medium">
+                    <td colSpan={13} className="py-12 text-center text-slate-400 font-medium">
                       Koi order nahi mila.
                     </td>
                   </tr>
@@ -289,6 +334,8 @@ export default function OrdersPage() {
                         {order.totalQuantity}
                       </td>
                       <td className="py-4 px-4 whitespace-nowrap">{getStatusBadge(order.status)}</td>
+                      <td className="py-4 px-4 whitespace-nowrap">{getSlaDisplay(order)}</td>
+                      <td className="py-4 px-4 whitespace-nowrap">{getDispatchStatusBadge(order.dispatchStatus)}</td>
                       <td className="py-4 px-4 whitespace-nowrap">{getPaymentStatusBadge(order.paymentStatus)}</td>
                       <td className="py-4 px-4 font-bold text-slate-700 uppercase text-[11px] whitespace-nowrap">
                         {order.paymentMethod}

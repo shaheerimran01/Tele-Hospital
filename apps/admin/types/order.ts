@@ -12,11 +12,13 @@ export interface OrderTableItem {
   items: OrderProductItem[];
   totalQuantity: number;
   status: string;
+  dispatchStatus: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'PARTIALLY_AVAILABLE' | 'OUT_OF_STOCK' | 'NOT_DISPATCHED';
   paymentStatus: string;
   paymentMethod: string;
   totalAmount: number;
   orderDate: string;
   rawDate: string;
+  createdAt: string;
   prescriptionStatus: 'Not Required' | 'Uploaded' | 'Missing';
   prescriptionUrl?: string | null;
 }
