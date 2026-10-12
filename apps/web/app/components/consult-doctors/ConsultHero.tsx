@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function ConsultHero() {
   return (
     <section className="py-10 lg:py-14 bg-white overflow-hidden">
@@ -59,9 +61,12 @@ export default function ConsultHero() {
 
             {/* Consult Now CTA Button */}
             <div className="mt-8">
-              <button className="rounded-md bg-[#ff6b6b] px-8 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#ff5252] transition cursor-pointer">
+              <Link
+                href="/consult-doctors/intake"
+                className="inline-block rounded-md bg-[#ff6b6b] px-8 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#ff5252] transition cursor-pointer"
+              >
                 Consult now
-              </button>
+              </Link>
             </div>
           </div>
 

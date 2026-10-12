@@ -55,6 +55,9 @@ model User {
   orders            Order[]
   prescriptions     Prescription[]
   userNotifications UserNotification[]
+  familyMembers       FamilyMember[]
+  consultationIntakes ConsultationIntake[]
+  doctor                 Doctor?
 }
 
 model Address {
@@ -380,4 +383,229 @@ model UserNotification {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+
+// ------------------------------------------------------
+// ENUMS FOR CONSULTATION MODULE
+// ------------------------------------------------------
+
+enum PatientType {
+  SELF
+  FAMILY_MEMBER
+}
+
+enum RelationType {
+  SPOUSE
+  CHILD
+  PARENT
+  SIBLING
+  OTHER
+}
+
+enum ConsultationFlowType {
+  INSTANT_3_MIN     // 3-Minute Instant Matching
+  DOCTOR_LISTING    // Nearby/Descending Doctor List Selection
+}
+
+enum ConsultationServiceMode {
+  IN_CLINIC
+  TEXT
+  VIDEO
+}
+
+enum IntakeStatus {
+  DRAFT
+  PENDING_MATCHING
+  DOCTOR_ASSIGNED
+  COMPLETED
+  CANCELLED
+}
+
+// ------------------------------------------------------
+// MODELS
+// ------------------------------------------------------
+
+// Family Members under Primary Logged-in User
+model FamilyMember {
+  id           String             @id @default(uuid())
+  userId       String
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fullName     String
+  relation     RelationType
+  gender       String             // e.g. "Male", "Female", "Other"
+  age          Int?
+  dateOfBirth  DateTime?
+  
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  consultations ConsultationIntake[]
+
+  @@map("family_members")
+}
+
+// Speciality Categories (Searchable & Filterable)
+model Speciality {
+  id           String             @id @default(uuid())
+  name         String             @unique // e.g., "Dermatologist", "General Physician"
+  slug         String             @unique
+  iconUrl      String?
+  description  String?
+  category     String?            // e.g., "General", "Specialist", "Surgery"
+  isActive     Boolean            @default(true)
+
+  consultations ConsultationIntake[]
+
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@map("specialities")
+}
+
+// Main Consultation Intake Record
+model ConsultationIntake {
+  id                  String                  @id @default(uuid())
+  
+  // Logged-in User
+  userId              String
+  user                User                    @relation(fields: [userId], references: [id])
+
+  // Patient Info (Self or Family Member)
+  patientType         PatientType             @default(SELF)
+  familyMemberId      String?
+  familyMember        FamilyMember?           @relation(fields: [familyMemberId], references: [id])
+  
+  // Snapshot of Address at time of intake (used for distance calculation)
+  patientAddress      Json?                   // Stores { street, city, latitude, longitude, area }
+
+  // Selected Speciality
+  specialityId        String
+  speciality          Speciality              @relation(fields: [specialityId], references: [id])
+
+  // Health Problem Details
+  symptoms            String[]                // e.g. ["Fever", "Headache"]
+  symptomDuration     String?                 // e.g. "2 Days", "1 Week"
+  description         String?                 @db.Text
+  attachments         String[]                // URLs of uploaded reports/photos
+
+  // Next Step Configurations
+  flowType            ConsultationFlowType?   // INSTANT_3_MIN or DOCTOR_LISTING
+  serviceMode         ConsultationServiceMode? // IN_CLINIC, TEXT, VIDEO
+
+  // Lifecycle Status
+  status              IntakeStatus            @default(DRAFT)
+
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@map("consultation_intakes")
+}
+
+// ------------------------------------------------------
+// ENUM FOR DOCTOR REGISTRATION STATUS
+// ------------------------------------------------------
+
+enum DoctorStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ------------------------------------------------------
+// DOCTOR REGISTRATION & PROFILE MODELS
+// ------------------------------------------------------
+
+model Doctor {
+  id                    String               @id @default(uuid())
+  
+  // Optional link to existing User account
+  userId                String?              @unique
+  user                  User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // 1. Personal Information
+  fullName              String
+  title                 String               // e.g. "Consultant Family Physician"
+  degrees               String               // e.g. "MBBS, FCPS (Family Medicine)"
+  pmdcNumber            String               @unique
+  pmdcCertificateUrl    String?              // Image URL for PMDC degree/certificate
+  experienceYears       Int
+  languages             String[]             // e.g. ["English", "Urdu", "Punjabi"]
+  phone                 String
+  email                 String?
+  specialisations       String[]             // e.g. ["Family medicine", "Women's health"]
+  education             String?              // e.g. "Aga Khan University"
+  about                 String?              @db.Text
+  profilePhotoUrl       String?
+
+  // 2. Consultation Types (Duration / Time removed as requested)
+  isVideoCallEnabled    Boolean              @default(false)
+  videoCallFee          Float?
+
+  isTextConsultEnabled  Boolean              @default(false)
+  textConsultFee        Float?
+
+  // System Status
+  status                DoctorStatus         @default(PENDING)
+  isActive              Boolean              @default(true)
+
+  // Relations
+  clinics               DoctorClinic[]
+  onlineAvailabilities  DoctorAvailability[]
+
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@map("doctors")
+}
+
+// Clinics where Doctor practices (OpenStreetMap Address + Lat/Lng)
+model DoctorClinic {
+  id           String                  @id @default(uuid())
+  doctorId     String
+  doctor       Doctor                  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  name         String
+  phone        String?
+  inPersonFee  Float
+
+  // Location fields for OpenStreetMap integration
+  address      String
+  latitude     Float?
+  longitude    Float?
+
+  // Timing schedules for this clinic
+  schedules    DoctorClinicSchedule[]
+
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@map("doctor_clinics")
+}
+
+// Days and timing slots for Clinics
+model DoctorClinicSchedule {
+  id           String       @id @default(uuid())
+  clinicId     String
+  clinic       DoctorClinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  dayOfWeek    String       // e.g. "Monday", "Tuesday"
+  startTime    String       // e.g. "10:00 AM"
+  endTime      String       // e.g. "01:00 PM"
+
+  @@map("doctor_clinic_schedules")
+}
+
+// Weekly availability for Online Consultations (Video/Text)
+model DoctorAvailability {
+  id           String   @id @default(uuid())
+  doctorId     String
+  doctor       Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  dayOfWeek    String   // e.g. "Monday", "Tuesday"
+  startTime    String   // e.g. "10:00 AM"
+  endTime      String   // e.g. "01:00 PM"
+
+  @@map("doctor_availabilities")
 }
