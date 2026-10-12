@@ -85,10 +85,10 @@ export function PharmacySidebar({ pharmacyName, pharmacyStatus, pharmacyId }: { 
         <button
           onClick={() => {
             if (typeof window !== 'undefined') {
-              localStorage.removeItem('pharmacyId');
-              localStorage.removeItem('userPharmacyId');
-              localStorage.removeItem('pharmacyPhone');
-              localStorage.removeItem('pharmacyEmail');
+              sessionStorage.removeItem('pharmacyId');
+              sessionStorage.removeItem('userPharmacyId');
+              sessionStorage.removeItem('pharmacyPhone');
+              sessionStorage.removeItem('pharmacyEmail');
               router.push('/');
             }
           }}

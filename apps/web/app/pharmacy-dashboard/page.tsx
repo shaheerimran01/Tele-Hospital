@@ -67,8 +67,8 @@ export default function SellerDashboardPage() {
       if (typeof window === 'undefined') return;
 
       const activeId = 
-        localStorage.getItem('pharmacyId') || 
-        localStorage.getItem('userPharmacyId');
+        sessionStorage.getItem('pharmacyId') ||
+        sessionStorage.getItem('userPharmacyId');
 
       if (!activeId) {
         setLoading(false);

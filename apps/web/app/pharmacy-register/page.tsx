@@ -399,10 +399,10 @@ export default function PharmacyRegisterPage() {
 
       // Retrieve verified phone & email from localStorage saved during Auth modal step
       const savedPhone = typeof window !== 'undefined' 
-        ? (localStorage.getItem('pharmacyPhone') || localStorage.getItem('verifiedPhone') || '') 
+        ? (sessionStorage.getItem('pharmacyPhone') || sessionStorage.getItem('verifiedPhone') || '')
         : '';
       const savedEmail = typeof window !== 'undefined' 
-        ? (localStorage.getItem('pharmacyEmail') || '') 
+        ? (sessionStorage.getItem('pharmacyEmail') || '')
         : '';
 
       if (!savedPhone) {
@@ -459,7 +459,7 @@ export default function PharmacyRegisterPage() {
 
         // Save generated pharmacy ID locally for future dashboard requests
         if (createdPharmacyId && typeof window !== 'undefined') {
-          localStorage.setItem('pharmacyId', createdPharmacyId);
+          sessionStorage.setItem('pharmacyId', createdPharmacyId);
         }
 
         // STEP 2: If CSV file is attached, upload it to pharmacy-products endpoint

@@ -37,11 +37,11 @@ export default function SignupForm({ phone, onComplete }: SignupFormProps) {
       if (res.ok) {
         // 👈 Save phone and email for PharmacyRegisterPage
           if (typeof window !== 'undefined') {
-            localStorage.setItem('pharmacyPhone', phone || '');
-            localStorage.setItem('pharmacyEmail', email.trim().toLowerCase());
+            sessionStorage.setItem('pharmacyPhone', phone || '');
+            sessionStorage.setItem('pharmacyEmail', email.trim().toLowerCase());
             // Persist pharmacyId if backend returned one (already-registered path)
             if (data.pharmacyId) {
-              localStorage.setItem('pharmacyId', data.pharmacyId);
+              sessionStorage.setItem('pharmacyId', data.pharmacyId);
             }
           }
           onComplete?.({

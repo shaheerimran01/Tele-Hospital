@@ -271,8 +271,8 @@ export default function ProductsPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const activeId = 
-        localStorage.getItem('pharmacyId') || 
-        localStorage.getItem('userPharmacyId') || 
+        sessionStorage.getItem('pharmacyId') ||
+        sessionStorage.getItem('userPharmacyId') ||
         'cmusaneom00007sv5rz5cdtrm';
         
       setPharmacyId(activeId);

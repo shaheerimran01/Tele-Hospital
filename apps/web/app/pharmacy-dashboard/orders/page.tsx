@@ -73,7 +73,7 @@ interface AnalyticsData {
 
 const getStoragePharmacyId = (): string | null => {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('pharmacyId') || localStorage.getItem('userPharmacyId') || null;
+  return sessionStorage.getItem('pharmacyId') || sessionStorage.getItem('userPharmacyId') || null;
 };
 
 export default function PharmacyOrdersPage() {

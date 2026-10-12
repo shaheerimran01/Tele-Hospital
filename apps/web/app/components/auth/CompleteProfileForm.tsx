@@ -19,7 +19,7 @@ export default function CompleteProfileForm() {
     setErrorMsg('');
 
     try {
-      const storedPhone = localStorage.getItem('pharmacyPhone') || phone;
+      const storedPhone = sessionStorage.getItem('pharmacyPhone') || phone;
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/pharmacies/auth/complete-profile`,
         {
@@ -33,7 +33,7 @@ export default function CompleteProfileForm() {
 
       if (res.ok) {
         if (typeof window !== 'undefined' && data.pharmacyId) {
-          localStorage.setItem('pharmacyId', data.pharmacyId);
+          sessionStorage.setItem('pharmacyId', data.pharmacyId);
         }
         router.push('/pharmacy-dashboard');
       } else {

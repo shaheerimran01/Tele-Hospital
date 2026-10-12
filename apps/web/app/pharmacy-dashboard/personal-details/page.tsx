@@ -153,8 +153,8 @@ export default function PersonalDetailsPage() {
     if (typeof window === 'undefined') return;
 
     const activeId = 
-      localStorage.getItem('pharmacyId') || 
-      localStorage.getItem('userPharmacyId') || 
+      sessionStorage.getItem('pharmacyId') ||
+      sessionStorage.getItem('userPharmacyId') ||
       'cmushkfj60000fgv5zinowcrt';
     setPharmacyId(activeId);
     fetchPharmacyDetails(activeId);

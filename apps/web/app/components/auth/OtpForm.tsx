@@ -33,12 +33,12 @@ export default function OtpForm({ phone, onVerified, onBack }: OtpFormProps) {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // 👈 Phone, Email, and IDs to LocalStorage mein save karein
+        // Keep pharmacy identity scoped to this browser tab.
         if (typeof window !== 'undefined') {
-          localStorage.setItem('pharmacyPhone', phone || '');
-          if (data.email) localStorage.setItem('pharmacyEmail', data.email);
-          if (data.pharmacyId) localStorage.setItem('pharmacyId', data.pharmacyId);
-          if (data.pharmacyRegId) localStorage.setItem('pharmacyRegId', data.pharmacyRegId);
+          sessionStorage.setItem('pharmacyPhone', phone || '');
+          if (data.email) sessionStorage.setItem('pharmacyEmail', data.email);
+          if (data.pharmacyId) sessionStorage.setItem('pharmacyId', data.pharmacyId);
+          if (data.pharmacyRegId) sessionStorage.setItem('pharmacyRegId', data.pharmacyRegId);
         }
 
         onVerified?.({
