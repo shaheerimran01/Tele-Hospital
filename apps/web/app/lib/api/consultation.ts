@@ -213,3 +213,26 @@ export async function getPrimaryAddressApi(
   const addresses: SavedAddress[] = await response.json();
   return addresses.find((a) => a.isDefault) ?? addresses[0] ?? null;
 }
+
+/** One intake with its speciality and family member (must belong to the user). */
+export async function getIntakeApi(
+  userId: string,
+  intakeId: string,
+): Promise<ConsultationIntake> {
+  const response = await fetch(
+    `${API_BASE}/consultation/intake/${encodeURIComponent(intakeId)}?userId=${encodeURIComponent(userId)}`,
+    { cache: 'no-store' },
+  );
+  if (!response.ok) {
+    throw await readError(response, 'Could not load your consultation details.');
+  }
+  return response.json();
+}
+
+/** Text for the location badge, from the intake's address snapshot. */
+export function intakeLocationLabel(intake: Pick<ConsultationIntake, 'patientAddress'>): string | null {
+  const a = intake.patientAddress as Record<string, unknown> | null | undefined;
+  if (!a) return null;
+  const parts = [a.area, a.city].filter((x): x is string => typeof x === 'string' && x.trim() !== '');
+  return parts.length ? parts.join(', ') : typeof a.street === 'string' ? a.street : null;
+}

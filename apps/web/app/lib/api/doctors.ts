@@ -227,6 +227,50 @@ export async function registerDoctorApi(
 }
 
 // ---------------------------------------------------------------------------
+// Patient flow: nearby doctors
+// ---------------------------------------------------------------------------
+
+export type ServiceMode = 'IN_CLINIC' | 'VIDEO' | 'TEXT';
+
+export interface NearestClinic {
+  id: string;
+  name: string;
+  address: string;
+  inPersonFee: number;
+  distanceKm: number;
+}
+
+/** Public doctor card data (no phone, email or documents). */
+export type NearbyDoctor = Omit<DoctorProfile, 'phone' | 'email' | 'pmdcCertificateUrl'> & {
+  nearestClinic: NearestClinic | null;
+  minDistanceKm: number | null;
+  minInPersonFee: number | null;
+};
+
+export interface NearbyDoctorsResponse {
+  patientLocation: { latitude: number; longitude: number; label: string | null } | null;
+  speciality: { id: string; name: string } | null;
+  total: number;
+  doctors: NearbyDoctor[];
+}
+
+export async function getNearbyDoctorsApi(params: {
+  intakeId: string;
+  userId: string;
+  allSpecialities?: boolean;
+  signal?: AbortSignal;
+}): Promise<NearbyDoctorsResponse> {
+  const qs = new URLSearchParams({ intakeId: params.intakeId, userId: params.userId, limit: '100' });
+  if (params.allSpecialities) qs.set('allSpecialities', 'true');
+  const response = await fetch(`${API_BASE}/doctors/nearby?${qs}`, {
+    signal: params.signal,
+    cache: 'no-store',
+  });
+  if (!response.ok) throw await toApiError(response, 'Could not load doctors near you.');
+  return response.json();
+}
+
+// ---------------------------------------------------------------------------
 // OpenStreetMap geocoding
 //
 // Suggestions while typing use Photon (photon.komoot.io), a free geocoder built

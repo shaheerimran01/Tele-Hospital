@@ -24,6 +24,7 @@ import { RegisterDoctorDto } from './dto/register-doctor.dto.js';
 import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto.js';
 import { UpdateDoctorStatusDto } from './dto/update-doctor-status.dto.js';
 import { SendDoctorOtpDto, VerifyDoctorOtpDto } from './dto/auth-doctor.dto.js';
+import { GetNearbyDoctorsDto } from './dto/get-nearby-doctors.dto.js';
 import { CurrentDoctor, DoctorAuthGuard, type DoctorTokenPayload } from './doctor-auth.js';
 
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -111,6 +112,13 @@ export class DoctorsController {
   @Get()
   findAll(@Query() query: GetDoctorsQueryDto) {
     return this.doctorsService.findAll(query);
+  }
+
+  // GET /doctors/nearby?intakeId=&userId=&specialityId=&lat=&lng=&serviceMode=&radiusKm=&limit=
+  // Approved doctors sorted by distance from the patient (nearest clinic first).
+  @Get('nearby')
+  findNearby(@Query() query: GetNearbyDoctorsDto) {
+    return this.doctorsService.findNearby(query);
   }
 
   // GET /doctors/:id

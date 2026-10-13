@@ -18,6 +18,7 @@ import {
 import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto.js';
 import { UpdateDoctorStatusDto } from './dto/update-doctor-status.dto.js';
 import { SendDoctorOtpDto, VerifyDoctorOtpDto } from './dto/auth-doctor.dto.js';
+import { GetNearbyDoctorsDto } from './dto/get-nearby-doctors.dto.js';
 import {
   doctorOtpKey,
   doctorPhoneVariants,
@@ -42,6 +43,21 @@ const DOCTOR_PROFILE_INCLUDE = {
   },
   onlineAvailabilities: true,
 } satisfies Prisma.DoctorInclude;
+
+export interface PatientLocation {
+  latitude: number;
+  longitude: number;
+  /** e.g. "Blue Area, Islamabad" */
+  label: string | null;
+}
+
+export interface NearestClinic {
+  id: string;
+  name: string;
+  address: string;
+  inPersonFee: number;
+  distanceKm: number;
+}
 
 type DoctorWithRelations = Prisma.DoctorGetPayload<{
   include: typeof DOCTOR_PROFILE_INCLUDE;
@@ -530,6 +546,124 @@ export class DoctorsService {
   }
 
   // ---------------------------------------------------------------------------
+  // GET /doctors/nearby  (patient flow: doctors sorted by distance)
+  // ---------------------------------------------------------------------------
+
+  async findNearby(query: GetNearbyDoctorsDto) {
+    const limit = query.limit ?? DEFAULT_LIMIT;
+
+    // 1. Patient location + speciality from the intake (if given)
+    let intakeLocation: PatientLocation | null = null;
+    let specialityId = query.specialityId;
+
+    if (query.intakeId) {
+      const intake = await this.prisma.consultationIntake.findFirst({
+        where: { id: query.intakeId, ...(query.userId ? { userId: query.userId } : {}) },
+        select: { userId: true, specialityId: true, patientAddress: true },
+      });
+      // The intake holds the patient's address, so it must belong to the caller
+      if (!intake || !query.userId) {
+        throw new NotFoundException('Consultation request not found');
+      }
+      intakeLocation = this.readPatientLocation(intake.patientAddress);
+      specialityId = specialityId ?? intake.specialityId;
+    }
+
+    const location: PatientLocation | null =
+      query.lat !== undefined && query.lng !== undefined
+        ? { latitude: query.lat, longitude: query.lng, label: intakeLocation?.label ?? null }
+        : intakeLocation;
+
+    // 2. Speciality filter
+    let speciality: { id: string; name: string } | null = null;
+    if (specialityId && !query.allSpecialities) {
+      speciality = await this.prisma.speciality.findFirst({
+        where: { OR: [{ id: specialityId }, { slug: specialityId }] },
+        select: { id: true, name: true },
+      });
+    }
+
+    const and: Prisma.DoctorWhereInput[] = [{ status: DoctorStatus.APPROVED }, { isActive: true }];
+    if (speciality) and.push(await this.buildSpecialityFilter(speciality.name));
+    if (query.serviceMode === 'VIDEO') and.push({ isVideoCallEnabled: true });
+    if (query.serviceMode === 'TEXT') and.push({ isTextConsultEnabled: true });
+    if (query.serviceMode === 'IN_CLINIC') and.push({ clinics: { some: {} } });
+
+    const doctors = await this.prisma.doctor.findMany({
+      where: { AND: and },
+      include: DOCTOR_PROFILE_INCLUDE,
+      // Public listing: no contact details or documents
+      omit: { pmdcCertificateUrl: true, phone: true, email: true, userId: true },
+    });
+
+    // 3. Distance to each clinic (Haversine), nearest clinic per doctor
+    const ranked = doctors.map((doctor) => {
+      let nearestClinic: NearestClinic | null = null;
+
+      if (location) {
+        for (const clinic of doctor.clinics) {
+          if (clinic.latitude == null || clinic.longitude == null) continue;
+          const km = this.distanceKm(location.latitude, location.longitude, clinic.latitude, clinic.longitude);
+          if (!nearestClinic || km < nearestClinic.distanceKm) {
+            nearestClinic = {
+              id: clinic.id,
+              name: clinic.name,
+              address: clinic.address,
+              inPersonFee: clinic.inPersonFee,
+              distanceKm: Math.round(km * 10) / 10,
+            };
+          }
+        }
+      }
+
+      const sorted = this.sortSlots(doctor);
+      return {
+        ...sorted,
+        nearestClinic,
+        minDistanceKm: nearestClinic?.distanceKm ?? null,
+        // Cheapest in-person fee across clinics, for price filters on the client
+        minInPersonFee: doctor.clinics.length
+          ? Math.min(...doctor.clinics.map((c) => c.inPersonFee))
+          : null,
+      };
+    });
+
+    // 4. Optional radius, then nearest first. Doctors without a mapped clinic
+    //    (online-only, or no pin) come last, most experienced first.
+    const inRange =
+      query.radiusKm && location
+        ? ranked.filter((d) => d.minDistanceKm != null && d.minDistanceKm <= query.radiusKm!)
+        : ranked;
+
+    inRange.sort((a, b) => {
+      if (a.minDistanceKm != null && b.minDistanceKm != null) return a.minDistanceKm - b.minDistanceKm;
+      if (a.minDistanceKm != null) return -1;
+      if (b.minDistanceKm != null) return 1;
+      return b.experienceYears - a.experienceYears;
+    });
+
+    return {
+      patientLocation: location,
+      speciality,
+      total: inRange.length,
+      doctors: inRange.slice(0, limit),
+    };
+  }
+
+  /** Reads { latitude, longitude, area, city } from the intake's address snapshot. */
+  private readPatientLocation(snapshot: unknown): PatientLocation | null {
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    const a = snapshot as Record<string, unknown>;
+    const lat = typeof a.latitude === 'number' ? a.latitude : Number(a.latitude);
+    const lng = typeof a.longitude === 'number' ? a.longitude : Number(a.longitude);
+    const label = [a.area, a.city].filter((x): x is string => typeof x === 'string' && x.trim() !== '').join(', ') || null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || a.latitude == null || a.longitude == null) {
+      return null;
+    }
+    return { latitude: lat, longitude: lng, label };
+  }
+
+  // ---------------------------------------------------------------------------
   // GET /doctors/:id
   // ---------------------------------------------------------------------------
 
@@ -577,7 +711,9 @@ export class DoctorsService {
   // ---------------------------------------------------------------------------
 
   /** Orders clinic schedules and online slots Monday -> Sunday, then by start time. */
-  private sortSlots<T extends Omit<DoctorWithRelations, 'pmdcCertificateUrl'>>(doctor: T): T {
+  private sortSlots<
+    T extends Pick<DoctorWithRelations, 'clinics' | 'onlineAvailabilities'>,
+  >(doctor: T): T {
     const order = (a: { dayOfWeek: string; startTime: string }, b: { dayOfWeek: string; startTime: string }) => {
       const day =
         DAYS_OF_WEEK.indexOf(a.dayOfWeek as (typeof DAYS_OF_WEEK)[number]) -
