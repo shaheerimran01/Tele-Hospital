@@ -7,21 +7,8 @@ import {
   type UploadedAttachment,
 } from '@/app/lib/api/consultation';
 import SectionCard from './SectionCard';
+import VoiceRecorder, { type VoiceNote } from '@/app/consult-doctors/components/VoiceRecorder';
 
-export const COMMON_SYMPTOMS = [
-  'Fever',
-  'Headache',
-  'Cough',
-  'Cold',
-  'Sore Throat',
-  'Skin Rash',
-  'Stomach Pain',
-  'Acidity',
-  'Body Ache',
-  'Hair Fall',
-  'Acne',
-  'Anxiety',
-];
 
 export const DURATION_OPTIONS = ['Today', '1-3 Days', '1 Week', 'More than a week'];
 
@@ -41,6 +28,13 @@ interface Props {
   onAttachmentsChange: (updater: (prev: UploadedAttachment[]) => UploadedAttachment[]) => void;
   onUploadingChange: (uploading: boolean) => void;
   showError: boolean;
+  /** Symptom chips for the chosen speciality */
+  symptomOptions: string[];
+  /** Name of the chosen speciality, for the hint above the chips */
+  specialityName: string | null;
+  voiceNote: VoiceNote | null;
+  onVoiceNoteChange: (note: VoiceNote | null) => void;
+  onRecordingChange: (recording: boolean) => void;
 }
 
 export default function HealthDetails({
@@ -55,6 +49,11 @@ export default function HealthDetails({
   onAttachmentsChange,
   onUploadingChange,
   showError,
+  symptomOptions,
+  specialityName,
+  voiceNote,
+  onVoiceNoteChange,
+  onRecordingChange,
 }: Props) {
   const [customSymptom, setCustomSymptom] = useState('');
   const [uploadingNames, setUploadingNames] = useState<string[]>([]);
@@ -88,7 +87,7 @@ export default function HealthDetails({
 
   // Symptoms typed by the user that aren't in the common list
   const customSymptoms = symptoms.filter(
-    (s) => !COMMON_SYMPTOMS.some((c) => c.toLowerCase() === s.toLowerCase()),
+    (s) => !symptomOptions.some((c) => c.toLowerCase() === s.toLowerCase()),
   );
 
   const handleFiles = async (fileList: FileList | null) => {
@@ -152,9 +151,12 @@ export default function HealthDetails({
       <div>
         <p className="text-xs font-semibold text-gray-700 mb-2">
           Symptoms <span className="text-red-500">*</span>
+          <span className="ml-1.5 font-normal text-gray-400">
+            {specialityName ? `Common for ${specialityName}` : 'Select a speciality above to see related symptoms'}
+          </span>
         </p>
         <div className="flex flex-wrap gap-2">
-          {COMMON_SYMPTOMS.map((s) => {
+          {symptomOptions.map((s) => {
             const active = hasSymptom(s);
             return (
               <button
@@ -256,6 +258,19 @@ export default function HealthDetails({
           className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2.5 text-sm outline-none focus:border-[#ff6f61] focus:ring-2 focus:ring-[#ff6f61]/15"
         />
         <p className="mt-1 text-right text-[11px] text-gray-400">{description.length}/2000</p>
+
+        {/* Voice note */}
+        <div className="mt-1">
+          <p className="mb-2 text-xs font-semibold text-gray-700">
+            Prefer to speak? <span className="font-normal text-gray-400">Record a voice note for the doctor (optional)</span>
+          </p>
+          <VoiceRecorder
+            value={voiceNote}
+            onChange={onVoiceNoteChange}
+            onRecordingChange={onRecordingChange}
+            maxSeconds={120}
+          />
+        </div>
       </div>
 
       {/* Attachments */}

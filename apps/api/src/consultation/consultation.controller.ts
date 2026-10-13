@@ -30,7 +30,17 @@ const ALLOWED_ATTACHMENT_TYPES = [
   'image/jpg',
   'image/webp',
   'application/pdf',
+  // Voice notes recorded in the browser (Chrome/Edge/Firefox: webm or ogg, Safari: mp4)
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/mpeg',
+  'audio/wav',
+  'audio/x-m4a',
 ];
+
+/** "audio/webm;codecs=opus" -> "audio/webm" */
+const baseMimeType = (mime: string) => mime.split(';')[0].trim().toLowerCase();
 
 const attachmentUploadOptions = {
   storage: diskStorage({
@@ -43,9 +53,9 @@ const attachmentUploadOptions = {
     },
   }),
   fileFilter: (_req: any, file: Express.Multer.File, callback: any) => {
-    if (!ALLOWED_ATTACHMENT_TYPES.includes(file.mimetype)) {
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(baseMimeType(file.mimetype))) {
       return callback(
-        new BadRequestException('Only PNG, JPG, WEBP and PDF files are allowed'),
+        new BadRequestException('Only PNG, JPG, WEBP, PDF or audio voice notes are allowed'),
         false,
       );
     }

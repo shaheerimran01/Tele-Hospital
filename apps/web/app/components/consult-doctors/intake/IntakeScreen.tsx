@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, LoaderCircle, Lock } from 'lucide-react';
 import {
+  uploadConsultationAttachmentApi,
   createIntakeApi,
   getFamilyMembersApi,
   getPrimaryAddressApi,
@@ -20,6 +21,8 @@ import SpecialitySelection from './SpecialitySelection';
 import HealthDetails from './HealthDetails';
 import IntakeSummaryCard from './IntakeSummaryCard';
 import AddFamilyMemberModal from './AddFamilyMemberModal';
+import { symptomsForSpeciality } from './symptoms';
+import { voiceNoteExtension, type VoiceNote } from '@/app/consult-doctors/components/VoiceRecorder';
 
 interface SessionUser {
   id: string;
@@ -77,6 +80,8 @@ export default function IntakeScreen() {
   const [description, setDescription] = useState('');
   const [attachments, setAttachments] = useState<UploadedAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [voiceNote, setVoiceNote] = useState<VoiceNote | null>(null);
+  const [recording, setRecording] = useState(false);
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
@@ -135,6 +140,19 @@ export default function IntakeScreen() {
     return list;
   }, [patientType, selectedMemberId, speciality, symptoms.length]);
 
+  const symptomOptions = useMemo(() => symptomsForSpeciality(speciality), [speciality]);
+
+  /**
+   * Picking a speciality swaps the symptom chips. Chips ticked from the previous
+   * speciality's list are cleared; symptoms the patient typed themselves are kept.
+   */
+  const handleSelectSpeciality = (next: Speciality) => {
+    if (next.id === speciality?.id) return;
+    const previousOptions = symptomsForSpeciality(speciality).map((x) => x.toLowerCase());
+    setSymptoms((prev) => prev.filter((x) => !previousOptions.includes(x.toLowerCase())));
+    setSpeciality(next);
+  };
+
   const handleMemberCreated = useCallback((member: FamilyMember) => {
     setMembers((prev) => [...prev, member]);
     setSelectedMemberId(member.id);
@@ -142,6 +160,11 @@ export default function IntakeScreen() {
 
   const handleSubmit = async () => {
     if (!user || submitting || uploading) return;
+
+    if (recording) {
+      setSubmitError('Please stop and save your voice note before continuing.');
+      return;
+    }
 
     if (missing.length > 0) {
       setShowErrors(true);
@@ -152,6 +175,24 @@ export default function IntakeScreen() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // Upload the voice note first; its URL is saved with the other attachments
+      const attachmentUrls = attachments.map((a) => a.fileUrl);
+      if (voiceNote) {
+        const file = new File(
+          [voiceNote.blob],
+          voiceNote.fileName ?? `voice-note-${Date.now()}.${voiceNoteExtension(voiceNote.mimeType)}`,
+          { type: voiceNote.mimeType },
+        );
+        try {
+          const uploaded = await uploadConsultationAttachmentApi(user.id, file);
+          attachmentUrls.push(uploaded.fileUrl);
+        } catch (err) {
+          throw new Error(
+            `Your voice note could not be uploaded. ${err instanceof Error ? err.message : ''} You can try again, or delete it and continue without it.`.trim(),
+          );
+        }
+      }
+
       const intake = await createIntakeApi(user.id, {
         patientType,
         familyMemberId: patientType === 'FAMILY_MEMBER' ? selectedMemberId ?? undefined : undefined,
@@ -159,7 +200,7 @@ export default function IntakeScreen() {
         symptoms,
         symptomDuration: duration || undefined,
         description: description.trim() || undefined,
-        attachments: attachments.map((a) => a.fileUrl),
+        attachments: attachmentUrls,
       });
       router.push(`/consult-doctors/options?intakeId=${encodeURIComponent(intake.id)}`);
     } catch (err) {
@@ -253,7 +294,7 @@ export default function IntakeScreen() {
 
           <SpecialitySelection
             selected={speciality}
-            onSelect={setSpeciality}
+            onSelect={handleSelectSpeciality}
             showError={showErrors}
           />
 
@@ -269,6 +310,11 @@ export default function IntakeScreen() {
             onAttachmentsChange={setAttachments}
             onUploadingChange={setUploading}
             showError={showErrors}
+            symptomOptions={symptomOptions}
+            specialityName={speciality?.name ?? null}
+            voiceNote={voiceNote}
+            onVoiceNoteChange={setVoiceNote}
+            onRecordingChange={setRecording}
           />
         </div>
 
