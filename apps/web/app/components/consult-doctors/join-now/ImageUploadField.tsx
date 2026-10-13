@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { ImageIcon, LoaderCircle, Upload, X } from 'lucide-react';
 import { apiFileUrl, uploadDoctorImageApi, type UploadedImage } from '@/app/lib/api/doctors';
+import { useDoctorAuth } from '@/app/consult-doctors/context/DoctorAuthContext';
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ACCEPTED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
@@ -24,6 +25,7 @@ export default function ImageUploadField({
   shape = 'square',
   onUploadingChange,
 }: Props) {
+  const { token } = useDoctorAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +48,14 @@ export default function ImageUploadField({
       return;
     }
 
+    if (!token) {
+      setError('Your session has ended. Please verify your phone again.');
+      return;
+    }
+
     setBusy(true);
     try {
-      onChange(await uploadDoctorImageApi(file));
+      onChange(await uploadDoctorImageApi(token, file));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
     } finally {

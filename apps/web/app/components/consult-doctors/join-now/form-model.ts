@@ -302,9 +302,12 @@ export function buildPayload(form: DoctorFormState): RegisterDoctorPayload {
 
 export const DRAFT_STORAGE_KEY = 'tabibistan_doctor_registration_draft';
 
-export function loadDraft(): DoctorFormState | null {
+/** One draft per doctor login, so two doctors on the same computer never see each other's draft. */
+const draftKey = (scope: string) => `${DRAFT_STORAGE_KEY}:${scope}`;
+
+export function loadDraft(scope: string): DoctorFormState | null {
   try {
-    const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+    const raw = localStorage.getItem(draftKey(scope));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<DoctorFormState>;
     const base = initialFormState();
@@ -329,17 +332,18 @@ export function loadDraft(): DoctorFormState | null {
   }
 }
 
-export function saveDraft(form: DoctorFormState) {
+export function saveDraft(scope: string, form: DoctorFormState) {
   try {
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
+    localStorage.setItem(draftKey(scope), JSON.stringify(form));
   } catch {
     // Storage full or blocked - the draft just isn't kept
   }
 }
 
-export function clearDraft() {
+export function clearDraft(scope: string) {
   try {
-    localStorage.removeItem(DRAFT_STORAGE_KEY);
+    localStorage.removeItem(draftKey(scope));
+    localStorage.removeItem(DRAFT_STORAGE_KEY); // unscoped draft from older versions
   } catch {
     // ignore
   }

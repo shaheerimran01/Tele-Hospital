@@ -3,19 +3,19 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
-  Req,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
@@ -23,8 +23,8 @@ import { DoctorsService } from './doctors.service.js';
 import { RegisterDoctorDto } from './dto/register-doctor.dto.js';
 import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto.js';
 import { UpdateDoctorStatusDto } from './dto/update-doctor-status.dto.js';
-
-type RequestWithUser = Request & { user?: { id?: string } };
+import { SendDoctorOtpDto, VerifyDoctorOtpDto } from './dto/auth-doctor.dto.js';
+import { CurrentDoctor, DoctorAuthGuard, type DoctorTokenPayload } from './doctor-auth.js';
 
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
 
@@ -55,21 +55,43 @@ const imageUploadOptions = {
 export class DoctorsController {
   constructor(private readonly doctorsService: DoctorsService) {}
 
-  // POST /doctors/register  ("Join Now")
-  // Works without login. When the doctor is logged in (req.user, or ?userId= like
-  // the rest of this API), the profile is linked to that user account.
-  @Post('register')
-  register(@Req() req: RequestWithUser, @Body() dto: RegisterDoctorDto) {
-    const fromQuery = req.query?.userId;
-    const userId =
-      req.user?.id || (typeof fromQuery === 'string' && fromQuery ? fromQuery : undefined);
-    return this.doctorsService.register(dto, userId);
+  // ---------------------------------------------------------------------------
+  // Doctor auth (separate from patient accounts). Declared before ':id' routes.
+  // ---------------------------------------------------------------------------
+
+  // POST /doctors/auth/send-otp   body: { phone }
+  @Post('auth/send-otp')
+  @HttpCode(200)
+  sendOtp(@Body() dto: SendDoctorOtpDto) {
+    return this.doctorsService.sendOtp(dto);
   }
 
-  // POST /doctors/uploads  (multipart, field "file")
+  // POST /doctors/auth/verify-otp   body: { phone, otp }
+  // -> { token, isFormFilled, doctorRegistration }
+  @Post('auth/verify-otp')
+  @HttpCode(200)
+  verifyOtp(@Body() dto: VerifyDoctorOtpDto) {
+    return this.doctorsService.verifyOtp(dto);
+  }
+
+  // GET /doctors/auth/me   (Authorization: Bearer <doctor_token>)
+  @Get('auth/me')
+  @UseGuards(DoctorAuthGuard)
+  me(@CurrentDoctor() auth: DoctorTokenPayload) {
+    return this.doctorsService.getMe(auth);
+  }
+
+  // POST /doctors/register  ("Join Now" form, requires doctor token)
+  @Post('register')
+  @UseGuards(DoctorAuthGuard)
+  register(@CurrentDoctor() auth: DoctorTokenPayload, @Body() dto: RegisterDoctorDto) {
+    return this.doctorsService.register(dto, auth);
+  }
+
+  // POST /doctors/uploads  (multipart, field "file", requires doctor token)
   // Used by the Join Now form for the PMDC certificate and profile photo.
-  // Returns { fileUrl } to send back in pmdcCertificateUrl / profilePhotoUrl.
   @Post('uploads')
+  @UseGuards(DoctorAuthGuard)
   @UseInterceptors(FileInterceptor('file', imageUploadOptions))
   uploadImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('Image file is required');
@@ -80,6 +102,10 @@ export class DoctorsController {
       fileSize: file.size,
     };
   }
+
+  // ---------------------------------------------------------------------------
+  // Public listing / admin
+  // ---------------------------------------------------------------------------
 
   // GET /doctors?speciality=&status=&search=&city=&lat=&lng=&radiusKm=&consultationType=&page=&limit=
   @Get()

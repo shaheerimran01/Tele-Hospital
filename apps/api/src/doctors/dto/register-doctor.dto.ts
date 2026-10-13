@@ -245,10 +245,12 @@ export class RegisterDoctorDto {
   @MaxLength(40, { each: true })
   languages: string[];
 
+  // Ignored by the API: the profile always uses the doctor's OTP-verified number.
+  @IsOptional()
   @Transform(trim)
   @IsString()
   @Matches(/^\+?[0-9\s-]{7,20}$/, { message: 'Phone number is not valid' })
-  phone: string;
+  phone?: string;
 
   @IsOptional()
   @Transform(emptyToUndefined)

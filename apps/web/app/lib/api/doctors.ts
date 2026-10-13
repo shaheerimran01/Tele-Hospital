@@ -49,11 +49,65 @@ export interface RegisterDoctorPayload {
   onlineAvailabilities: TimeSlotPayload[];
 }
 
-export interface RegisteredDoctor {
+export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** The doctor's login record, stored in sessionStorage as `doctor_data`. */
+export interface DoctorRegistration {
+  id: string;
+  phone: string;
+  email: string | null;
+  isFormFilled: boolean;
+  status: DoctorStatus | string;
+  doctorId: string | null;
+}
+
+export interface TimeSlot {
+  id: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+}
+
+export interface DoctorProfile {
   id: string;
   fullName: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  [key: string]: unknown;
+  title: string;
+  degrees: string;
+  pmdcNumber: string;
+  pmdcCertificateUrl?: string | null;
+  experienceYears: number;
+  languages: string[];
+  phone: string;
+  email?: string | null;
+  specialisations: string[];
+  education?: string | null;
+  about?: string | null;
+  profilePhotoUrl?: string | null;
+  isVideoCallEnabled: boolean;
+  videoCallFee?: number | null;
+  isTextConsultEnabled: boolean;
+  textConsultFee?: number | null;
+  status: DoctorStatus;
+  createdAt: string;
+  clinics: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    inPersonFee: number;
+    address: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    schedules: TimeSlot[];
+  }[];
+  onlineAvailabilities: TimeSlot[];
+}
+
+export interface RegisterDoctorResponse {
+  success: boolean;
+  message: string;
+  isFormFilled: true;
+  doctorRegistration: DoctorRegistration;
+  doctor: DoctorProfile;
 }
 
 export interface UploadedImage {
@@ -82,12 +136,73 @@ export function apiFileUrl(path: string) {
   return path.startsWith('http') ? path : `${API_BASE}${path}`;
 }
 
-export async function uploadDoctorImageApi(file: File): Promise<UploadedImage> {
+const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+// ---------------------------------------------------------------------------
+// Doctor auth (separate from patient login)
+// ---------------------------------------------------------------------------
+
+export interface SendDoctorOtpResponse {
+  success: boolean;
+  phone: string; // normalised, e.g. +923001234567
+  exists: boolean;
+  email: string | null; // masked, e.g. "ay***@g***.com"
+  resendAfterSeconds: number;
+}
+
+export interface VerifyDoctorOtpResponse {
+  success: boolean;
+  token: string;
+  isFormFilled: boolean;
+  doctorRegistration: DoctorRegistration;
+}
+
+export interface DoctorMeResponse {
+  isFormFilled: boolean;
+  doctorRegistration: DoctorRegistration;
+  doctor: DoctorProfile | null;
+}
+
+export async function sendDoctorOtpApi(phone: string): Promise<SendDoctorOtpResponse> {
+  const response = await fetch(`${API_BASE}/doctors/auth/send-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone }),
+  });
+  if (!response.ok) throw await toApiError(response, 'Could not send the OTP. Please try again.');
+  return response.json();
+}
+
+export async function verifyDoctorOtpApi(phone: string, otp: string): Promise<VerifyDoctorOtpResponse> {
+  const response = await fetch(`${API_BASE}/doctors/auth/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, otp }),
+  });
+  if (!response.ok) throw await toApiError(response, 'Could not verify the OTP. Please try again.');
+  return response.json();
+}
+
+export async function getDoctorMeApi(token: string): Promise<DoctorMeResponse> {
+  const response = await fetch(`${API_BASE}/doctors/auth/me`, {
+    headers: authHeader(token),
+    cache: 'no-store',
+  });
+  if (!response.ok) throw await toApiError(response, 'Could not load your doctor account.');
+  return response.json();
+}
+
+// ---------------------------------------------------------------------------
+// Registration form (requires the doctor token)
+// ---------------------------------------------------------------------------
+
+export async function uploadDoctorImageApi(token: string, file: File): Promise<UploadedImage> {
   const formData = new FormData();
   formData.append('file', file);
 
   const response = await fetch(`${API_BASE}/doctors/uploads`, {
     method: 'POST',
+    headers: authHeader(token),
     body: formData,
   });
   if (!response.ok) {
@@ -97,13 +212,12 @@ export async function uploadDoctorImageApi(file: File): Promise<UploadedImage> {
 }
 
 export async function registerDoctorApi(
+  token: string,
   payload: RegisterDoctorPayload,
-  userId?: string,
-): Promise<RegisteredDoctor> {
-  const qs = userId ? `?userId=${encodeURIComponent(userId)}` : '';
-  const response = await fetch(`${API_BASE}/doctors/register${qs}`, {
+): Promise<RegisterDoctorResponse> {
+  const response = await fetch(`${API_BASE}/doctors/register`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeader(token) },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {

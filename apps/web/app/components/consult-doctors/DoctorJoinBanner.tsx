@@ -66,7 +66,7 @@ export default function DoctorJoinBanner() {
 
             <div className="mt-6">
               <Link
-                href="/consult-doctors/join-now"
+                href="/consult-doctors/auth"
                 className="inline-block rounded-md bg-[#ff6b6b] px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#ff5252] transition cursor-pointer"
               >
                 Join Now

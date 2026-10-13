@@ -3,8 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, CircleCheck, LoaderCircle, MessageSquareText, Plus, Video } from 'lucide-react';
-import { ApiError, registerDoctorApi, type RegisteredDoctor } from '@/app/lib/api/doctors';
+import {
+  ArrowRight,
+  BadgeCheck,
+  CircleCheck,
+  LoaderCircle,
+  MessageSquareText,
+  Plus,
+  Video,
+} from 'lucide-react';
+import { ApiError, registerDoctorApi, type RegisterDoctorResponse } from '@/app/lib/api/doctors';
+import {
+  DOCTOR_ROUTES,
+  useDoctorAuth,
+} from '@/app/consult-doctors/context/DoctorAuthContext';
 import {
   buildPayload,
   clearDraft,
@@ -28,20 +40,10 @@ import { Checkbox, Field, FormSection, inputClass, inputErrorClass } from './ui'
 
 const REDIRECT_SECONDS = 6;
 
-/** Logged-in user id, read the same way as the rest of the web app. */
-function readSessionUserId(): string | undefined {
-  try {
-    const raw =
-      localStorage.getItem('tabibistan_user') ||
-      localStorage.getItem('user') ||
-      localStorage.getItem('userData');
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw);
-    const u = parsed?.user || parsed?.data?.user || parsed;
-    return u?.id || u?._id || u?.userId || undefined;
-  } catch {
-    return undefined;
-  }
+/** "+923001234567" -> "+92 300 1234567" */
+function displayPhone(phone: string) {
+  const m = phone.match(/^\+92(\d{3})(\d{7})$/);
+  return m ? `+92 ${m[1]} ${m[2]}` : phone;
 }
 
 type TextKey =
@@ -58,6 +60,10 @@ type TextKey =
 
 export default function DoctorRegistrationForm() {
   const router = useRouter();
+  const { token, doctor, updateDoctor, logout } = useDoctorAuth();
+  // The guard only renders this form with a session, so these are set
+  const draftScope = doctor?.id ?? 'anonymous';
+  const verifiedPhone = doctor ? displayPhone(doctor.phone) : '';
   const [form, setForm] = useState<DoctorFormState>(initialFormState);
   const [errors, setErrors] = useState<FormErrors>({});
   const [draftReady, setDraftReady] = useState(false);
@@ -65,26 +71,27 @@ export default function DoctorRegistrationForm() {
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [serverErrors, setServerErrors] = useState<string[]>([]);
-  const [registered, setRegistered] = useState<RegisteredDoctor | null>(null);
+  const [registered, setRegistered] = useState<RegisterDoctorResponse | null>(null);
   const [countdown, setCountdown] = useState(REDIRECT_SECONDS);
   const submittedOnce = useRef(false);
 
   // Restore a saved draft after mount (localStorage isn't available during SSR)
   useEffect(() => {
-    const draft = loadDraft();
-    if (draft) setForm(draft);
+    const draft = loadDraft(draftScope);
+    // The phone always comes from the OTP-verified login, never from an old draft
+    setForm((f) => ({ ...(draft ?? f), phone: verifiedPhone }));
     setDraftReady(true);
-  }, []);
+  }, [draftScope, verifiedPhone]);
 
   // Autosave the draft on this device
   useEffect(() => {
     if (!draftReady || registered) return;
     const t = setTimeout(() => {
-      saveDraft(form);
+      saveDraft(draftScope, form);
       setDraftSavedAt(new Date());
     }, 500);
     return () => clearTimeout(t);
-  }, [form, draftReady, registered]);
+  }, [form, draftReady, registered, draftScope]);
 
   // Re-validate live once the user has tried to submit
   useEffect(() => {
@@ -95,7 +102,7 @@ export default function DoctorRegistrationForm() {
   useEffect(() => {
     if (!registered) return;
     if (countdown <= 0) {
-      router.push('/consult-doctors');
+      router.push(DOCTOR_ROUTES.dashboard);
       return;
     }
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
@@ -145,13 +152,28 @@ export default function DoctorRegistrationForm() {
       return;
     }
 
+    if (!token) {
+      logout();
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const doctor = await registerDoctorApi(buildPayload(form), readSessionUserId());
-      clearDraft();
-      setRegistered(doctor);
+      const result = await registerDoctorApi(token, buildPayload(form));
+      clearDraft(draftScope);
+      updateDoctor(result.doctorRegistration); // isFormFilled: true in this tab's session
+      setRegistered(result);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        logout(); // the guard sends the doctor back to the OTP screen
+        return;
+      }
+      if (err instanceof ApiError && err.status === 409 && /already submitted/i.test(err.messages[0])) {
+        updateDoctor({ isFormFilled: true });
+        router.replace(DOCTOR_ROUTES.dashboard);
+        return;
+      }
       setServerErrors(
         err instanceof ApiError
           ? err.messages
@@ -164,9 +186,9 @@ export default function DoctorRegistrationForm() {
 
   const handleClear = () => {
     if (!window.confirm('Clear everything you have entered? This cannot be undone.')) return;
-    clearDraft();
+    clearDraft(draftScope);
     submittedOnce.current = false;
-    setForm(initialFormState());
+    setForm({ ...initialFormState(), phone: verifiedPhone });
     setErrors({});
     setServerErrors([]);
     setDraftSavedAt(null);
@@ -187,7 +209,7 @@ export default function DoctorRegistrationForm() {
             Registration submitted for admin approval
           </h1>
           <p className="mt-2 text-sm text-[#6b6f80]">
-            Thank you, {registered.fullName}. Our team will verify your PMDC details and publish your
+            Thank you, {registered.doctor.fullName}. Our team will verify your PMDC details and publish your
             profile once it&apos;s approved.
           </p>
           <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full bg-[#fdf6e7] px-3 py-1 text-xs font-medium text-[#8a6d1f]">
@@ -195,12 +217,12 @@ export default function DoctorRegistrationForm() {
           </p>
           <div className="mt-8 flex flex-col items-center gap-2">
             <Link
-              href="/consult-doctors"
+              href={DOCTOR_ROUTES.dashboard}
               className="inline-flex items-center gap-2 rounded-lg bg-[#141b34] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#232c4f]"
             >
-              Back to Consult doctors <ArrowRight className="h-4 w-4" />
+              Go to your dashboard <ArrowRight className="h-4 w-4" />
             </Link>
-            <p className="text-xs text-[#8a8d99]">Redirecting in {countdown}s…</p>
+            <p className="text-xs text-[#8a8d99]">Opening your dashboard in {countdown}s…</p>
           </div>
         </div>
       </div>
@@ -293,8 +315,20 @@ export default function DoctorRegistrationForm() {
             <Field id="languages" label="Languages" required hint="(comma separated)" error={errors.languages}>
               {text('languages', { placeholder: 'English, Urdu, Punjabi' })}
             </Field>
-            <Field id="phone" label="Phone / WhatsApp" required error={errors.phone}>
-              {text('phone', { type: 'tel', placeholder: '+92 300 123 4567', autoComplete: 'tel' })}
+            <Field id="phone" label="Phone / WhatsApp" hint="(verified at sign-in)" error={errors.phone}>
+              <div className="relative">
+                <input
+                  id="phone"
+                  type="tel"
+                  value={form.phone}
+                  readOnly
+                  aria-readonly="true"
+                  className={`${inputClass} cursor-not-allowed bg-[#f6f4ef] pr-24 text-[#3a3f52]`}
+                />
+                <span className="pointer-events-none absolute right-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-full bg-[#e8f4ec] px-2 py-0.5 text-[11px] font-medium text-[#2f7a4b]">
+                  <BadgeCheck className="h-3.5 w-3.5" /> Verified
+                </span>
+              </div>
             </Field>
             <Field id="email" label="Email" error={errors.email}>
               {text('email', {

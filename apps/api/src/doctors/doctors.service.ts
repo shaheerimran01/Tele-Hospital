@@ -3,7 +3,9 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
+import { randomInt, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DoctorStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
@@ -15,9 +17,22 @@ import {
 } from './dto/register-doctor.dto.js';
 import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto.js';
 import { UpdateDoctorStatusDto } from './dto/update-doctor-status.dto.js';
+import { SendDoctorOtpDto, VerifyDoctorOtpDto } from './dto/auth-doctor.dto.js';
+import {
+  doctorOtpKey,
+  doctorPhoneVariants,
+  formatDoctorPhone,
+  maskEmail,
+  signDoctorToken,
+  type DoctorTokenPayload,
+} from './doctor-auth.js';
 
 const DEFAULT_LIMIT = 50;
 const DEFAULT_RADIUS_KM = 10;
+
+const OTP_TTL_MINUTES = 5;
+const OTP_RESEND_SECONDS = 30;
+const OTP_MAX_ATTEMPTS = 5;
 
 /** Relations returned with every doctor profile. */
 const DOCTOR_PROFILE_INCLUDE = {
@@ -34,47 +49,196 @@ type DoctorWithRelations = Prisma.DoctorGetPayload<{
 
 @Injectable()
 export class DoctorsService {
+  /** Wrong-OTP counter per phone (in memory; resets when the API restarts). */
+  private readonly otpAttempts = new Map<string, number>();
+
   constructor(private readonly prisma: PrismaService) {}
 
   // ---------------------------------------------------------------------------
-  // POST /doctors/register
+  // Doctor auth: POST /doctors/auth/send-otp
   // ---------------------------------------------------------------------------
 
-  async register(dto: RegisterDoctorDto, userId?: string) {
+  async sendOtp(dto: SendDoctorOtpDto) {
+    const phone = formatDoctorPhone(dto.phone);
+    const key = doctorOtpKey(phone);
+
+    // Stop rapid re-sends (and SMS cost later): one OTP per 30 seconds
+    const recent = await this.prisma.otpSession.findFirst({
+      where: { phone: key, createdAt: { gt: new Date(Date.now() - OTP_RESEND_SECONDS * 1000) } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recent) {
+      const wait = Math.ceil(
+        (recent.createdAt.getTime() + OTP_RESEND_SECONDS * 1000 - Date.now()) / 1000,
+      );
+      throw new BadRequestException(`Please wait ${Math.max(wait, 1)} seconds before requesting a new OTP.`);
+    }
+
+    const otp = randomInt(100000, 1000000).toString();
+    await this.prisma.otpSession.create({
+      data: { phone: key, otp, expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000) },
+    });
+    this.otpAttempts.delete(key);
+
+    // DEV: no SMS provider yet, so the OTP is printed in the API terminal
+    console.log(`\n==============================`);
+    console.log(`🩺 Doctor OTP for ${phone}: ${otp}`);
+    console.log(`==============================\n`);
+
+    const { registration, doctor } = await this.findDoctorAccount(phone);
+    return {
+      success: true,
+      phone,
+      exists: Boolean(registration || doctor),
+      email: maskEmail(registration?.email ?? doctor?.email),
+      resendAfterSeconds: OTP_RESEND_SECONDS,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Doctor auth: POST /doctors/auth/verify-otp
+  // ---------------------------------------------------------------------------
+
+  async verifyOtp(dto: VerifyDoctorOtpDto) {
+    const phone = formatDoctorPhone(dto.phone);
+    const key = doctorOtpKey(phone);
+
+    const session = await this.prisma.otpSession.findFirst({
+      where: { phone: key, verifiedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!session) throw new BadRequestException('No OTP found. Please request a new one.');
+    if (session.expiresAt < new Date()) {
+      throw new BadRequestException('This OTP has expired. Please request a new one.');
+    }
+
+    const given = Buffer.from(dto.otp);
+    const expected = Buffer.from(session.otp);
+    const matches = given.length === expected.length && timingSafeEqual(given, expected);
+
+    if (!matches) {
+      const attempts = (this.otpAttempts.get(key) ?? 0) + 1;
+      this.otpAttempts.set(key, attempts);
+      if (attempts >= OTP_MAX_ATTEMPTS) {
+        // Burn the code so it can't be brute-forced
+        await this.prisma.otpSession.update({ where: { id: session.id }, data: { verifiedAt: new Date() } });
+        this.otpAttempts.delete(key);
+        throw new BadRequestException('Too many wrong attempts. Please request a new OTP.');
+      }
+      throw new BadRequestException(
+        `Incorrect OTP. ${OTP_MAX_ATTEMPTS - attempts} attempt${OTP_MAX_ATTEMPTS - attempts === 1 ? '' : 's'} left.`,
+      );
+    }
+
+    await this.prisma.otpSession.update({ where: { id: session.id }, data: { verifiedAt: new Date() } });
+    this.otpAttempts.delete(key);
+
+    let { registration, doctor } = await this.findDoctorAccount(phone);
+
+    if (!registration) {
+      registration = await this.prisma.doctorRegistration.create({
+        data: { phone, isFormFilled: Boolean(doctor), status: doctor?.status ?? 'PENDING' },
+      });
+    } else if (doctor && !registration.isFormFilled) {
+      // Profile was submitted before this login flow existed
+      registration = await this.prisma.doctorRegistration.update({
+        where: { id: registration.id },
+        data: { isFormFilled: true, status: doctor.status },
+      });
+    }
+
+    const isFormFilled = registration.isFormFilled || Boolean(doctor);
+    return {
+      success: true,
+      token: signDoctorToken(registration.id, phone),
+      isFormFilled,
+      doctorRegistration: this.toPublicRegistration(registration, doctor),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Doctor auth: GET /doctors/auth/me
+  // ---------------------------------------------------------------------------
+
+  async getMe(auth: DoctorTokenPayload) {
+    const registration = await this.prisma.doctorRegistration.findUnique({ where: { id: auth.sub } });
+    if (!registration) {
+      throw new UnauthorizedException('Doctor account not found. Please verify your phone again.');
+    }
+    const doctor = await this.prisma.doctor.findFirst({
+      where: { phone: { in: doctorPhoneVariants(registration.phone) } },
+      include: DOCTOR_PROFILE_INCLUDE,
+      orderBy: { createdAt: 'desc' },
+    });
+    return {
+      isFormFilled: registration.isFormFilled || Boolean(doctor),
+      doctorRegistration: this.toPublicRegistration(registration, doctor),
+      doctor: doctor ? this.sortSlots(doctor) : null,
+    };
+  }
+
+  /** Registration + doctor profile for a phone, matching older unformatted rows too. */
+  private async findDoctorAccount(phone: string) {
+    const variants = doctorPhoneVariants(phone);
+    const [registration, doctor] = await Promise.all([
+      this.prisma.doctorRegistration.findFirst({ where: { phone: { in: variants } } }),
+      this.prisma.doctor.findFirst({
+        where: { phone: { in: variants } },
+        select: { id: true, email: true, status: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    return { registration, doctor };
+  }
+
+  private toPublicRegistration(
+    registration: { id: string; phone: string; email: string | null; isFormFilled: boolean; status: string },
+    doctor?: { id: string; status: string } | null,
+  ) {
+    return {
+      id: registration.id,
+      phone: registration.phone,
+      email: registration.email,
+      isFormFilled: registration.isFormFilled || Boolean(doctor),
+      // The doctor profile's status is the source of truth once it exists
+      status: doctor?.status ?? registration.status,
+      doctorId: doctor?.id ?? null,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /doctors/register  (requires doctor token)
+  // ---------------------------------------------------------------------------
+
+  async register(dto: RegisterDoctorDto, auth: DoctorTokenPayload) {
     this.assertRegistrationRules(dto);
 
     try {
-      const doctor = await this.prisma.$transaction(async (tx) => {
-        const existing = await tx.doctor.findUnique({
+      const result = await this.prisma.$transaction(async (tx) => {
+        const registration = await tx.doctorRegistration.findUnique({ where: { id: auth.sub } });
+        if (!registration) {
+          throw new UnauthorizedException('Doctor account not found. Please verify your phone again.');
+        }
+
+        const variants = doctorPhoneVariants(registration.phone);
+        const alreadyHasProfile = await tx.doctor.findFirst({
+          where: { phone: { in: variants } },
+          select: { id: true },
+        });
+        if (registration.isFormFilled || alreadyHasProfile) {
+          throw new ConflictException('You have already submitted your registration.');
+        }
+
+        const existingPmdc = await tx.doctor.findUnique({
           where: { pmdcNumber: dto.pmdcNumber },
           select: { id: true },
         });
-        if (existing) {
-          throw new ConflictException(
-            'A doctor with this PMDC number is already registered.',
-          );
+        if (existingPmdc) {
+          throw new ConflictException('A doctor with this PMDC number is already registered.');
         }
 
-        // Optional link to the logged-in user's account
-        if (userId) {
-          const user = await tx.user.findUnique({
-            where: { id: userId },
-            select: { id: true, doctor: { select: { id: true } } },
-          });
-          if (!user) {
-            throw new BadRequestException('User account not found. Please log in again.');
-          }
-          if (user.doctor) {
-            throw new ConflictException(
-              'This account already has a doctor profile.',
-            );
-          }
-        }
-
-        return tx.doctor.create({
+        const doctor = await tx.doctor.create({
           data: {
-            userId: userId ?? null,
-
             fullName: dto.fullName,
             title: dto.title,
             degrees: dto.degrees,
@@ -82,7 +246,8 @@ export class DoctorsService {
             pmdcCertificateUrl: dto.pmdcCertificateUrl ?? null,
             experienceYears: dto.experienceYears,
             languages: dto.languages,
-            phone: dto.phone,
+            // Always the OTP-verified number, so the profile stays linked to this login
+            phone: registration.phone,
             email: dto.email ?? null,
             specialisations: dto.specialisations,
             education: dto.education ?? null,
@@ -124,15 +289,36 @@ export class DoctorsService {
           },
           include: DOCTOR_PROFILE_INCLUDE,
         });
+
+        // Keep the email on the registration too, unless another doctor already uses it
+        let email = registration.email;
+        if (dto.email && !registration.email) {
+          const taken = await tx.doctorRegistration.findFirst({
+            where: { email: dto.email, id: { not: registration.id } },
+            select: { id: true },
+          });
+          if (!taken) email = dto.email;
+        }
+
+        const updatedRegistration = await tx.doctorRegistration.update({
+          where: { id: registration.id },
+          data: { isFormFilled: true, status: 'PENDING', email },
+        });
+
+        return { doctor, registration: updatedRegistration };
       });
 
-      return this.sortSlots(doctor);
+      return {
+        success: true,
+        message: 'Registration submitted for admin approval',
+        isFormFilled: true,
+        doctorRegistration: this.toPublicRegistration(result.registration, result.doctor),
+        doctor: this.sortSlots(result.doctor),
+      };
     } catch (error) {
-      // Two registrations with the same PMDC number / user racing each other
+      // Two submissions racing each other on the same PMDC number / email
       if ((error as { code?: string })?.code === 'P2002') {
-        throw new ConflictException(
-          'A doctor with this PMDC number or account is already registered.',
-        );
+        throw new ConflictException('A doctor with this PMDC number is already registered.');
       }
       throw error;
     }
@@ -365,17 +551,24 @@ export class DoctorsService {
   async updateStatus(id: string, dto: UpdateDoctorStatusDto) {
     const doctor = await this.prisma.doctor.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, phone: true },
     });
     if (!doctor) {
       throw new NotFoundException('Doctor not found');
     }
 
-    const updated = await this.prisma.doctor.update({
-      where: { id },
-      data: { status: dto.status },
-      include: DOCTOR_PROFILE_INCLUDE,
-    });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.doctor.update({
+        where: { id },
+        data: { status: dto.status },
+        include: DOCTOR_PROFILE_INCLUDE,
+      }),
+      // Keep the login record in step so the doctor dashboard shows the same status
+      this.prisma.doctorRegistration.updateMany({
+        where: { phone: { in: doctorPhoneVariants(doctor.phone) } },
+        data: { status: dto.status },
+      }),
+    ]);
     return this.sortSlots(updated);
   }
 
