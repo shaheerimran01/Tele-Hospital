@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function DoctorJoinBanner() {
   return (
     <section className="bg-[#faf4eb] py-14 border-t border-[#f0e6d5]">
@@ -63,9 +65,12 @@ export default function DoctorJoinBanner() {
             </p>
 
             <div className="mt-6">
-              <button className="rounded-md bg-[#ff6b6b] px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#ff5252] transition cursor-pointer">
+              <Link
+                href="/consult-doctors/join-now"
+                className="inline-block rounded-md bg-[#ff6b6b] px-8 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#ff5252] transition cursor-pointer"
+              >
                 Join Now
-              </button>
+              </Link>
             </div>
           </div>
         </div>
