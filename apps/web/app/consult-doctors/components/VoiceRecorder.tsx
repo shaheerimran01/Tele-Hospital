@@ -51,6 +51,15 @@ const UPLOAD_TYPES: Record<string, string> = {
 };
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // matches the API limit
 
+/** Remembers the microphone the patient picked (per browser). */
+const MIC_STORAGE_KEY = 'tabibistan_voice_note_mic';
+
+/**
+ * Loudness (RMS, 0..1) below which we treat the input as silent. Normal speech
+ * measures roughly 0.05–0.3; a muted or wrong input stays near 0.
+ */
+const SILENCE_LEVEL = 0.015;
+
 const mmss = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -207,13 +216,76 @@ function readDuration(blob: Blob): Promise<number> {
  */
 function fixUnknownDuration(e: React.SyntheticEvent<HTMLAudioElement>) {
   const audio = e.currentTarget;
-  if (audio.duration !== Infinity && !Number.isNaN(audio.duration)) return;
+  if (audio.duration !== Infinity || audio.dataset.durationFixed) return;
+  audio.dataset.durationFixed = '1';
+  let rewound = false;
   const rewind = () => {
-    audio.removeEventListener('timeupdate', rewind);
+    if (rewound) return;
+    rewound = true;
+    audio.removeEventListener('durationchange', rewind);
     audio.currentTime = 0;
   };
-  audio.addEventListener('timeupdate', rewind);
-  audio.currentTime = 1e101;
+  // Seeking past the end makes the browser read the real length, then we rewind.
+  // The timeout makes sure playback always starts from 0, even if no event fires.
+  audio.addEventListener('durationchange', rewind);
+  setTimeout(rewind, 1000);
+  try {
+    audio.currentTime = 1e101;
+  } catch {
+    rewind();
+  }
+}
+
+/** Live input loudness from a MediaStream, using the Web Audio API. */
+function startLevelMeter(stream: MediaStream, onLevel: (rms: number, peak: number) => void): () => void {
+  const AudioCtx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioCtx) return () => {};
+
+  const ctx = new AudioCtx();
+  const source = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 1024;
+  source.connect(analyser); // not connected to the speakers, so there is no echo
+  const data = new Float32Array(analyser.fftSize);
+
+  const timer = setInterval(() => {
+    analyser.getFloatTimeDomainData(data);
+    let sum = 0;
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i] * data[i];
+      const a = Math.abs(data[i]);
+      if (a > peak) peak = a;
+    }
+    onLevel(Math.sqrt(sum / data.length), peak);
+  }, 50);
+
+  // Some browsers start the context suspended until it is resumed
+  ctx.resume().catch(() => {});
+
+  return () => {
+    clearInterval(timer);
+    source.disconnect();
+    ctx.close().catch(() => {});
+  };
+}
+
+function LevelBars({ level }: { level: number }) {
+  // Square-root scale so normal speech (RMS ~0.02–0.15) fills about half to most of the bars
+  const lit = Math.min(12, Math.round(Math.sqrt(Math.min(level, 0.25) / 0.25) * 12));
+  return (
+    <span className="flex h-4 items-end gap-0.5" aria-hidden="true">
+      {Array.from({ length: 12 }, (_, i) => (
+        <span
+          key={i}
+          className={`w-1 rounded-sm transition-colors ${i < lit ? (i > 9 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-gray-200'}`}
+          style={{ height: `${30 + i * 6}%` }}
+        />
+      ))}
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +304,12 @@ export default function VoiceRecorder({
   const [notice, setNotice] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [level, setLevel] = useState(0);
+  const [hearsSound, setHearsSound] = useState(false);
+  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
+  const [micId, setMicId] = useState<string>('');
+  const [activeMicLabel, setActiveMicLabel] = useState<string | null>(null);
+  const [silentWarning, setSilentWarning] = useState(false);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -240,6 +318,9 @@ export default function VoiceRecorder({
   const cancelledRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stopMeterRef = useRef<(() => void) | null>(null);
+  const peakRef = useRef(0);
+  const meterRanRef = useRef(false);
   const isDev = process.env.NODE_ENV !== 'production';
 
   // Environment problems (http, old browser) are known before any click.
@@ -248,6 +329,44 @@ export default function VoiceRecorder({
     const envProblem = detectEnvironmentProblem();
     if (envProblem) setProblem(envProblem);
   }, []);
+
+  /** Lists microphones (names only appear after the patient has allowed access once). */
+  const refreshMics = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices?.enumerateDevices?.();
+      const inputs = (all ?? []).filter((d) => d.kind === 'audioinput' && d.deviceId);
+      setMics(inputs);
+      setMicId((current) => {
+        const saved = current || (() => {
+          try {
+            return localStorage.getItem(MIC_STORAGE_KEY) ?? '';
+          } catch {
+            return '';
+          }
+        })();
+        return inputs.some((d) => d.deviceId === saved) ? saved : '';
+      });
+    } catch {
+      // enumerateDevices unavailable: the browser default is used
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshMics();
+    const md = navigator.mediaDevices;
+    md?.addEventListener?.('devicechange', refreshMics);
+    return () => md?.removeEventListener?.('devicechange', refreshMics);
+  }, [refreshMics]);
+
+  const chooseMic = (id: string) => {
+    setMicId(id);
+    try {
+      if (id) localStorage.setItem(MIC_STORAGE_KEY, id);
+      else localStorage.removeItem(MIC_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
 
   // If the site is blocked and the patient allows it in the address bar, clear the error
   useEffect(() => {
@@ -283,6 +402,9 @@ export default function VoiceRecorder({
   const releaseMic = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = null;
+    stopMeterRef.current?.();
+    stopMeterRef.current = null;
+    setLevel(0);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }, []);
@@ -320,13 +442,22 @@ export default function VoiceRecorder({
     }
 
     setProblem(null);
+    setSilentWarning(false);
     setStatus('requesting'); // the browser shows its "Allow microphone?" prompt now
 
+    const voiceProcessing = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true },
-      });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: micId ? { ...voiceProcessing, deviceId: { exact: micId } } : voiceProcessing,
+        });
+      } catch (deviceError) {
+        // The saved microphone may have been unplugged: fall back to the default one
+        if (!micId || problemFromError(deviceError) !== 'not-found') throw deviceError;
+        chooseMic('');
+        stream = await navigator.mediaDevices.getUserMedia({ audio: voiceProcessing });
+      }
     } catch (firstError) {
       // The patient may have just clicked "Block" on the prompt. Browsers name that
       // error differently, so the permission state is the reliable signal.
@@ -365,6 +496,25 @@ export default function VoiceRecorder({
     chunksRef.current = [];
     cancelledRef.current = false;
 
+    // Show which microphone is really being used, and watch its loudness
+    const track = stream.getAudioTracks()[0];
+    setActiveMicLabel(track?.label || null);
+    refreshMics(); // device names become available once access is allowed
+    peakRef.current = 0;
+    setHearsSound(false);
+    try {
+      stopMeterRef.current = startLevelMeter(stream, (rms, peak) => {
+        setLevel(rms);
+        // Short sharp sounds count too, so brief speech isn't mistaken for silence
+        const loudness = Math.max(rms, peak / 4);
+        if (loudness > peakRef.current) peakRef.current = loudness;
+        if (loudness >= SILENCE_LEVEL) setHearsSound(true);
+      });
+    } catch {
+      stopMeterRef.current = null;
+    }
+    meterRanRef.current = stopMeterRef.current !== null;
+
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
     };
@@ -387,6 +537,8 @@ export default function VoiceRecorder({
         setNotice('The recording was too short. Please try again.');
         return;
       }
+      // Only judge silence when the meter actually ran
+      setSilentWarning(meterRanRef.current && peakRef.current < SILENCE_LEVEL);
       onChange({ blob, mimeType: type, durationSeconds: Math.round(duration), source: 'recording' });
     };
 
@@ -432,6 +584,34 @@ export default function VoiceRecorder({
   // Recording in progress
   // ---------------------------------------------------------------------------
 
+  const micSelect =
+    mics.length > 1 ? (
+      <label className="flex items-center gap-2 text-xs text-gray-600">
+        <Mic className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+        <span className="shrink-0">Microphone</span>
+        <select
+          value={micId}
+          onChange={(e) => chooseMic(e.target.value)}
+          className="min-w-0 max-w-[260px] truncate rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-800 outline-none focus:border-[#ff6f61]"
+        >
+          <option value="">System default</option>
+          {mics.map((m, i) => (
+            <option key={m.deviceId} value={m.deviceId}>
+              {m.label || `Microphone ${i + 1}`}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null;
+
+  const silenceTips = [
+    'Make sure the microphone is not muted (many laptops have a mute key or light).',
+    ...(isWindows()
+      ? ['In Windows Settings → System → Sound → Input, choose your microphone, speak and check the volume bar moves, and set Input volume above 50%.']
+      : ['In your system sound settings, check the input device and its volume.']),
+    ...(mics.length > 1 ? ['Or pick another microphone below and record again.'] : []),
+  ];
+
   if (status !== 'idle') {
     const pct = Math.min((elapsed / maxSeconds) * 100, 100);
     return (
@@ -454,6 +634,7 @@ export default function VoiceRecorder({
                 <span className="font-mono text-sm text-gray-700">
                   {mmss(elapsed)} <span className="text-gray-400">/ {mmss(maxSeconds)} max</span>
                 </span>
+                <LevelBars level={level} />
               </>
             )}
           </div>
@@ -477,9 +658,20 @@ export default function VoiceRecorder({
           </div>
         </div>
         {status === 'recording' && (
-          <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-red-100">
-            <div className="h-full bg-red-500 transition-[width] duration-200" style={{ width: `${pct}%` }} />
-          </div>
+          <>
+            <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-red-100">
+              <div className="h-full bg-red-500 transition-[width] duration-200" style={{ width: `${pct}%` }} />
+            </div>
+            {activeMicLabel && (
+              <p className="mt-2 truncate text-[11px] text-gray-500">Using: {activeMicLabel}</p>
+            )}
+            {elapsed > 3 && !hearsSound && meterRanRef.current && (
+              <p className="mt-1.5 text-xs font-medium text-amber-700">
+                We can&apos;t hear anything yet. Check the microphone isn&apos;t muted, or stop and choose another
+                microphone.
+              </p>
+            )}
+          </>
         )}
       </div>
     );
@@ -514,6 +706,20 @@ export default function VoiceRecorder({
             <Trash2 className="h-3.5 w-3.5" /> {isFile ? 'Remove' : 'Re-record'}
           </button>
         </div>
+        {!isFile && silentWarning && (
+          <div role="alert" className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <CircleAlert className="h-4 w-4 shrink-0" /> This recording seems to be silent
+            </p>
+            {activeMicLabel && <p className="mt-1 text-amber-800">It was recorded from: {activeMicLabel}</p>}
+            <ul className="mt-1.5 list-disc space-y-1 pl-5 text-amber-800">
+              {silenceTips.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+            {micSelect && <div className="mt-2.5">{micSelect}</div>}
+          </div>
+        )}
         <audio
           controls
           src={playbackUrl}
@@ -536,6 +742,7 @@ export default function VoiceRecorder({
 
   return (
     <div className="space-y-3">
+      {micSelect && !problem && micSelect}
       <div className="flex flex-wrap items-center gap-2">
         {(!problem || canRetry) && (
           <button
