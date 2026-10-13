@@ -69,7 +69,7 @@ export default function PharmaciesPage() {
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
-          <Link href="/" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
+          <Link href="/pharmacy-dashboard" className="flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-[#1A3A5C]/50 rounded-lg text-sm transition">
             <LayoutDashboard className="w-5 h-5" />
             Dashboard
           </Link>
