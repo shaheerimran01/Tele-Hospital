@@ -21,6 +21,7 @@ import SpecialitySelection from './SpecialitySelection';
 import HealthDetails from './HealthDetails';
 import IntakeSummaryCard from './IntakeSummaryCard';
 import AddFamilyMemberModal from './AddFamilyMemberModal';
+import MyAppointmentsCard from './MyAppointmentsCard';
 import { symptomsForSpeciality } from './symptoms';
 import { voiceNoteExtension, type VoiceNote } from '@/app/consult-doctors/components/VoiceRecorder';
 
@@ -318,7 +319,8 @@ export default function IntakeScreen() {
           />
         </div>
 
-        <div className="lg:col-span-4">
+        {/* Summary + bookings link stay in view together on desktop */}
+        <div className="space-y-4 lg:sticky lg:top-6 lg:col-span-4">
           <IntakeSummaryCard
             patientName={patientName}
             patientMeta={patientMeta}
@@ -332,6 +334,7 @@ export default function IntakeScreen() {
             submitError={submitError}
             onSubmit={handleSubmit}
           />
+          <MyAppointmentsCard />
         </div>
       </div>
 
