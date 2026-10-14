@@ -3,26 +3,40 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AppointmentStatus, DoctorStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { DoctorsService } from '../doctors/doctors.service.js';
+import { AppointmentsService } from '../appointments/appointments.service.js';
 import {
   APPOINTMENT_NUMBER_REGEX,
   APPOINTMENT_TYPE_PREFIX,
+  appointmentWhen,
+  DOCTOR_ACTION_NOTIFICATION_TYPES,
   DOCTOR_PORTAL_NOTIFICATION_TYPES,
   DOCTOR_PORTAL_NOTIFICATION_WHERE,
   DOCTOR_TYPE_PREFIX,
+  doctorName,
+  PATIENT_NOTIFICATION_TYPES,
   PMDC_REFERENCE_REGEX,
+  REASON_REGEX,
   recordDoctorPortalNotification,
+  recordPatientNotification,
 } from './doctor-portal-notifications.js';
 import {
   AdminAppointmentsQueryDto,
   AdminDoctorsQueryDto,
   AdminNotificationsQueryDto,
   AdminSearchQueryDto,
+  ReassignAppointmentDto,
   UpdateAppointmentStatusDto,
   UpdateDoctorStatusAdminDto,
 } from './dto/doctor-admin.dto.js';
 
 /** Lists are capped; the admin narrows them with search and filters. */
 const LIST_LIMIT = 300;
+
+/** Appointments a doctor declined or rescheduled with a note */
+const DOCTOR_ACTION_CASE_WHERE: Prisma.AppointmentWhereInput = {
+  status: { in: [AppointmentStatus.CANCELLED, AppointmentStatus.RESCHEDULED] },
+  cancelReason: { not: null },
+};
 
 const DOCTOR_BRIEF_SELECT = {
   id: true,
@@ -58,6 +72,7 @@ export class DoctorAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly doctorsService: DoctorsService,
+    private readonly appointmentsService: AppointmentsService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -294,6 +309,11 @@ export class DoctorAdminService {
 
   async listAppointments(query: AdminAppointmentsQueryDto) {
     const and: Prisma.AppointmentWhereInput[] = [];
+    const openCases = await this.openCaseNumbers();
+    if (query.queue === 'DOCTOR_ACTIONS') {
+      and.push(DOCTOR_ACTION_CASE_WHERE);
+      if (!query.includeResolved) and.push({ appointmentNum: { in: [...openCases] } });
+    }
     if (query.status && query.status !== 'ALL') and.push({ status: query.status });
     if (query.serviceMode && query.serviceMode !== 'ALL') and.push({ serviceMode: query.serviceMode });
     if (query.search) {
@@ -310,21 +330,24 @@ export class DoctorAdminService {
       });
     }
 
-    const [appointments, total, counts] = await Promise.all([
+    const [appointments, total, counts, openCaseCount] = await Promise.all([
       this.prisma.appointment.findMany({
         where: { AND: and },
         include: APPOINTMENT_LIST_INCLUDE,
-        orderBy: [{ appointmentDate: 'desc' }, { createdAt: 'desc' }],
+        orderBy: query.queue ? [{ updatedAt: 'desc' }] : [{ appointmentDate: 'desc' }, { createdAt: 'desc' }],
         take: LIST_LIMIT,
       }),
       this.prisma.appointment.count({ where: { AND: and } }),
       this.prisma.appointment.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.appointment.count({ where: { AND: [DOCTOR_ACTION_CASE_WHERE, { appointmentNum: { in: [...openCases] } }] } }),
     ]);
 
     return {
-      appointments: appointments.map((a) => this.toAppointmentRow(a)),
+      appointments: appointments.map((a) => ({ ...this.toAppointmentRow(a), caseOpen: openCases.has(a.appointmentNum) })),
       total,
       statusCounts: Object.fromEntries(counts.map((c) => [c.status, c._count._all])) as Record<string, number>,
+      /** declined / rescheduled cases the admin hasn't resolved yet */
+      openCaseCount,
     };
   }
 
@@ -399,18 +422,30 @@ export class DoctorAdminService {
     if (filter === 'READ') and.push({ isRead: true });
     if (filter === 'DOCTORS') and.push({ type: { startsWith: DOCTOR_TYPE_PREFIX } });
     if (filter === 'APPOINTMENTS') and.push({ type: { startsWith: APPOINTMENT_TYPE_PREFIX } });
+    if (filter === 'DECLINED') and.push({ type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED });
+    if (filter === 'RESCHEDULED') and.push({ type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED });
 
-    const [rows, unread, doctors, appointments, total] = await Promise.all([
+    const [rows, unread, doctors, appointments, total, declined, rescheduled] = await Promise.all([
       this.prisma.notification.findMany({ where: { AND: and }, orderBy: { createdAt: 'desc' }, take: LIST_LIMIT }),
       this.prisma.notification.count({ where: { AND: [DOCTOR_PORTAL_NOTIFICATION_WHERE, { isRead: false }] } }),
       this.prisma.notification.count({ where: { type: { startsWith: DOCTOR_TYPE_PREFIX } } }),
       this.prisma.notification.count({ where: { type: { startsWith: APPOINTMENT_TYPE_PREFIX } } }),
       this.prisma.notification.count({ where: DOCTOR_PORTAL_NOTIFICATION_WHERE }),
+      this.prisma.notification.count({ where: { type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED } }),
+      this.prisma.notification.count({ where: { type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED } }),
     ]);
 
     return {
       notifications: await this.withLinks(rows),
-      counts: { ALL: total, UNREAD: unread, READ: total - unread, DOCTORS: doctors, APPOINTMENTS: appointments },
+      counts: {
+        ALL: total,
+        UNREAD: unread,
+        READ: total - unread,
+        DOCTORS: doctors,
+        APPOINTMENTS: appointments,
+        DECLINED: declined,
+        RESCHEDULED: rescheduled,
+      },
     };
   }
 
@@ -420,6 +455,110 @@ export class DoctorAdminService {
       data: { isRead: true },
     });
     return { updated: count };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Declined / rescheduled cases (admin follow-up)
+  // ---------------------------------------------------------------------------
+
+  /** Accepts the case: a rescheduled booking becomes CONFIRMED; the case leaves the queue. */
+  async resolveCase(id: string) {
+    const a = await this.prisma.appointment.findUnique({
+      where: { id },
+      select: { id: true, status: true, appointmentNum: true, doctor: { select: { fullName: true } } },
+    });
+    if (!a) throw new NotFoundException('Appointment not found');
+
+    if (a.status === AppointmentStatus.RESCHEDULED) {
+      await this.prisma.appointment.update({ where: { id }, data: { status: AppointmentStatus.CONFIRMED } });
+    }
+    await this.closeCase(a.appointmentNum);
+    await recordDoctorPortalNotification(this.prisma, {
+      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
+      title: 'Case resolved by admin',
+      message:
+        a.status === AppointmentStatus.RESCHEDULED
+          ? `${a.appointmentNum}: the new time set by ${doctorName(a.doctor.fullName)} was accepted and the appointment is confirmed.`
+          : `${a.appointmentNum}: the declined appointment was marked resolved.`,
+    });
+    return this.getAppointment(id);
+  }
+
+  /** Records a refund for a paid appointment (money is returned outside this system). */
+  async refund(id: string) {
+    const a = await this.prisma.appointment.findUnique({
+      where: { id },
+      select: { id: true, userId: true, fee: true, paymentStatus: true, appointmentNum: true, status: true },
+    });
+    if (!a) throw new NotFoundException('Appointment not found');
+    if (a.paymentStatus === 'REFUNDED') throw new BadRequestException('This appointment has already been refunded');
+    if (a.paymentStatus !== 'PAID') {
+      throw new BadRequestException('This appointment was not paid, so there is nothing to refund');
+    }
+
+    await this.prisma.appointment.update({
+      where: { id },
+      data: {
+        paymentStatus: 'REFUNDED',
+        // A refunded booking will not go ahead
+        ...(a.status === AppointmentStatus.COMPLETED ? {} : { status: AppointmentStatus.CANCELLED }),
+      },
+    });
+    await this.closeCase(a.appointmentNum);
+    await recordPatientNotification(this.prisma, {
+      userId: a.userId,
+      type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_REFUNDED,
+      title: 'Refund Processed',
+      message: `Your payment of PKR ${a.fee.toLocaleString('en-PK')} for appointment ${a.appointmentNum} has been refunded.`,
+    });
+    await recordDoctorPortalNotification(this.prisma, {
+      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
+      title: 'Refund processed',
+      message: `${a.appointmentNum}: PKR ${a.fee.toLocaleString('en-PK')} marked as refunded.`,
+    });
+    return this.getAppointment(id);
+  }
+
+  reassignOptions(id: string) {
+    return this.appointmentsService.reassignOptions(id);
+  }
+
+  /** Moves the booking to another doctor at the same time; the new doctor must accept it. */
+  async reassign(id: string, dto: ReassignAppointmentDto) {
+    const moved = await this.appointmentsService.reassign(id, dto.doctorId, dto.clinicId);
+    const from = doctorName(moved.previousDoctorName);
+    const to = doctorName(moved.doctor.fullName);
+    const when = appointmentWhen(moved.appointmentDate, moved.startTime);
+
+    await this.closeCase(moved.appointmentNum);
+    await recordPatientNotification(this.prisma, {
+      userId: moved.userId,
+      type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_REASSIGNED,
+      title: 'Your Appointment Has a New Doctor',
+      message: `Your appointment ${moved.appointmentNum} on ${when} has been moved to ${to}. ${to} will confirm it shortly.`,
+    });
+    await recordDoctorPortalNotification(this.prisma, {
+      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
+      title: 'Appointment reassigned by admin',
+      message: `${moved.appointmentNum} was moved from ${from} to ${to} for ${when}. Waiting for ${to} to confirm.`,
+    });
+    return this.getAppointment(id);
+  }
+
+  /** Unread declined/rescheduled notifications = cases still waiting for the admin. */
+  private async openCaseNumbers(): Promise<Set<string>> {
+    const rows = await this.prisma.notification.findMany({
+      where: { type: { in: DOCTOR_ACTION_NOTIFICATION_TYPES }, isRead: false },
+      select: { message: true },
+    });
+    return new Set(rows.map((r) => r.message.match(APPOINTMENT_NUMBER_REGEX)?.[0]).filter(Boolean) as string[]);
+  }
+
+  private async closeCase(appointmentNum: string) {
+    await this.prisma.notification.updateMany({
+      where: { type: { in: DOCTOR_ACTION_NOTIFICATION_TYPES }, isRead: false, message: { contains: appointmentNum } },
+      data: { isRead: true },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -447,6 +586,7 @@ export class DoctorAdminService {
       fee: a.fee,
       paymentStatus: a.paymentStatus,
       paymentMethod: a.paymentMethod,
+      cancelReason: a.cancelReason,
       patientType: a.patientType,
       patientName: this.patientName(a),
       familyMember: a.familyMember,
@@ -464,13 +604,35 @@ export class DoctorAdminService {
 
     const [appointments, doctors] = await Promise.all([
       nums.length
-        ? this.prisma.appointment.findMany({ where: { appointmentNum: { in: nums } }, select: { id: true, appointmentNum: true } })
+        ? this.prisma.appointment.findMany({
+            where: { appointmentNum: { in: nums } },
+            select: {
+              id: true,
+              appointmentNum: true,
+              status: true,
+              patientType: true,
+              user: { select: { firstName: true, lastName: true, phone: true } },
+              familyMember: { select: { fullName: true } },
+              doctor: { select: { fullName: true } },
+            },
+          })
         : Promise.resolve([]),
       pmdcs.length
         ? this.prisma.doctor.findMany({ where: { pmdcNumber: { in: pmdcs } }, select: { id: true, pmdcNumber: true } })
         : Promise.resolve([]),
     ]);
     const aptIds = new Map(appointments.map((a) => [a.appointmentNum, a.id]));
+    const aptDetails = new Map(
+      appointments.map((a) => [
+        a.appointmentNum,
+        {
+          appointmentNum: a.appointmentNum,
+          status: a.status,
+          doctorName: doctorName(a.doctor.fullName),
+          patientName: this.patientName(a),
+        },
+      ]),
+    );
     const docIds = new Map(doctors.map((d) => [d.pmdcNumber, d.id]));
 
     return rows.map((r) => {
@@ -486,6 +648,10 @@ export class DoctorAdminService {
         ...r,
         category: r.type.startsWith(DOCTOR_TYPE_PREFIX) ? ('DOCTORS' as const) : ('APPOINTMENTS' as const),
         link,
+        /** appointment the notification is about (current state) */
+        appointment: num ? aptDetails.get(num) ?? null : null,
+        /** the doctor's note, for declined / rescheduled notifications */
+        reason: DOCTOR_ACTION_NOTIFICATION_TYPES.includes(r.type) ? r.message.match(REASON_REGEX)?.[1]?.trim() ?? null : null,
       };
     });
   }

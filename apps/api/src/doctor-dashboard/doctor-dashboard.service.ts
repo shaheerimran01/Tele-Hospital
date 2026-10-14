@@ -5,8 +5,12 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { AppointmentsService } from '../appointments/appointments.service.js';
 import { dateOnly, nowInAppZone, toMinutes } from '../appointments/slot-utils.js';
 import {
+  appointmentWhen,
   DOCTOR_PORTAL_NOTIFICATION_TYPES,
+  doctorName,
+  PATIENT_NOTIFICATION_TYPES,
   recordDoctorPortalNotification,
+  recordPatientNotification,
 } from '../doctor-admin/doctor-portal-notifications.js';
 import type { DoctorActionStatus } from './dto/doctor-dashboard.dto.js';
 
@@ -148,7 +152,19 @@ export class DoctorDashboardService {
   async updateStatus(doctorId: string, appointmentId: string, status: DoctorActionStatus, reason?: string) {
     const appointment = await this.prisma.appointment.findFirst({
       where: { id: appointmentId, doctorId },
-      select: { id: true, status: true, appointmentNum: true, intakeId: true, doctor: { select: { fullName: true } } },
+      select: {
+        id: true,
+        status: true,
+        appointmentNum: true,
+        intakeId: true,
+        userId: true,
+        appointmentDate: true,
+        startTime: true,
+        patientType: true,
+        doctor: { select: { fullName: true } },
+        user: { select: { firstName: true, lastName: true, phone: true } },
+        familyMember: { select: { fullName: true } },
+      },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
 
@@ -158,8 +174,11 @@ export class DoctorDashboardService {
         `This appointment is ${appointment.status.toLowerCase().replace('_', ' ')} and can't be ${verb}.`,
       );
     }
+    if (status === 'CANCELLED' && !reason?.trim()) {
+      throw new BadRequestException('Please enter a reason for declining');
+    }
 
-    const cancelReason = status === 'CANCELLED' ? reason || 'Declined by the doctor' : null;
+    const cancelReason = status === 'CANCELLED' ? reason!.trim() : null;
     await this.prisma.$transaction([
       this.prisma.appointment.update({
         where: { id: appointment.id },
@@ -170,14 +189,36 @@ export class DoctorDashboardService {
         : []),
     ]);
 
-    const label = { CONFIRMED: 'confirmed', COMPLETED: 'completed', CANCELLED: 'declined' }[status];
-    await recordDoctorPortalNotification(this.prisma, {
-      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
-      title: `Appointment ${label} by doctor`,
-      message: `${appointment.appointmentNum} was ${label} by ${appointment.doctor.fullName}${
-        cancelReason ? `: ${cancelReason}` : '.'
-      }`,
-    });
+    const dr = doctorName(appointment.doctor.fullName);
+    const when = appointmentWhen(appointment.appointmentDate, appointment.startTime);
+    const patient = this.patientLabel(appointment);
+
+    if (status === 'CONFIRMED') {
+      await recordPatientNotification(this.prisma, {
+        userId: appointment.userId,
+        type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_CONFIRMED,
+        title: 'Appointment Confirmed!',
+        message: `${dr} has confirmed your appointment for ${when}.`,
+      });
+      await recordDoctorPortalNotification(this.prisma, {
+        type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
+        title: 'Appointment confirmed by doctor',
+        message: `${dr} confirmed appointment ${appointment.appointmentNum} for patient ${patient}.`,
+      });
+    } else if (status === 'CANCELLED') {
+      await recordDoctorPortalNotification(this.prisma, {
+        type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED,
+        title: 'Appointment Declined by Doctor',
+        message: `${dr} declined appointment ${appointment.appointmentNum} for patient ${patient}. Reason: ${cancelReason}`,
+      });
+      // Declines go to the admin team only; the patient is not notified here.
+    } else {
+      await recordDoctorPortalNotification(this.prisma, {
+        type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
+        title: 'Appointment completed',
+        message: `${dr} completed appointment ${appointment.appointmentNum} for patient ${patient}.`,
+      });
+    }
     return this.getRow(doctorId, appointment.id);
   }
 
@@ -185,15 +226,46 @@ export class DoctorDashboardService {
     return this.appointments.slotsForReschedule(doctorId, appointmentId, date);
   }
 
-  async reschedule(doctorId: string, appointmentId: string, date: string, startTime: string) {
-    const moved = await this.appointments.rescheduleByDoctor(doctorId, appointmentId, date, startTime);
-    const doctor = await this.prisma.doctor.findUnique({ where: { id: doctorId }, select: { fullName: true } });
-    await recordDoctorPortalNotification(this.prisma, {
-      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
-      title: 'Appointment rescheduled by doctor',
-      message: `${moved.appointmentNum} was moved by ${doctor?.fullName ?? 'the doctor'} to ${date}, ${moved.startTime}.`,
+  async reschedule(doctorId: string, appointmentId: string, date: string, startTime: string, reason: string) {
+    const note = reason?.trim();
+    if (!note) throw new BadRequestException('Please enter a reason for rescheduling');
+
+    const before = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, doctorId },
+      select: { appointmentDate: true, startTime: true },
     });
+    if (!before) throw new NotFoundException('Appointment not found');
+
+    const moved = await this.appointments.rescheduleByDoctor(doctorId, appointmentId, date, startTime, note);
+    const a = await this.prisma.appointment.findUniqueOrThrow({
+      where: { id: moved.id },
+      select: {
+        patientType: true,
+        doctor: { select: { fullName: true } },
+        user: { select: { firstName: true, lastName: true, phone: true } },
+        familyMember: { select: { fullName: true } },
+      },
+    });
+
+    const dr = doctorName(a.doctor.fullName);
+    const from = appointmentWhen(before.appointmentDate, before.startTime);
+    const to = appointmentWhen(moved.appointmentDate, moved.startTime);
+    await recordDoctorPortalNotification(this.prisma, {
+      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED,
+      title: 'Appointment Rescheduled by Doctor',
+      message: `${dr} rescheduled appointment ${moved.appointmentNum} for patient ${this.patientLabel(a)} from ${from} to ${to}. Reason: ${note}`,
+    });
+    // Reschedules go to the admin team only; the patient is not notified here.
     return this.getRow(doctorId, moved.id);
+  }
+
+  private patientLabel(a: {
+    patientType: string;
+    familyMember: { fullName: string } | null;
+    user: { firstName: string | null; lastName: string | null; phone: string | null };
+  }) {
+    if (a.patientType === 'FAMILY_MEMBER' && a.familyMember) return a.familyMember.fullName;
+    return [a.user.firstName, a.user.lastName].filter(Boolean).join(' ').trim() || a.user.phone || 'Patient';
   }
 
   // ---------------------------------------------------------------------------

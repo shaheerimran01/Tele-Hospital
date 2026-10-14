@@ -112,6 +112,35 @@ function Footer({
   );
 }
 
+/** Required note shown to the patient and the admin team */
+function ReasonField({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="block text-xs font-semibold text-[#3a3f52]">
+      {label} <span className="text-[#b23a3a]">*</span>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        maxLength={500}
+        required
+        placeholder={placeholder}
+        className="mt-1.5 w-full rounded-lg border border-[#d9d3c6] bg-white px-3 py-2.5 text-sm text-[#141b34] outline-none transition focus:border-[#b38a3a] focus:ring-2 focus:ring-[#b38a3a]/20"
+      />
+      <span className="mt-1 block text-right text-[11px] font-normal text-[#a9a59a]">{value.length}/500</span>
+    </label>
+  );
+}
+
 const subtitleFor = (a: DashboardAppointment) =>
   `${a.patientName} · ${modeLabel(a.serviceMode, a.clinic?.name)} · now ${formatDay(a.appointmentDate)}, ${displayTime(a.startTime)}`;
 
@@ -130,9 +159,10 @@ export function RescheduleModal({
   appointment: DashboardAppointment;
   today: string;
   onClose: () => void;
-  onSave: (date: string, startTime: string) => Promise<void>;
+  onSave: (date: string, startTime: string, reason: string) => Promise<void>;
 }) {
   const current = appointment.appointmentDate.slice(0, 10);
+  const [reason, setReason] = useState('');
   const [date, setDate] = useState(current < today ? today : current);
   const [data, setData] = useState<RescheduleSlots | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,10 +200,14 @@ export function RescheduleModal({
       setSaveError('Choose a new time.');
       return;
     }
+    if (reason.trim().length < 3) {
+      setSaveError('Please enter a reason for rescheduling.');
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
-      await onSave(date, slot);
+      await onSave(date, slot, reason.trim());
     } catch (err) {
       setSaveError(err instanceof ApiError ? err.messages[0] : 'Could not reschedule. Please try again.');
       setSaving(false);
@@ -246,13 +280,25 @@ export function RescheduleModal({
             )}
           </div>
 
+          <ReasonField
+            label="Reason / note"
+            value={reason}
+            onChange={(v) => {
+              setReason(v);
+              setSaveError(null);
+            }}
+            placeholder="e.g. Emergency surgery scheduled at this time"
+          />
+
           {saveError ? (
             <p className="text-sm text-[#b23a3a]" role="alert">{saveError}</p>
           ) : (
-            <p className="text-xs text-[#6b6f80]">The appointment moves to the new time and is marked as rescheduled.</p>
+            <p className="text-xs text-[#6b6f80]">
+              The appointment moves to the new time. The Tabibistan team is notified with your note.
+            </p>
           )}
         </div>
-        <Footer onClose={onClose} submitLabel="Reschedule" busy={saving} disabled={!slot} />
+        <Footer onClose={onClose} submitLabel="Reschedule" busy={saving} disabled={!slot || reason.trim().length < 3} />
       </form>
     </ModalShell>
   );
@@ -277,6 +323,10 @@ export function DeclineModal({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (reason.trim().length < 3) {
+      setError('Please enter a reason for declining.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -291,24 +341,24 @@ export function DeclineModal({
     <ModalShell title="Decline this consultation?" subtitle={subtitleFor(appointment)} Icon={XCircle} onClose={onClose} busy={saving}>
       <form onSubmit={submit} noValidate>
         <div className="space-y-3 px-6 py-5">
-          <label className="block text-xs font-semibold text-[#3a3f52]">
-            Reason <span className="font-normal text-[#8a8d99]">(optional, saved with the appointment)</span>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder="e.g. I'm not available at this time. Please book another slot."
-              className="mt-1.5 w-full rounded-lg border border-[#d9d3c6] bg-white px-3 py-2.5 text-sm text-[#141b34] outline-none transition focus:border-[#b38a3a] focus:ring-2 focus:ring-[#b38a3a]/20"
-            />
-          </label>
+          <ReasonField
+            label="Reason / note"
+            value={reason}
+            onChange={(v) => {
+              setReason(v);
+              setError(null);
+            }}
+            placeholder="e.g. Out of office on this date"
+          />
           {error ? (
             <p className="text-sm text-[#b23a3a]" role="alert">{error}</p>
           ) : (
-            <p className="text-xs text-[#6b6f80]">The appointment is cancelled and the time becomes free again.</p>
+            <p className="text-xs text-[#6b6f80]">
+              The appointment is cancelled and the time becomes free again. The Tabibistan team is notified with your note.
+            </p>
           )}
         </div>
-        <Footer onClose={onClose} submitLabel="Decline appointment" busy={saving} danger />
+        <Footer onClose={onClose} submitLabel="Decline appointment" busy={saving} danger disabled={reason.trim().length < 3} />
       </form>
     </ModalShell>
   );

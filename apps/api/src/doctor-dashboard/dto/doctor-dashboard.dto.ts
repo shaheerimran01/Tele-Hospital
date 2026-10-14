@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { normalizeTime, TIME_FORMAT_REGEX } from '../../doctors/dto/register-doctor.dto.js';
 import { DATE_REGEX } from '../../appointments/dto/get-slots.dto.js';
@@ -14,10 +14,12 @@ export class DoctorAppointmentStatusDto {
   @IsIn(DOCTOR_ACTION_STATUSES, { message: `status must be one of: ${DOCTOR_ACTION_STATUSES.join(', ')}` })
   status: DoctorActionStatus;
 
-  /** Shown to the patient when declining */
-  @IsOptional()
+  /** Required when declining; saved in Appointment.cancelReason and shared with the patient */
+  @ValidateIf((o: DoctorAppointmentStatusDto) => o.status === 'CANCELLED' || o.reason !== undefined)
   @Transform(trim)
-  @IsString()
+  @IsString({ message: 'Please enter a reason for declining' })
+  @IsNotEmpty({ message: 'Please enter a reason for declining' })
+  @MinLength(3, { message: 'Please enter a reason for declining' })
   @MaxLength(500)
   reason?: string;
 }
@@ -31,6 +33,14 @@ export class DoctorRescheduleDto {
   @IsString()
   @Matches(TIME_FORMAT_REGEX, { message: 'startTime must look like "10:30 AM"' })
   startTime: string;
+
+  /** Required; saved in Appointment.cancelReason and shared with the patient */
+  @Transform(trim)
+  @IsString({ message: 'Please enter a reason for rescheduling' })
+  @IsNotEmpty({ message: 'Please enter a reason for rescheduling' })
+  @MinLength(3, { message: 'Please enter a reason for rescheduling' })
+  @MaxLength(500)
+  reason: string;
 }
 
 export class DoctorSlotsQueryDto {

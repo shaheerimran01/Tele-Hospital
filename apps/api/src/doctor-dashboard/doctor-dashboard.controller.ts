@@ -40,7 +40,7 @@ export class DoctorDashboardController {
     return this.dashboard.getDashboard(doctor.id);
   }
 
-  // PATCH /doctors/me/appointments/:id/status  { status: CONFIRMED | COMPLETED | CANCELLED, reason? }
+  // PATCH /doctors/me/appointments/:id/status  { status: CONFIRMED | COMPLETED | CANCELLED, reason (required to decline) }
   @Patch('appointments/:id/status')
   async updateStatus(
     @CurrentDoctor() auth: DoctorTokenPayload,
@@ -62,7 +62,7 @@ export class DoctorDashboardController {
     return this.dashboard.slots(doctor.id, id, query.date);
   }
 
-  // PATCH /doctors/me/appointments/:id/reschedule  { date, startTime }
+  // PATCH /doctors/me/appointments/:id/reschedule  { date, startTime, reason }
   @Patch('appointments/:id/reschedule')
   async reschedule(
     @CurrentDoctor() auth: DoctorTokenPayload,
@@ -70,6 +70,6 @@ export class DoctorDashboardController {
     @Body() dto: DoctorRescheduleDto,
   ) {
     const doctor = await this.doctors.resolveDoctorForAuth(auth);
-    return this.dashboard.reschedule(doctor.id, id, dto.date, dto.startTime);
+    return this.dashboard.reschedule(doctor.id, id, dto.date, dto.startTime, dto.reason);
   }
 }

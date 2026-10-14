@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   UsePipes,
   ValidationPipe,
@@ -15,6 +16,7 @@ import {
   AdminDoctorsQueryDto,
   AdminNotificationsQueryDto,
   AdminSearchQueryDto,
+  ReassignAppointmentDto,
   UpdateAppointmentStatusDto,
   UpdateDoctorStatusAdminDto,
 } from './dto/doctor-admin.dto.js';
@@ -90,6 +92,32 @@ export class DoctorAdminController {
     @Body() dto: UpdateAppointmentStatusDto,
   ) {
     return this.service.updateAppointmentStatus(id, dto);
+  }
+
+  // --- Declined / rescheduled cases ------------------------------------------
+
+  // POST /admin/doctor-portal/appointments/:id/resolve
+  @Post('appointments/:id/resolve')
+  resolveCase(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.resolveCase(id);
+  }
+
+  // POST /admin/doctor-portal/appointments/:id/refund
+  @Post('appointments/:id/refund')
+  refund(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.refund(id);
+  }
+
+  // GET /admin/doctor-portal/appointments/:id/reassign-options
+  @Get('appointments/:id/reassign-options')
+  reassignOptions(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.reassignOptions(id);
+  }
+
+  // POST /admin/doctor-portal/appointments/:id/reassign  { doctorId, clinicId? }
+  @Post('appointments/:id/reassign')
+  reassign(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: ReassignAppointmentDto) {
+    return this.service.reassign(id, dto);
   }
 
   // --- Notifications (doctor + appointment types only) -----------------------

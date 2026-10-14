@@ -135,6 +135,11 @@ function ReasonCell({ a }: { a: DashboardAppointment }) {
       <p className="truncate text-sm text-[#141b34]" title={reason || undefined}>
         {reason || <span className="text-[#a9a59a]">Not provided</span>}
       </p>
+      {a.status === 'RESCHEDULED' && a.cancelReason && (
+        <p className="mt-0.5 line-clamp-1 text-xs font-medium text-[#2c4f8f]" title={a.cancelReason}>
+          Your note: {a.cancelReason}
+        </p>
+      )}
       {(a.description || a.symptomDuration) && (
         <p className="mt-0.5 line-clamp-1 text-xs text-[#6b6f80]" title={a.description ?? undefined}>
           {a.symptomDuration ? `For ${a.symptomDuration.toLowerCase()}` : ''}

@@ -5,9 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import { fetchAppointments, type AppointmentStatus, type ServiceMode } from '@/lib/api/doctorPortal';
 import { useDebounced, usePortalData } from '../_components/portal-context';
 import AppointmentsTable from '../_components/AppointmentsTable';
+import DoctorActionCases from '../_components/DoctorActionCases';
 import { Card, ErrorState, FilterTabs, LoadingState, PageHeader, SearchInput } from '../_components/ui';
 
-type StatusFilter = 'ALL' | AppointmentStatus;
+/** CASES = appointments a doctor declined or rescheduled */
+type StatusFilter = 'ALL' | AppointmentStatus | 'CASES';
 type ModeFilter = 'ALL' | ServiceMode;
 
 const STATUS_TABS: { value: StatusFilter; label: string }[] = [
@@ -16,6 +18,7 @@ const STATUS_TABS: { value: StatusFilter; label: string }[] = [
   { value: 'CONFIRMED', label: 'Confirmed' },
   { value: 'COMPLETED', label: 'Completed' },
   { value: 'CANCELLED', label: 'Cancelled' },
+  { value: 'CASES', label: 'Declined / Rescheduled Requests' },
 ];
 
 const MODE_OPTIONS: { value: ModeFilter; label: string }[] = [
@@ -27,22 +30,32 @@ const MODE_OPTIONS: { value: ModeFilter; label: string }[] = [
 
 function AppointmentsInner() {
   const params = useSearchParams();
-  const initialStatus = (params.get('status')?.toUpperCase() ?? 'ALL') as StatusFilter;
+  const initialStatus = (params.get('view') === 'cases' ? 'CASES' : params.get('status')?.toUpperCase() ?? 'ALL') as StatusFilter;
   const [status, setStatus] = useState<StatusFilter>(
     STATUS_TABS.some((t) => t.value === initialStatus) ? initialStatus : 'ALL',
   );
   const [mode, setMode] = useState<ModeFilter>('ALL');
   const [search, setSearch] = useState('');
+  const [showResolved, setShowResolved] = useState(false);
   const q = useDebounced(search.trim());
+  const cases = status === 'CASES';
 
   const { data, error, loading, reload } = usePortalData(
-    () => fetchAppointments({ status, serviceMode: mode, search: q }),
-    [status, mode, q],
+    () =>
+      fetchAppointments(
+        cases
+          ? { queue: 'DOCTOR_ACTIONS', includeResolved: showResolved, serviceMode: mode, search: q }
+          : { status, serviceMode: mode, search: q },
+      ),
+    [status, mode, q, showResolved],
   );
 
   const sc = data?.statusCounts ?? {};
   const all = Object.values(sc).reduce((s, n) => s + (n ?? 0), 0);
-  const tabs = STATUS_TABS.map((t) => ({ ...t, count: data ? (t.value === 'ALL' ? all : sc[t.value] ?? 0) : undefined }));
+  const tabs = STATUS_TABS.map((t) => ({
+    ...t,
+    count: data ? (t.value === 'ALL' ? all : t.value === 'CASES' ? data.openCaseCount : sc[t.value] ?? 0) : undefined,
+  }));
 
   return (
     <>
@@ -72,6 +85,23 @@ function AppointmentsInner() {
         </div>
       </div>
 
+      {cases && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+          <p>
+            Appointments a doctor declined or rescheduled, with the doctor&apos;s note. Reassign them, accept the change, or record a refund.
+          </p>
+          <label className="inline-flex items-center gap-2 font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={showResolved}
+              onChange={(e) => setShowResolved(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            Show resolved
+          </label>
+        </div>
+      )}
+
       <Card padded={false}>
         {!data ? (
           error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState text="Loading appointments…" />
@@ -79,6 +109,9 @@ function AppointmentsInner() {
           <ErrorState message={error} onRetry={reload} />
         ) : (
           <div className={loading ? 'opacity-60 transition-opacity' : ''}>
+            {cases ? (
+              <DoctorActionCases rows={data.appointments} onChanged={reload} />
+            ) : (
             <AppointmentsTable
               rows={data.appointments}
               columns={['id', 'patient', 'doctor', 'when', 'mode', 'fee', 'status', 'action']}
@@ -88,6 +121,7 @@ function AppointmentsInner() {
                 text: status === 'ALL' && mode === 'ALL' && !q ? 'Bookings made on the website will appear here.' : undefined,
               }}
             />
+            )}
             {data.total > data.appointments.length && (
               <p className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
                 Showing the latest {data.appointments.length} of {data.total.toLocaleString('en-PK')}. Use filters to narrow the list.

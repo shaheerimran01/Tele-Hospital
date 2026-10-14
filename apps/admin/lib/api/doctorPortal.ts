@@ -8,7 +8,7 @@ export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELL
 export type ServiceMode = 'IN_CLINIC' | 'VIDEO' | 'TEXT';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type PatientType = 'SELF' | 'FAMILY_MEMBER';
-export type NotificationFilter = 'ALL' | 'UNREAD' | 'READ' | 'DOCTORS' | 'APPOINTMENTS';
+export type NotificationFilter = 'ALL' | 'UNREAD' | 'READ' | 'DOCTORS' | 'APPOINTMENTS' | 'DECLINED' | 'RESCHEDULED';
 
 export interface TimeSlot {
   id: string;
@@ -53,6 +53,8 @@ export interface AppointmentRow {
   fee: number;
   paymentStatus: PaymentStatus;
   paymentMethod: string | null;
+  /** doctor's note when declined / rescheduled (or the admin's cancel reason) */
+  cancelReason: string | null;
   patientType: PatientType;
   patientName: string;
   familyMember: FamilyMemberBrief | null;
@@ -71,6 +73,10 @@ export interface PortalNotification {
   createdAt: string;
   category: 'DOCTORS' | 'APPOINTMENTS';
   link: { kind: 'appointment' | 'doctor'; id: string } | null;
+  /** the appointment this is about (current state) */
+  appointment: { appointmentNum: string; status: AppointmentStatus; doctorName: string; patientName: string } | null;
+  /** the doctor's note for declined / rescheduled notifications */
+  reason: string | null;
 }
 
 export interface OverviewResponse {
@@ -255,10 +261,51 @@ export const fetchPatients = (p: { search?: string }) =>
   request<{ patients: PatientListItem[]; total: number }>(`/patients${qs(p)}`);
 export const fetchPatient = (id: string) => request<PatientDetail>(`/patients/${encodeURIComponent(id)}`);
 
-export const fetchAppointments = (p: { search?: string; status?: string; serviceMode?: string }) =>
-  request<{ appointments: AppointmentRow[]; total: number; statusCounts: Partial<Record<AppointmentStatus, number>> }>(
-    `/appointments${qs(p)}`,
-  );
+export const fetchAppointments = (p: {
+  search?: string;
+  status?: string;
+  serviceMode?: string;
+  queue?: 'DOCTOR_ACTIONS';
+  includeResolved?: boolean;
+}) =>
+  request<{
+    appointments: (AppointmentRow & { caseOpen: boolean })[];
+    total: number;
+    statusCounts: Partial<Record<AppointmentStatus, number>>;
+    openCaseCount: number;
+  }>(`/appointments${qs({ ...p, includeResolved: p.includeResolved ? 'true' : undefined })}`);
+
+// --- Declined / rescheduled cases --------------------------------------------
+
+export interface ReassignOptions {
+  date: string;
+  startTime: string;
+  serviceMode: ServiceMode;
+  speciality: string | null;
+  /** set when the booking date has passed or is too far ahead */
+  dateProblem: string | null;
+  doctors: {
+    doctorId: string;
+    fullName: string;
+    title: string;
+    specialisations: string[];
+    experienceYears: number;
+    matchesSpeciality: boolean;
+    options: { clinicId: string | null; clinicName: string | null; address: string | null; fee: number | null; available: boolean }[];
+  }[];
+}
+
+export const resolveAppointmentCase = (id: string) =>
+  request<AppointmentDetail>(`/appointments/${encodeURIComponent(id)}/resolve`, { method: 'POST' });
+export const refundAppointment = (id: string) =>
+  request<AppointmentDetail>(`/appointments/${encodeURIComponent(id)}/refund`, { method: 'POST' });
+export const fetchReassignOptions = (id: string) =>
+  request<ReassignOptions>(`/appointments/${encodeURIComponent(id)}/reassign-options`);
+export const reassignAppointment = (id: string, doctorId: string, clinicId?: string | null) =>
+  request<AppointmentDetail>(`/appointments/${encodeURIComponent(id)}/reassign`, {
+    method: 'POST',
+    body: JSON.stringify({ doctorId, ...(clinicId ? { clinicId } : {}) }),
+  });
 export const fetchAppointment = (id: string) =>
   request<AppointmentDetail>(`/appointments/${encodeURIComponent(id)}`);
 export const updateAppointmentStatus = (id: string, status: AppointmentStatus, cancelReason?: string) =>

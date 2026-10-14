@@ -242,7 +242,10 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
             </div>
             <p className="mt-2 text-xs text-slate-400">Booked {formatDate(a.createdAt)} · Last updated {formatDate(a.updatedAt)}</p>
             {a.status === 'CANCELLED' && a.cancelReason && (
-              <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Cancelled: {a.cancelReason}</p>
+              <p className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">Cancelled / declined: {a.cancelReason}</p>
+            )}
+            {a.status === 'RESCHEDULED' && a.cancelReason && (
+              <p className="mt-3 rounded-md bg-violet-50 px-3 py-2 text-sm text-violet-800">Rescheduled by the doctor: {a.cancelReason}</p>
             )}
           </div>
           <StatusControl appointment={a} onUpdated={setData} />

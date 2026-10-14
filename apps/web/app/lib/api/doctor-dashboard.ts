@@ -105,10 +105,10 @@ export const getRescheduleSlotsApi = (token: string, id: string, date: string) =
     'Could not load free times.',
   );
 
-export const rescheduleDoctorAppointmentApi = (token: string, id: string, date: string, startTime: string) =>
+export const rescheduleDoctorAppointmentApi = (token: string, id: string, date: string, startTime: string, reason: string) =>
   call<DoctorAppointment>(
     token,
     `/appointments/${encodeURIComponent(id)}/reschedule`,
-    { method: 'PATCH', body: JSON.stringify({ date, startTime }) },
+    { method: 'PATCH', body: JSON.stringify({ date, startTime, reason }) },
     'Could not reschedule the appointment.',
   );

@@ -19,6 +19,8 @@ const TABS: { value: NotificationFilter; label: string }[] = [
   { value: 'READ', label: 'Read' },
   { value: 'DOCTORS', label: 'Doctors' },
   { value: 'APPOINTMENTS', label: 'Appointments' },
+  { value: 'DECLINED', label: 'Declined Appointments' },
+  { value: 'RESCHEDULED', label: 'Rescheduled Appointments' },
 ];
 
 const EMPTY_TEXT: Record<NotificationFilter, string> = {
@@ -27,6 +29,8 @@ const EMPTY_TEXT: Record<NotificationFilter, string> = {
   READ: 'Notifications you have read will appear here.',
   DOCTORS: 'New doctor registrations and approval changes will appear here.',
   APPOINTMENTS: 'New bookings and appointment updates will appear here.',
+  DECLINED: 'When a doctor declines an appointment, it appears here with their reason.',
+  RESCHEDULED: 'When a doctor moves an appointment, it appears here with their reason.',
 };
 
 export default function NotificationsPage() {

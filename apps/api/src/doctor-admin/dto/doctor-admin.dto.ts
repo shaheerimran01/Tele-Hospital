@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { Transform } from 'class-transformer';
 import {
   AppointmentStatus,
@@ -15,7 +15,7 @@ const DOCTOR_STATUSES = Object.values(DoctorStatus);
 const APPOINTMENT_STATUSES = Object.values(AppointmentStatus);
 const SERVICE_MODES = Object.values(ConsultationServiceMode);
 
-export const NOTIFICATION_FILTERS = ['ALL', 'UNREAD', 'READ', 'DOCTORS', 'APPOINTMENTS'] as const;
+export const NOTIFICATION_FILTERS = ['ALL', 'UNREAD', 'READ', 'DOCTORS', 'APPOINTMENTS', 'DECLINED', 'RESCHEDULED'] as const;
 export type NotificationFilter = (typeof NOTIFICATION_FILTERS)[number];
 
 /** ?search= (and ?status= for doctors) */
@@ -58,6 +58,29 @@ export class AdminAppointmentsQueryDto {
   @Transform(upper)
   @IsIn([...SERVICE_MODES, 'ALL'], { message: `serviceMode must be one of: ALL, ${SERVICE_MODES.join(', ')}` })
   serviceMode?: ConsultationServiceMode | 'ALL';
+
+  /** DOCTOR_ACTIONS = appointments a doctor declined or rescheduled (with the doctor's note) */
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(['DOCTOR_ACTIONS'], { message: 'queue must be DOCTOR_ACTIONS' })
+  queue?: 'DOCTOR_ACTIONS';
+
+  /** For the DOCTOR_ACTIONS queue: also list cases already marked resolved */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true' || value === '1')
+  includeResolved?: boolean;
+}
+
+export class ReassignAppointmentDto {
+  @Transform(trim)
+  @IsUUID('all', { message: 'Please choose a doctor' })
+  doctorId: string;
+
+  /** Required for in-clinic appointments when the doctor has more than one clinic */
+  @IsOptional()
+  @Transform(trim)
+  @IsUUID('all', { message: 'clinicId must be a valid id' })
+  clinicId?: string;
 }
 
 export class AdminNotificationsQueryDto {

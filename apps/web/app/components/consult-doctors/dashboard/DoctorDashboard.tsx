@@ -193,7 +193,7 @@ export default function DoctorDashboard() {
       const first = a.patientName.split(' ')[0];
       const when = `${formatDay(a.appointmentDate)}, ${displayTime(a.startTime)}`;
       if (action === 'approve') {
-        runAction(a, action, () => updateDoctorAppointmentStatusApi(token, a.id, 'CONFIRMED'), `Approved. ${first}'s consultation on ${when} is confirmed.`).catch(
+        runAction(a, action, () => updateDoctorAppointmentStatusApi(token, a.id, 'CONFIRMED'), `Approved. ${first}'s consultation on ${when} is confirmed and the patient has been notified.`).catch(
           () => undefined,
         );
       } else if (action === 'complete') {
@@ -334,13 +334,13 @@ export default function DoctorDashboard() {
           appointment={rescheduling}
           today={data.today}
           onClose={() => setRescheduling(null)}
-          onSave={async (date, startTime) => {
+          onSave={async (date, startTime, reason) => {
             const a = rescheduling;
             await runAction(
               a,
               'reschedule',
-              () => rescheduleDoctorAppointmentApi(token, a.id, date, startTime),
-              `${a.patientName.split(' ')[0]}'s consultation moved to ${formatDay(date)}, ${displayTime(startTime)}.`,
+              () => rescheduleDoctorAppointmentApi(token, a.id, date, startTime, reason),
+              `${a.patientName.split(' ')[0]}'s consultation moved to ${formatDay(date)}, ${displayTime(startTime)}. The Tabibistan team has been notified.`,
               false,
             );
             setRescheduling(null);
@@ -357,8 +357,8 @@ export default function DoctorDashboard() {
             await runAction(
               a,
               'decline',
-              () => updateDoctorAppointmentStatusApi(token, a.id, 'CANCELLED', reason || undefined),
-              `Declined ${a.patientName.split(' ')[0]}'s consultation.`,
+              () => updateDoctorAppointmentStatusApi(token, a.id, 'CANCELLED', reason),
+              `Declined ${a.patientName.split(' ')[0]}'s consultation. The Tabibistan team has been notified.`,
               false,
             );
             setDeclining(null);

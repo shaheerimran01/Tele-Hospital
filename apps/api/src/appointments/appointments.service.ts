@@ -297,7 +297,7 @@ export class AppointmentsService {
   }
 
   /** Moves an appointment to a free slot; it becomes RESCHEDULED. */
-  async rescheduleByDoctor(doctorId: string, appointmentId: string, date: string, startTime: string) {
+  async rescheduleByDoctor(doctorId: string, appointmentId: string, date: string, startTime: string, reason?: string) {
     this.assertBookableDate(date);
     const start = toMinutes(startTime);
     if (start == null) throw new BadRequestException('startTime is not a valid time');
@@ -330,9 +330,176 @@ export class AppointmentsService {
             startTime: slot.startTime,
             endTime: slot.endTime,
             status: AppointmentStatus.RESCHEDULED,
+            // The doctor's note is kept with the appointment
+            cancelReason: reason ?? null,
           },
           select: { id: true, appointmentNum: true, appointmentDate: true, startTime: true, endTime: true, status: true },
         });
+      },
+      { timeout: 15_000 },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Admin: move a booking to another doctor (same date and time)
+  // ---------------------------------------------------------------------------
+
+  /** Approved doctors who offer the same consultation type, and whether they are free at that time. */
+  async reassignOptions(appointmentId: string) {
+    const appointment = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: {
+        id: true,
+        doctorId: true,
+        serviceMode: true,
+        appointmentDate: true,
+        startTime: true,
+        intake: { select: { speciality: { select: { name: true } } } },
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+
+    const date = appointment.appointmentDate.toISOString().slice(0, 10);
+    const start = toMinutes(appointment.startTime);
+    let dateProblem: string | null = null;
+    try {
+      this.assertBookableDate(date);
+    } catch (e) {
+      dateProblem = (e as Error).message;
+    }
+
+    const modeFilter: Prisma.DoctorWhereInput =
+      appointment.serviceMode === ConsultationServiceMode.VIDEO
+        ? { isVideoCallEnabled: true }
+        : appointment.serviceMode === ConsultationServiceMode.TEXT
+          ? { isTextConsultEnabled: true }
+          : { clinics: { some: {} } };
+
+    const scheduleSelect = { select: { dayOfWeek: true, startTime: true, endTime: true } };
+    const doctors = await this.prisma.doctor.findMany({
+      where: { AND: [{ status: DoctorStatus.APPROVED }, { isActive: true }, { id: { not: appointment.doctorId } }, modeFilter] },
+      select: {
+        ...DOCTOR_PUBLIC_SELECT,
+        status: true,
+        isActive: true,
+        onlineAvailabilities: scheduleSelect,
+        clinics: { select: { ...CLINIC_PUBLIC_SELECT, schedules: scheduleSelect }, orderBy: { createdAt: 'asc' } },
+      },
+      orderBy: { fullName: 'asc' },
+      take: 100,
+    });
+
+    const speciality = appointment.intake?.speciality?.name?.toLowerCase() ?? null;
+    const results = [];
+    for (const doctor of doctors) {
+      const targets =
+        appointment.serviceMode === ConsultationServiceMode.IN_CLINIC
+          ? doctor.clinics.map((c) => ({ clinicId: c.id as string | null, clinicName: c.name as string | null, address: c.address as string | null, fee: c.inPersonFee as number | null, windows: c.schedules }))
+          : [{
+              clinicId: null,
+              clinicName: null,
+              address: null,
+              fee: appointment.serviceMode === ConsultationServiceMode.VIDEO ? doctor.videoCallFee : doctor.textConsultFee,
+              windows: doctor.onlineAvailabilities,
+            }];
+
+      const options = [];
+      for (const t of targets) {
+        let available = false;
+        if (!dateProblem && start != null && t.fee != null) {
+          const free = await this.freeSlots(this.prisma, doctor.id, date, t.windows);
+          available = free.some((s) => s.start === start);
+        }
+        options.push({ clinicId: t.clinicId, clinicName: t.clinicName, address: t.address, fee: t.fee, available });
+      }
+
+      results.push({
+        doctorId: doctor.id,
+        fullName: doctor.fullName,
+        title: doctor.title,
+        specialisations: doctor.specialisations,
+        experienceYears: doctor.experienceYears,
+        matchesSpeciality: speciality
+          ? doctor.specialisations.some((x) => x.toLowerCase().includes(speciality) || speciality.includes(x.toLowerCase()))
+          : false,
+        options,
+      });
+    }
+
+    // Free + same speciality first
+    results.sort(
+      (a, b) =>
+        Number(b.options.some((o) => o.available)) - Number(a.options.some((o) => o.available)) ||
+        Number(b.matchesSpeciality) - Number(a.matchesSpeciality) ||
+        a.fullName.localeCompare(b.fullName),
+    );
+
+    return {
+      date,
+      startTime: appointment.startTime,
+      serviceMode: appointment.serviceMode,
+      speciality: appointment.intake?.speciality?.name ?? null,
+      dateProblem,
+      doctors: results,
+    };
+  }
+
+  /**
+   * Gives the booking to another doctor at the same date and time.
+   * It goes back to PENDING so the new doctor can accept it; the fee follows the new doctor.
+   */
+  async reassign(appointmentId: string, doctorId: string, clinicId?: string) {
+    const current = await this.prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: { appointmentDate: true, doctorId: true, status: true },
+    });
+    if (!current) throw new NotFoundException('Appointment not found');
+    if (current.status === AppointmentStatus.COMPLETED) {
+      throw new BadRequestException('A completed appointment cannot be reassigned');
+    }
+    if (current.doctorId === doctorId) {
+      throw new BadRequestException('Please choose a different doctor');
+    }
+    const date = current.appointmentDate.toISOString().slice(0, 10);
+    this.assertBookableDate(date);
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`appointment:${doctorId}:${date}`}))::text AS locked`;
+
+        const appointment = await tx.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          select: { id: true, serviceMode: true, startTime: true, doctor: { select: { fullName: true } } },
+        });
+        const doctor = await this.loadDoctor(tx, doctorId);
+        const { clinic, fee, windows } = this.resolveService(doctor, appointment.serviceMode, clinicId);
+
+        const start = toMinutes(appointment.startTime);
+        const free = await this.freeSlots(tx, doctorId, date, windows);
+        const slot = free.find((s) => s.start === start);
+        if (!slot) {
+          throw new ConflictException(`${doctor.fullName} is not free at this time. Please choose another doctor.`);
+        }
+
+        const updated = await tx.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            doctorId,
+            clinicId: clinic?.id ?? null,
+            fee,
+            status: AppointmentStatus.PENDING,
+            cancelReason: null,
+          },
+          select: {
+            id: true,
+            appointmentNum: true,
+            appointmentDate: true,
+            startTime: true,
+            userId: true,
+            doctor: { select: { fullName: true } },
+          },
+        });
+        return { ...updated, previousDoctorName: appointment.doctor.fullName };
       },
       { timeout: 15_000 },
     );
