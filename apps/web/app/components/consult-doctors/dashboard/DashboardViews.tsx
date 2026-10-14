@@ -2,7 +2,6 @@
 
 import {
   BadgeCheck,
-  CalendarOff,
   CircleAlert,
   Clock,
   Hospital,
@@ -11,20 +10,19 @@ import {
   MessageSquareText,
   Phone,
   Stethoscope,
-  Trash2,
   Video,
 } from 'lucide-react';
 import { apiFileUrl, type DoctorProfile, type TimeSlot } from '@/app/lib/api/doctors';
 import AppointmentTable, { ModeBadge, type AppointmentAction } from './AppointmentTable';
-import { SectionCard } from './DashboardHome';
-import WeeklyOverviewChart, { type WeekPoint } from './WeeklyOverviewChart';
+import { SectionCard, TableSkeleton } from './DashboardHome';
 import {
+  displayTime,
   formatDay,
-  formatTime,
   initials,
   pkr,
-  type BlockedTime,
+  plural,
   type DashboardAppointment,
+  type DoctorDashboardData,
   type ServiceMode,
 } from './dashboard-data';
 
@@ -66,56 +64,98 @@ const editNote = (
   </p>
 );
 
+/** Shown in place of a view's content while the dashboard data loads or fails */
+function DataGate({
+  data,
+  error,
+  onRetry,
+  children,
+}: {
+  data: DoctorDashboardData | null;
+  error: string | null;
+  onRetry: () => void;
+  children: (d: DoctorDashboardData) => React.ReactNode;
+}) {
+  if (data) return <>{children(data)}</>;
+  if (error) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f2cccc] bg-[#fdf2f2] px-5 py-4 text-sm text-[#8f2d2d]" role="alert">
+        <span className="flex items-center gap-2">
+          <CircleAlert className="h-4 w-4 shrink-0" /> {error}
+        </span>
+        <button type="button" onClick={onRetry} className="font-semibold hover:underline">
+          Try again
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-hidden rounded-2xl border border-[#e7e2d8] bg-white">
+      <TableSkeleton rows={4} />
+    </div>
+  );
+}
+
+interface DataProps {
+  data: DoctorDashboardData | null;
+  error: string | null;
+  onRetry: () => void;
+}
+
 // ---------------------------------------------------------------------------
 // Appointments
 // ---------------------------------------------------------------------------
 
 export function AppointmentsView({
-  now,
-  todaySchedule,
-  requests,
-  upcoming,
+  data,
+  error,
+  onRetry,
   onAction,
-}: {
-  now: Date;
-  todaySchedule: DashboardAppointment[];
-  requests: DashboardAppointment[];
-  upcoming: DashboardAppointment[];
+  busy,
+}: DataProps & {
   onAction: (action: AppointmentAction, a: DashboardAppointment) => void;
+  busy: Record<string, AppointmentAction | undefined>;
 }) {
   return (
     <>
       <ViewHeader title="Appointments" text="Respond to requests and manage your confirmed consultations." />
-      <div className="space-y-6">
-        <SectionCard
-          title="Requests waiting for you"
-          subtitle={`${requests.length} pending · Patients will be notified when you respond`}
-        >
-          <AppointmentTable
-            rows={requests}
-            now={now}
-            onAction={onAction}
-            shortMode
-            empty={{ title: "You're all caught up", text: 'New consultation requests will appear here.' }}
-          />
-        </SectionCard>
-        <SectionCard title="Today" subtitle={`${todaySchedule.length} scheduled`}>
-          <AppointmentTable
-            rows={todaySchedule}
-            now={now}
-            onAction={onAction}
-            empty={{ title: 'Nothing scheduled today', text: 'Approved consultations for today will appear here.' }}
-          />
-        </SectionCard>
-        <SectionCard title="Upcoming" subtitle="Confirmed consultations after today">
-          <AppointmentTable
-            rows={upcoming}
-            now={now}
-            onAction={onAction}
-            empty={{ title: 'No upcoming consultations', text: 'Requests you approve for later dates will appear here.' }}
-          />
-        </SectionCard>
-      </div>
+      <DataGate data={data} error={error} onRetry={onRetry}>
+        {(d) => (
+          <div className="space-y-6">
+            <SectionCard
+              title="Requests waiting for you"
+              subtitle={`${d.requests.length} pending · Patients see your reply in their My Appointments page`}
+            >
+              <AppointmentTable
+                rows={d.requests}
+                today={d.today}
+                onAction={onAction}
+                busy={busy}
+                shortMode
+                empty={{ title: "You're all caught up", text: 'New consultation requests will appear here.' }}
+              />
+            </SectionCard>
+            <SectionCard title="Today" subtitle={`${plural(d.todaySchedule.length, 'consultation', 'consultations')} scheduled`}>
+              <AppointmentTable
+                rows={d.todaySchedule}
+                today={d.today}
+                onAction={onAction}
+                busy={busy}
+                empty={{ title: 'No consultations scheduled for today', text: 'Approved and pending bookings for today will appear here.' }}
+              />
+            </SectionCard>
+            <SectionCard title="Upcoming" subtitle="Confirmed and rescheduled consultations after today">
+              <AppointmentTable
+                rows={d.upcoming}
+                today={d.today}
+                onAction={onAction}
+                busy={busy}
+                empty={{ title: 'No upcoming consultations', text: 'Requests you approve for later dates will appear here.' }}
+              />
+            </SectionCard>
+          </div>
+        )}
+      </DataGate>
     </>
   );
 }
@@ -124,110 +164,65 @@ export function AppointmentsView({
 // Patients
 // ---------------------------------------------------------------------------
 
-export function PatientsView({
-  patients,
-}: {
-  patients: { name: string; phone: string; visits: number; lastVisit: string; modes: Set<ServiceMode> }[];
-}) {
+export function PatientsView({ data, error, onRetry }: DataProps) {
   return (
     <>
-      <ViewHeader title="Patients" text={`${patients.length} patients have booked or consulted with you.`} />
-      <SectionCard title="All patients" subtitle="Most recent first">
-        {patients.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-[#6b6f80]">No patients yet.</p>
-        ) : (
-          <ul className="divide-y divide-[#f1eee7]">
-            {patients.map((p) => (
-              <li key={`${p.name}|${p.phone}`} className="flex flex-wrap items-center gap-4 px-4 py-4 sm:px-6">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f1ece1] text-sm font-semibold text-[#7b5d22]">
-                  {initials(p.name)}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-[#141b34]">{p.name}</p>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-[#6b6f80]">
-                    <Phone className="h-3 w-3" /> {p.phone}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {[...p.modes].map((m) => (
-                    <ModeBadge key={m} mode={m} clinicName={null} short />
-                  ))}
-                </div>
-                <div className="w-full text-sm sm:w-auto sm:min-w-[150px] sm:text-right">
-                  <p className="font-semibold text-[#141b34]">
-                    {p.visits} {p.visits === 1 ? 'consultation' : 'consultations'}
-                  </p>
-                  <p className="text-xs text-[#6b6f80]">Latest: {formatDay(p.lastVisit)}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+      <ViewHeader
+        title="Patients"
+        text={data ? `${plural(data.metrics.patients, 'patient has', 'patients have')} booked with you.` : 'Patients who booked with you.'}
+      />
+      <DataGate data={data} error={error} onRetry={onRetry}>
+        {(d) => (
+          <SectionCard title="All patients" subtitle="Most recent appointment first">
+            {d.patients.length === 0 ? (
+              <p className="px-6 py-10 text-center text-sm text-[#6b6f80]">No patients have booked with you yet.</p>
+            ) : (
+              <ul className="divide-y divide-[#f1eee7]">
+                {d.patients.map((p) => (
+                  <li key={p.userId} className="flex flex-wrap items-center gap-4 px-4 py-4 sm:px-6">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f1ece1] text-sm font-semibold text-[#7b5d22]">
+                      {initials(p.name)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[#141b34]">{p.name}</p>
+                      {p.phone && (
+                        <a href={`tel:${p.phone}`} className="mt-0.5 flex items-center gap-1 text-xs text-[#6b6f80] hover:text-[#141b34]">
+                          <Phone className="h-3 w-3" /> {p.phone}
+                        </a>
+                      )}
+                    </div>
+                    <div className="w-full text-sm sm:w-auto sm:min-w-[170px] sm:text-right">
+                      <p className="font-semibold text-[#141b34]">{plural(p.appointments, 'appointment', 'appointments')}</p>
+                      {p.lastAppointmentDate && (
+                        <p className="text-xs text-[#6b6f80]">Latest: {formatDay(p.lastAppointmentDate)}</p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {d.patients.length < d.metrics.patients && (
+              <p className="border-t border-[#efece5] px-6 py-3 text-xs text-[#8a8d99]">
+                Showing the {d.patients.length} most recent of {d.metrics.patients} patients.
+              </p>
+            )}
+          </SectionCard>
         )}
-      </SectionCard>
+      </DataGate>
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Availability
+// Availability (weekly hours from the doctor profile)
 // ---------------------------------------------------------------------------
 
-export function AvailabilityView({
-  profile,
-  blocked,
-  onBlockTime,
-  onRemoveBlock,
-}: {
-  profile: DoctorProfile;
-  blocked: BlockedTime[];
-  onBlockTime: () => void;
-  onRemoveBlock: (id: string) => void;
-}) {
+export function AvailabilityView({ profile }: { profile: DoctorProfile }) {
   const online = profile.isVideoCallEnabled || profile.isTextConsultEnabled;
   return (
     <>
-      <ViewHeader
-        title="Availability"
-        text="Your weekly hours from registration, and the time you've blocked."
-        action={
-          <button
-            type="button"
-            onClick={onBlockTime}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#141b34] px-4 py-2 text-sm font-semibold text-white hover:bg-[#232c4f]"
-          >
-            <CalendarOff className="h-4 w-4" /> Block time
-          </button>
-        }
-      />
+      <ViewHeader title="Availability" text="Your weekly hours. Patients can only book inside these times." />
       <div className="space-y-5">
-        <SectionCard title="Blocked time" subtitle="Patients can't book you during these hours">
-          {blocked.length === 0 ? (
-            <p className="px-6 py-8 text-center text-sm text-[#6b6f80]">No blocked time.</p>
-          ) : (
-            <ul className="divide-y divide-[#f1eee7]">
-              {blocked.map((b) => (
-                <li key={b.id} className="flex items-center gap-4 px-4 py-3.5 sm:px-6">
-                  <CalendarOff className="h-4 w-4 shrink-0 text-[#b23a3a]" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-[#141b34]">
-                      {formatDay(`${b.date}T00:00`)} · {b.from} – {b.to}
-                    </p>
-                    <p className="truncate text-xs text-[#6b6f80]">{b.reason}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveBlock(b.id)}
-                    aria-label="Remove blocked time"
-                    className="rounded-lg p-2 text-[#8a8d99] hover:bg-[#fdf2f2] hover:text-[#b23a3a]"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-
         {profile.clinics.map((c) => (
           <Panel key={c.id}>
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#141b34]">
@@ -236,7 +231,6 @@ export function AvailabilityView({
             <SlotList slots={c.schedules} />
           </Panel>
         ))}
-
         <Panel>
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-[#141b34]">
             <Video className="h-4 w-4 text-[#8a8d99]" /> Online consultations
@@ -254,71 +248,73 @@ export function AvailabilityView({
 }
 
 // ---------------------------------------------------------------------------
-// Earnings
+// Earnings (completed consultations)
 // ---------------------------------------------------------------------------
 
-export function EarningsView({
-  totalEarned,
-  completed,
-  week,
-}: {
-  totalEarned: number;
-  completed: DashboardAppointment[];
-  week: WeekPoint[];
-}) {
-  const byMode = (['IN_CLINIC', 'VIDEO', 'TEXT'] as ServiceMode[]).map((mode) => {
-    const rows = completed.filter((a) => a.serviceMode === mode);
-    return { mode, count: rows.length, total: rows.reduce((s, a) => s + a.fee, 0) };
-  });
+const MODES: ServiceMode[] = ['IN_CLINIC', 'VIDEO', 'TEXT'];
 
+export function EarningsView({ data, error, onRetry }: DataProps) {
   return (
     <>
-      <ViewHeader title="Earnings" text="Fees from completed consultations." />
-      <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-          <Panel className="col-span-2 xl:col-span-1">
-            <p className="text-sm font-medium text-[#6b6f80]">Total earned</p>
-            <p className="mt-2 text-[28px] font-semibold tracking-tight text-[#141b34] tabular-nums">{pkr(totalEarned)}</p>
-          </Panel>
-          {byMode.map((m) => (
-            <Panel key={m.mode}>
-              <ModeBadge mode={m.mode} clinicName={null} short />
-              <p className="mt-3 text-xl font-semibold text-[#141b34] tabular-nums">{pkr(m.total)}</p>
-              <p className="text-xs text-[#6b6f80]">
-                {m.count} {m.count === 1 ? 'consultation' : 'consultations'}
-              </p>
-            </Panel>
-          ))}
-        </div>
+      <ViewHeader title="Earnings" text="Fees from completed consultations. Only paid consultations count towards Total earned." />
+      <DataGate data={data} error={error} onRetry={onRetry}>
+        {(d) => {
+          const unpaid = d.earnings.filter((e) => e.paymentStatus !== 'PAID').reduce((s, e) => s + e.total, 0);
+          const byMode = MODES.map((mode) => {
+            const rows = d.earnings.filter((e) => e.serviceMode === mode && e.paymentStatus === 'PAID');
+            return { mode, count: rows.reduce((s, e) => s + e.count, 0), total: rows.reduce((s, e) => s + e.total, 0) };
+          });
+          return (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+                <Panel className="col-span-2 xl:col-span-1">
+                  <p className="text-sm font-medium text-[#6b6f80]">Total earned</p>
+                  <p className="mt-2 text-[28px] font-semibold tracking-tight text-[#141b34] tabular-nums">{pkr(d.metrics.totalEarned)}</p>
+                  {unpaid > 0 && <p className="mt-1 text-xs text-[#8a6416]">{pkr(unpaid)} from completed visits not marked paid yet</p>}
+                </Panel>
+                {byMode.map((m) => (
+                  <Panel key={m.mode}>
+                    <ModeBadge mode={m.mode} clinicName={null} short />
+                    <p className="mt-3 text-xl font-semibold text-[#141b34] tabular-nums">{pkr(m.total)}</p>
+                    <p className="text-xs text-[#6b6f80]">{plural(m.count, 'paid consultation', 'paid consultations')}</p>
+                  </Panel>
+                ))}
+              </div>
 
-        <WeeklyOverviewChart week={week} />
-
-        <SectionCard title="Completed consultations" subtitle="Most recent first">
-          {completed.length === 0 ? (
-            <p className="px-6 py-10 text-center text-sm text-[#6b6f80]">No completed consultations yet.</p>
-          ) : (
-            <ul className="divide-y divide-[#f1eee7]">
-              {completed.map((a) => (
-                <li key={a.id} className="flex items-center gap-4 px-4 py-3.5 sm:px-6">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#141b34]">{a.patientName}</p>
-                    <p className="whitespace-nowrap text-xs text-[#6b6f80]">
-                      {formatDay(a.completedAt ?? a.scheduledAt)} · {formatTime(a.completedAt ?? a.scheduledAt)}
-                    </p>
-                    <div className="mt-1.5 sm:hidden">
-                      <ModeBadge mode={a.serviceMode} clinicName={a.clinicName} short />
-                    </div>
-                  </div>
-                  <div className="hidden sm:block">
-                    <ModeBadge mode={a.serviceMode} clinicName={a.clinicName} short />
-                  </div>
-                  <p className="shrink-0 text-right text-sm font-semibold text-[#141b34] tabular-nums sm:w-28">{pkr(a.fee)}</p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-      </div>
+              <SectionCard title="Completed consultations" subtitle="Most recent first">
+                {d.completed.length === 0 ? (
+                  <p className="px-6 py-10 text-center text-sm text-[#6b6f80]">No completed consultations yet.</p>
+                ) : (
+                  <ul className="divide-y divide-[#f1eee7]">
+                    {d.completed.map((a) => (
+                      <li key={a.id} className="flex items-center gap-4 px-4 py-3.5 sm:px-6">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-[#141b34]">{a.patientName}</p>
+                          <p className="whitespace-nowrap text-xs text-[#6b6f80]">
+                            {formatDay(a.appointmentDate)} · {displayTime(a.startTime)} · {a.appointmentNum}
+                          </p>
+                          <div className="mt-1.5 sm:hidden">
+                            <ModeBadge mode={a.serviceMode} clinicName={null} short />
+                          </div>
+                        </div>
+                        <div className="hidden sm:block">
+                          <ModeBadge mode={a.serviceMode} clinicName={null} short />
+                        </div>
+                        <div className="shrink-0 text-right sm:w-32">
+                          <p className="text-sm font-semibold text-[#141b34] tabular-nums">{pkr(a.fee)}</p>
+                          <p className={`text-xs font-medium ${a.paymentStatus === 'PAID' ? 'text-[#2f6b45]' : 'text-[#8a6416]'}`}>
+                            {a.paymentStatus === 'PAID' ? 'Paid' : 'Not paid yet'}
+                          </p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </SectionCard>
+            </div>
+          );
+        }}
+      </DataGate>
     </>
   );
 }

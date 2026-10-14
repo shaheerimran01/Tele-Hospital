@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -195,6 +196,26 @@ export class DoctorsService {
       doctorRegistration: this.toPublicRegistration(registration, doctor),
       doctor: doctor ? this.sortSlots(doctor) : null,
     };
+  }
+
+  /**
+   * The doctor profile behind a doctor login token (doctor-only endpoints).
+   * Throws 401 when the login is gone and 403 when the profile isn't submitted yet.
+   */
+  async resolveDoctorForAuth(auth: DoctorTokenPayload) {
+    const registration = await this.prisma.doctorRegistration.findUnique({ where: { id: auth.sub } });
+    if (!registration) {
+      throw new UnauthorizedException('Doctor account not found. Please verify your phone again.');
+    }
+    const doctor = await this.prisma.doctor.findFirst({
+      where: { phone: { in: doctorPhoneVariants(registration.phone) } },
+      select: { id: true, fullName: true, status: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!doctor) {
+      throw new ForbiddenException('Please complete your doctor profile first.');
+    }
+    return doctor;
   }
 
   /** Registration + doctor profile for a phone, matching older unformatted rows too. */

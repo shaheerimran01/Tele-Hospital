@@ -18,6 +18,7 @@ import { ConsultationModule } from './consultation/consultation.module.js';
 import { DoctorsModule } from './doctors/doctors.module.js';
 import { AppointmentsModule } from './appointments/appointments.module.js';
 import { DoctorAdminModule } from './doctor-admin/doctor-admin.module.js';
+import { DoctorDashboardModule } from './doctor-dashboard/doctor-dashboard.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -39,6 +40,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     DoctorsModule,
     AppointmentsModule,
     DoctorAdminModule,
+    DoctorDashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

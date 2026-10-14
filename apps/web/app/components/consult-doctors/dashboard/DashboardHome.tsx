@@ -4,20 +4,19 @@ import {
   ArrowRight,
   Banknote,
   CalendarDays,
-  CalendarOff,
   CircleAlert,
   Clock,
   Hourglass,
+  RefreshCw,
   Users,
   Wallet,
 } from 'lucide-react';
 import AppointmentTable, { type AppointmentAction } from './AppointmentTable';
-import WeeklyOverviewChart, { type WeekPoint } from './WeeklyOverviewChart';
-import { pkr, type DashboardAppointment } from './dashboard-data';
+import { plural, pkr, type DashboardAppointment, type DoctorDashboardData } from './dashboard-data';
 import type { DashboardView } from './Sidebar';
 
 /** How many requests the dashboard lists before "See all" */
-const REQUEST_PREVIEW = 4;
+const REQUEST_PREVIEW = 5;
 
 const STATUS_NOTE: Record<string, { text: string; className: string; Icon: typeof Clock } | undefined> = {
   PENDING: {
@@ -31,8 +30,6 @@ const STATUS_NOTE: Record<string, { text: string; className: string; Icon: typeo
     Icon: CircleAlert,
   },
 };
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 export function SectionCard({
   id,
@@ -48,7 +45,7 @@ export function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-6 overflow-hidden rounded-2xl border border-[#e7e2d8] bg-white">
+    <section id={id} className="scroll-mt-20 overflow-hidden rounded-2xl border border-[#e7e2d8] bg-white">
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#efece5] px-4 py-4 sm:px-6">
         <div>
           <h2 className="text-base font-semibold text-[#141b34]">{title}</h2>
@@ -61,18 +58,39 @@ export function SectionCard({
   );
 }
 
+/** Grey placeholder rows while appointments load */
+export function TableSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="divide-y divide-[#f1eee7]" aria-hidden>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex animate-pulse items-center gap-4 px-6 py-5">
+          <span className="h-10 w-10 shrink-0 rounded-full bg-[#efece5]" />
+          <div className="flex-1 space-y-2">
+            <span className="block h-3 w-1/3 rounded bg-[#efece5]" />
+            <span className="block h-3 w-1/5 rounded bg-[#f4f2ec]" />
+          </div>
+          <span className="hidden h-6 w-24 rounded-full bg-[#f4f2ec] sm:block" />
+          <span className="hidden h-8 w-40 rounded-lg bg-[#f4f2ec] md:block" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MetricCard({
   label,
   value,
   Icon,
   tone,
   onDetails,
+  loading,
 }: {
   label: string;
   value: string;
   Icon: typeof Clock;
   tone: string;
   onDetails: () => void;
+  loading: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-col rounded-2xl border border-[#e7e2d8] bg-white px-4 py-4 sm:px-5 sm:py-5">
@@ -82,9 +100,13 @@ function MetricCard({
           <Icon className="h-[18px] w-[18px]" />
         </span>
       </div>
-      <p className="mt-2 truncate text-2xl font-semibold leading-tight tracking-tight text-[#141b34] tabular-nums sm:text-[28px]">
-        {value}
-      </p>
+      {loading ? (
+        <span className="mt-3 block h-7 w-20 animate-pulse rounded bg-[#efece5]" aria-label="Loading" />
+      ) : (
+        <p className="mt-2 truncate text-2xl font-semibold leading-tight tracking-tight text-[#141b34] tabular-nums sm:text-[28px]">
+          {value}
+        </p>
+      )}
       <button
         type="button"
         onClick={onDetails}
@@ -101,37 +123,33 @@ const outlineBtn =
 
 interface DashboardHomeProps {
   now: Date;
+  greeting: string;
   doctorName: string;
   profileStatus: string;
-  todaySchedule: DashboardAppointment[];
-  requests: DashboardAppointment[];
-  totalEarned: number;
-  patientsCount: number;
-  week: WeekPoint[];
+  data: DoctorDashboardData | null;
+  error: string | null;
+  onRetry: () => void;
   onAction: (action: AppointmentAction, a: DashboardAppointment) => void;
+  busy: Record<string, AppointmentAction | undefined>;
   onNavigate: (view: DashboardView) => void;
-  onBlockTime: () => void;
-  greeting: string;
 }
 
 export default function DashboardHome({
   now,
+  greeting,
   doctorName,
   profileStatus,
-  todaySchedule,
-  requests,
-  totalEarned,
-  patientsCount,
-  week,
+  data,
+  error,
+  onRetry,
   onAction,
+  busy,
   onNavigate,
-  onBlockTime,
-  greeting,
 }: DashboardHomeProps) {
   const statusNote = STATUS_NOTE[profileStatus];
-  const todayOpen = todaySchedule.filter((a) => a.status !== 'COMPLETED').length;
-  const scrollTo = (id: string) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const loading = !data && !error;
+  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const m = data?.metrics;
 
   return (
     <div className="space-y-6">
@@ -142,12 +160,9 @@ export default function DashboardHome({
         </div>
       )}
 
-      {/* A. Welcome banner */}
+      {/* Welcome banner */}
       <section className="relative overflow-hidden rounded-2xl bg-[#141b34] px-6 py-7 text-white sm:px-8">
-        <div
-          className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#b38a3a]/25 blur-3xl"
-          aria-hidden
-        />
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-[#b38a3a]/25 blur-3xl" aria-hidden />
         <div className="relative flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-xl">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#d8c08c]">
@@ -157,14 +172,19 @@ export default function DashboardHome({
               {greeting}, {doctorName}
             </h1>
             <p className="mt-2 text-sm text-white/75">
-              You have {plural(todayOpen, 'appointment', 'appointments')} today and{' '}
-              {plural(requests.length, 'request', 'requests')} waiting for your reply.
+              {m ? (
+                <>
+                  You have {plural(m.todayAppointments, 'appointment', 'appointments')} today and{' '}
+                  {plural(m.pendingRequests, 'request', 'requests')} waiting for your reply.
+                </>
+              ) : error ? (
+                'Your appointment summary could not be loaded.'
+              ) : (
+                'Loading your appointments…'
+              )}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={onBlockTime} className={outlineBtn}>
-              <CalendarOff className="h-4 w-4" /> Block time
-            </button>
             <button type="button" onClick={() => onNavigate('online')} className={outlineBtn}>
               <Banknote className="h-4 w-4" /> Consultation fees
             </button>
@@ -175,80 +195,100 @@ export default function DashboardHome({
         </div>
       </section>
 
-      {/* B. Metrics */}
+      {error && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#f2cccc] bg-[#fdf2f2] px-5 py-4 text-sm text-[#8f2d2d]" role="alert">
+          <span className="flex items-center gap-2">
+            <CircleAlert className="h-4 w-4 shrink-0" /> {error}
+          </span>
+          <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 font-semibold underline-offset-2 hover:underline">
+            <RefreshCw className="h-4 w-4" /> Try again
+          </button>
+        </div>
+      )}
+
+      {/* Metrics */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
           label="Today's appointments"
-          value={String(todaySchedule.length)}
+          value={String(m?.todayAppointments ?? 0)}
           Icon={CalendarDays}
           tone="bg-[#edf2fc] text-[#2c4f8f]"
           onDetails={() => scrollTo('todays-schedule')}
+          loading={loading}
         />
         <MetricCard
           label="Pending requests"
-          value={String(requests.length)}
+          value={String(m?.pendingRequests ?? 0)}
           Icon={Hourglass}
           tone="bg-[#fdf4e3] text-[#8a6416]"
           onDetails={() => scrollTo('pending-requests')}
+          loading={loading}
         />
         <MetricCard
           label="Total earned"
-          value={pkr(totalEarned)}
+          value={pkr(m?.totalEarned ?? 0)}
           Icon={Wallet}
           tone="bg-[#eaf6ee] text-[#2f6b45]"
           onDetails={() => onNavigate('earnings')}
+          loading={loading}
         />
         <MetricCard
           label="Patients"
-          value={String(patientsCount)}
+          value={String(m?.patients ?? 0)}
           Icon={Users}
           tone="bg-[#f3eefa] text-[#5b3f8c]"
           onDetails={() => onNavigate('patients')}
+          loading={loading}
         />
       </div>
 
-      {/* C1. Today's schedule */}
+      {/* Today's schedule */}
       <SectionCard
         id="todays-schedule"
         title="Today's schedule"
-        subtitle={`${plural(todaySchedule.length, 'consultation', 'consultations')} scheduled`}
+        subtitle={data ? `${plural(data.todaySchedule.length, 'consultation', 'consultations')} scheduled` : 'Loading…'}
       >
-        <AppointmentTable
-          rows={todaySchedule}
-          now={now}
-          onAction={onAction}
-          empty={{ title: 'Nothing scheduled today', text: 'Approved consultations for today will appear here.' }}
-        />
-      </SectionCard>
-
-      {/* C2. Requests */}
-      <SectionCard
-        id="pending-requests"
-        title="Requests waiting for you"
-        subtitle="Patients will be notified when you respond"
-      >
-        <AppointmentTable
-          rows={requests.slice(0, REQUEST_PREVIEW)}
-          now={now}
-          onAction={onAction}
-          shortMode
-          empty={{ title: "You're all caught up", text: 'New consultation requests will appear here.' }}
-        />
-        {requests.length > 0 && (
-          <div className="border-t border-[#efece5] px-4 py-4 text-center sm:px-6">
-            <button
-              type="button"
-              onClick={() => onNavigate('appointments')}
-              className="inline-flex items-center gap-2 rounded-lg border border-[#d9d3c6] bg-white px-4 py-2 text-sm font-semibold text-[#141b34] transition hover:border-[#141b34]"
-            >
-              See all {plural(requests.length, 'request', 'requests')} <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
+        {!data ? (
+          error ? null : <TableSkeleton rows={2} />
+        ) : (
+          <AppointmentTable
+            rows={data.todaySchedule}
+            today={data.today}
+            onAction={onAction}
+            busy={busy}
+            empty={{ title: 'No consultations scheduled for today', text: 'Approved and pending bookings for today will appear here.' }}
+          />
         )}
       </SectionCard>
 
-      {/* D. Analytics */}
-      <WeeklyOverviewChart week={week} />
+      {/* Requests */}
+      <SectionCard id="pending-requests" title="Requests waiting for you" subtitle="Patients see your reply in their My Appointments page">
+        {!data ? (
+          error ? null : <TableSkeleton rows={3} />
+        ) : (
+          <>
+            <AppointmentTable
+              rows={data.requests.slice(0, REQUEST_PREVIEW)}
+              today={data.today}
+              onAction={onAction}
+              busy={busy}
+              shortMode
+              empty={{ title: "You're all caught up", text: 'New consultation requests will appear here.' }}
+            />
+            {data.requests.length > REQUEST_PREVIEW && (
+              <div className="border-t border-[#efece5] px-4 py-4 text-center sm:px-6">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('appointments')}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[#d9d3c6] bg-white px-4 py-2 text-sm font-semibold text-[#141b34] transition hover:border-[#141b34]"
+                >
+                  See all {plural(data.requests.length, 'request', 'requests')} <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </SectionCard>
     </div>
   );
 }

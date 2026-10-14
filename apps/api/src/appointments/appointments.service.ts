@@ -273,6 +273,72 @@ export class AppointmentsService {
   }
 
   // ---------------------------------------------------------------------------
+  // Doctor-side rescheduling (used by the doctor dashboard)
+  // ---------------------------------------------------------------------------
+
+  /** Free slots on `date` for moving one of this doctor's appointments. */
+  async slotsForReschedule(doctorId: string, appointmentId: string, date: string) {
+    this.assertBookableDate(date);
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, doctorId },
+      select: { id: true, serviceMode: true, clinicId: true },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+
+    const doctor = await this.loadDoctor(this.prisma, doctorId, false);
+    const { windows, workingDays } = this.resolveService(doctor, appointment.serviceMode, appointment.clinicId ?? undefined);
+    const slots = await this.freeSlots(this.prisma, doctorId, date, windows, appointment.id);
+    return {
+      date,
+      dayOfWeek: dayOfWeek(date),
+      workingDays,
+      slots: slots.map(({ startTime, endTime }) => ({ startTime, endTime })),
+    };
+  }
+
+  /** Moves an appointment to a free slot; it becomes RESCHEDULED. */
+  async rescheduleByDoctor(doctorId: string, appointmentId: string, date: string, startTime: string) {
+    this.assertBookableDate(date);
+    const start = toMinutes(startTime);
+    if (start == null) throw new BadRequestException('startTime is not a valid time');
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`appointment:${doctorId}:${date}`}))::text AS locked`;
+
+        const appointment = await tx.appointment.findFirst({
+          where: { id: appointmentId, doctorId },
+          select: { id: true, status: true, serviceMode: true, clinicId: true },
+        });
+        if (!appointment) throw new NotFoundException('Appointment not found');
+        if (!ACTIVE_STATUSES.includes(appointment.status)) {
+          throw new BadRequestException('Only pending or confirmed appointments can be rescheduled');
+        }
+
+        const doctor = await this.loadDoctor(tx, doctorId, false);
+        const { windows } = this.resolveService(doctor, appointment.serviceMode, appointment.clinicId ?? undefined);
+        const free = await this.freeSlots(tx, doctorId, date, windows, appointment.id);
+        const slot = free.find((s) => s.start === start);
+        if (!slot) {
+          throw new ConflictException('That time is not free. Please choose another slot.');
+        }
+
+        return tx.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            appointmentDate: dateOnly(date),
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            status: AppointmentStatus.RESCHEDULED,
+          },
+          select: { id: true, appointmentNum: true, appointmentDate: true, startTime: true, endTime: true, status: true },
+        });
+      },
+      { timeout: 15_000 },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
@@ -287,7 +353,7 @@ export class AppointmentsService {
     }
   }
 
-  private async loadDoctor(db: Db, doctorId: string): Promise<DoctorForBooking> {
+  private async loadDoctor(db: Db, doctorId: string, requireApproved = true): Promise<DoctorForBooking> {
     const scheduleSelect = { select: { dayOfWeek: true, startTime: true, endTime: true } };
     const doctor = await db.doctor.findUnique({
       where: { id: doctorId },
@@ -303,7 +369,7 @@ export class AppointmentsService {
       },
     });
     if (!doctor) throw new NotFoundException('Doctor not found');
-    if (doctor.status !== DoctorStatus.APPROVED || !doctor.isActive) {
+    if (requireApproved && (doctor.status !== DoctorStatus.APPROVED || !doctor.isActive)) {
       throw new BadRequestException('This doctor is not accepting appointments right now');
     }
     return doctor;
@@ -362,6 +428,8 @@ export class AppointmentsService {
     doctorId: string,
     date: string,
     windows: { dayOfWeek: string; startTime: string; endTime: string }[],
+    /** an appointment whose own slot should count as free (when moving it) */
+    ignoreAppointmentId?: string,
   ): Promise<Slot[]> {
     const day = dayOfWeek(date);
     const all = buildSlots(windows.filter((w) => w.dayOfWeek === day));
@@ -369,7 +437,12 @@ export class AppointmentsService {
 
     // The doctor can't be in two places: block a time across every mode and clinic
     const booked = await db.appointment.findMany({
-      where: { doctorId, appointmentDate: dateOnly(date), status: { in: ACTIVE_STATUSES } },
+      where: {
+        doctorId,
+        appointmentDate: dateOnly(date),
+        status: { in: ACTIVE_STATUSES },
+        ...(ignoreAppointmentId ? { id: { not: ignoreAppointmentId } } : {}),
+      },
       select: { startTime: true, endTime: true },
     });
     const taken = booked

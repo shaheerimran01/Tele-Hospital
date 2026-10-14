@@ -1,9 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Info, LoaderCircle, Menu, RefreshCw, Stethoscope, X } from 'lucide-react';
+import { LoaderCircle, Menu, RefreshCw, Stethoscope, X } from 'lucide-react';
 import { ApiError, getDoctorMeApi, type DoctorProfile } from '@/app/lib/api/doctors';
+import {
+  getDoctorDashboardApi,
+  rescheduleDoctorAppointmentApi,
+  updateDoctorAppointmentStatusApi,
+  type DoctorDashboardData,
+} from '@/app/lib/api/doctor-dashboard';
 import { DOCTOR_ROUTES, useDoctorAuth } from '@/app/consult-doctors/context/DoctorAuthContext';
 import Sidebar, { type DashboardView } from './Sidebar';
 import DashboardHome from './DashboardHome';
@@ -16,27 +22,16 @@ import {
   PatientsView,
   PersonalInfoView,
 } from './DashboardViews';
-import { BlockTimeModal, RescheduleModal } from './DashboardModals';
-import { modeLabel, type AppointmentAction } from './AppointmentTable';
+import { DeclineModal, RescheduleModal } from './DashboardModals';
+import type { AppointmentAction } from './AppointmentTable';
 import {
-  buildSampleAppointments,
-  deriveDashboard,
+  displayTime,
   doctorDisplayName,
   formatDay,
-  formatTime,
   greetingFor,
   pkr,
-  relativeDay,
-  type AppointmentStatus,
-  type BlockedTime,
   type DashboardAppointment,
 } from './dashboard-data';
-
-interface Toast {
-  id: number;
-  message: string;
-  undo?: () => void;
-}
 
 const VIEW_TITLES: Record<DashboardView, string> = {
   dashboard: 'Dashboard',
@@ -53,15 +48,26 @@ export default function DoctorDashboard() {
   const router = useRouter();
   const { token, doctor: session, updateDoctor, logout } = useDoctorAuth();
 
-  // --- Profile (real API) ---
+  // --- Profile ---
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const handleAuthError = useCallback(
+    (err: unknown) => {
+      if (err instanceof ApiError && err.status === 401) {
+        logout(); // the route guard sends the doctor back to the OTP screen
+        return true;
+      }
+      return false;
+    },
+    [logout],
+  );
+
+  const loadProfile = useCallback(async () => {
     if (!token) return;
-    setLoading(true);
-    setError(null);
+    setProfileLoading(true);
+    setProfileError(null);
     try {
       const me = await getDoctorMeApi(token);
       updateDoctor({ ...me.doctorRegistration, isFormFilled: me.isFormFilled });
@@ -71,54 +77,69 @@ export default function DoctorDashboard() {
       }
       setProfile(me.doctor);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
-        logout(); // the route guard sends the doctor back to the OTP screen
-        return;
-      }
-      setError(err instanceof ApiError ? err.messages[0] : 'Could not reach the server.');
+      if (handleAuthError(err)) return;
+      setProfileError(err instanceof ApiError ? err.messages[0] : 'Could not reach the server.');
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
-  }, [token, updateDoctor, logout, router]);
+  }, [token, updateDoctor, router, handleAuthError]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    loadProfile();
+  }, [loadProfile]);
 
-  // --- Clock (greeting + "today" stay correct if the tab stays open) ---
+  // --- Appointments, counts and earnings (live) ---
+  const [data, setData] = useState<DoctorDashboardData | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadData = useCallback(async () => {
+    if (!token) return;
+    setRefreshing(true);
+    try {
+      const d = await getDoctorDashboardApi(token);
+      setData(d);
+      setDataError(null);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      setDataError(err instanceof ApiError ? err.messages[0] : 'Could not load your appointments.');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [token, handleAuthError]);
+
+  useEffect(() => {
+    if (!profile) return;
+    loadData();
+    // New bookings show up when the doctor comes back to the tab, and every 2 minutes
+    const onFocus = () => document.visibilityState === 'visible' && loadData();
+    document.addEventListener('visibilitychange', onFocus);
+    const t = window.setInterval(loadData, 120_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.clearInterval(t);
+    };
+  }, [profile, loadData]);
+
+  // --- Clock (greeting) ---
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = window.setInterval(() => setNow(new Date()), 60_000);
     return () => window.clearInterval(t);
   }, []);
 
-  // --- Sample appointments (no booking table yet) ---
-  const [appointments, setAppointments] = useState<DashboardAppointment[] | null>(null);
-  useEffect(() => {
-    if (!profile || appointments) return;
-    setAppointments(
-      buildSampleAppointments(new Date(), {
-        clinics: profile.clinics.map((c) => ({ name: c.name, inPersonFee: c.inPersonFee })),
-        videoCallFee: profile.isVideoCallEnabled ? profile.videoCallFee ?? null : null,
-        textConsultFee: profile.isTextConsultEnabled ? profile.textConsultFee ?? null : null,
-      }),
-    );
-  }, [profile, appointments]);
-
-  const data = useMemo(() => deriveDashboard(appointments ?? [], now), [appointments, now]);
-
   // --- UI state ---
   const [view, setView] = useState<DashboardView>('dashboard');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [rescheduling, setRescheduling] = useState<DashboardAppointment | null>(null);
-  const [blockOpen, setBlockOpen] = useState(false);
-  const [blocked, setBlocked] = useState<BlockedTime[]>([]);
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [declining, setDeclining] = useState<DashboardAppointment | null>(null);
+  const [busy, setBusy] = useState<Record<string, AppointmentAction | undefined>>({});
+  const [toast, setToast] = useState<{ id: number; message: string; tone: 'ok' | 'error' } | null>(null);
   const toastTimer = useRef<number | null>(null);
 
-  const showToast = useCallback((message: string, undo?: () => void) => {
+  const showToast = useCallback((message: string, tone: 'ok' | 'error' = 'ok') => {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
-    setToast({ id: Date.now(), message, undo });
+    setToast({ id: Date.now(), message, tone });
     toastTimer.current = window.setTimeout(() => setToast(null), 6000);
   }, []);
 
@@ -134,60 +155,70 @@ export default function DoctorDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const patch = useCallback((id: string, changes: Partial<DashboardAppointment>) => {
-    setAppointments((prev) => prev?.map((a) => (a.id === id ? { ...a, ...changes } : a)) ?? prev);
-  }, []);
+  /** Runs an action for one row, then reloads the dashboard. */
+  const runAction = useCallback(
+    async (
+      a: DashboardAppointment,
+      action: AppointmentAction,
+      task: () => Promise<unknown>,
+      success: string,
+      /** modals show their own error message */
+      toastErrors = true,
+    ) => {
+      setBusy((b) => ({ ...b, [a.id]: action }));
+      try {
+        await task();
+        showToast(success);
+        await loadData();
+      } catch (err) {
+        if (handleAuthError(err)) return;
+        if (toastErrors) showToast(err instanceof ApiError ? err.messages[0] : 'Something went wrong. Please try again.', 'error');
+        // The appointment may have changed elsewhere; show its real state
+        loadData();
+        throw err;
+      } finally {
+        setBusy((b) => {
+          const next = { ...b };
+          delete next[a.id];
+          return next;
+        });
+      }
+    },
+    [loadData, showToast, handleAuthError],
+  );
 
   const handleAction = useCallback(
     (action: AppointmentAction, a: DashboardAppointment) => {
+      if (!token) return;
       const first = a.patientName.split(' ')[0];
+      const when = `${formatDay(a.appointmentDate)}, ${displayTime(a.startTime)}`;
       if (action === 'approve') {
-        patch(a.id, { status: 'CONFIRMED', rescheduled: false });
-        const day = relativeDay(a.scheduledAt, now);
-        const when = day === 'Today' || day === 'Tomorrow' ? day.toLowerCase() : day;
-        showToast(
-          `Approved. ${first}'s ${modeLabel(a.serviceMode, a.clinicName, true).toLowerCase()} is confirmed for ${when}, ${formatTime(a.scheduledAt)}.`,
+        runAction(a, action, () => updateDoctorAppointmentStatusApi(token, a.id, 'CONFIRMED'), `Approved. ${first}'s consultation on ${when} is confirmed.`).catch(
+          () => undefined,
         );
       } else if (action === 'complete') {
-        patch(a.id, { status: 'COMPLETED', completedAt: new Date().toISOString() });
-        showToast(`Consultation with ${first} completed. ${pkr(a.fee)} added to your earnings.`, () =>
-          patch(a.id, { status: 'CONFIRMED', completedAt: undefined }),
-        );
+        runAction(
+          a,
+          action,
+          () => updateDoctorAppointmentStatusApi(token, a.id, 'COMPLETED'),
+          `Consultation with ${first} marked completed${a.paymentStatus === 'PAID' ? ` · ${pkr(a.fee)} added to earnings` : ''}.`,
+        ).catch(() => undefined);
       } else if (action === 'decline') {
-        const previous: AppointmentStatus = a.status;
-        patch(a.id, { status: 'DECLINED' });
-        showToast(`Declined ${first}'s request.`, () => patch(a.id, { status: previous }));
+        setDeclining(a);
       } else {
         setRescheduling(a);
       }
     },
-    [patch, showToast, now],
+    [token, runAction],
   );
-
-  const saveReschedule = (iso: string) => {
-    if (!rescheduling) return;
-    patch(rescheduling.id, { scheduledAt: iso, rescheduled: true });
-    showToast(`New time proposed to ${rescheduling.patientName.split(' ')[0]}: ${formatDay(iso)}, ${formatTime(iso)}.`);
-    setRescheduling(null);
-  };
-
-  const saveBlock = (block: Omit<BlockedTime, 'id'>) => {
-    setBlocked((prev) =>
-      [...prev, { ...block, id: `block-${Date.now()}` }].sort((x, y) =>
-        `${x.date}${x.from}`.localeCompare(`${y.date}${y.from}`),
-      ),
-    );
-    setBlockOpen(false);
-    showToast(`Blocked ${formatDay(`${block.date}T00:00`)}, ${block.from} – ${block.to}.`);
-  };
 
   const signOut = () => {
     logout();
     router.replace(DOCTOR_ROUTES.auth);
   };
 
-  // --- Loading / error ---
-  if (loading && !profile) {
+  // --- Loading / error (profile) ---
+  if (profileLoading && !profile) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-[#6b6f80]">
         <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> Loading your dashboard…
@@ -195,13 +226,13 @@ export default function DoctorDashboard() {
     );
   }
 
-  if (error && !profile) {
+  if (profileError && !profile) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600">{profileError}</p>
         <button
           type="button"
-          onClick={load}
+          onClick={loadProfile}
           className="mt-4 inline-flex items-center gap-2 rounded-lg border border-[#d9d3c6] bg-white px-4 py-2 text-sm font-semibold text-[#141b34] hover:border-[#141b34]"
         >
           <RefreshCw className="h-4 w-4" /> Try again
@@ -210,39 +241,25 @@ export default function DoctorDashboard() {
     );
   }
 
-  if (!profile || !appointments) return null;
+  if (!profile || !token) return null;
 
   const displayName = doctorDisplayName(profile.fullName);
   const subtitle = profile.specialisations[0] ?? profile.title;
+  const dataProps = { data, error: data ? null : dataError, onRetry: loadData };
 
   let content: React.ReactNode;
   switch (view) {
     case 'appointments':
-      content = (
-        <AppointmentsView
-          now={now}
-          todaySchedule={data.todaySchedule}
-          requests={data.requests}
-          upcoming={data.upcoming}
-          onAction={handleAction}
-        />
-      );
+      content = <AppointmentsView {...dataProps} onAction={handleAction} busy={busy} />;
       break;
     case 'patients':
-      content = <PatientsView patients={data.patients} />;
+      content = <PatientsView {...dataProps} />;
       break;
     case 'availability':
-      content = (
-        <AvailabilityView
-          profile={profile}
-          blocked={blocked}
-          onBlockTime={() => setBlockOpen(true)}
-          onRemoveBlock={(id) => setBlocked((prev) => prev.filter((b) => b.id !== id))}
-        />
-      );
+      content = <AvailabilityView profile={profile} />;
       break;
     case 'earnings':
-      content = <EarningsView totalEarned={data.totalEarned} completed={data.completed} week={data.week} />;
+      content = <EarningsView {...dataProps} />;
       break;
     case 'personal':
       content = <PersonalInfoView profile={profile} phone={session?.phone ?? profile.phone} />;
@@ -260,14 +277,10 @@ export default function DoctorDashboard() {
           greeting={greetingFor(now)}
           doctorName={displayName}
           profileStatus={profile.status}
-          todaySchedule={data.todaySchedule}
-          requests={data.requests}
-          totalEarned={data.totalEarned}
-          patientsCount={data.patients.length}
-          week={data.week}
+          {...dataProps}
           onAction={handleAction}
+          busy={busy}
           onNavigate={navigate}
-          onBlockTime={() => setBlockOpen(true)}
         />
       );
   }
@@ -277,7 +290,7 @@ export default function DoctorDashboard() {
       <Sidebar
         active={view}
         onNavigate={navigate}
-        pendingCount={data.requests.length}
+        pendingCount={data?.metrics.pendingRequests ?? 0}
         doctorName={displayName}
         doctorSubtitle={subtitle}
         onSignOut={signOut}
@@ -286,7 +299,6 @@ export default function DoctorDashboard() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#e7e2d8] bg-[#f6f4ef]/90 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
           <button
             type="button"
@@ -302,55 +314,69 @@ export default function DoctorDashboard() {
             </span>
           </span>
           <p className="text-sm font-semibold text-[#141b34]">{VIEW_TITLES[view]}</p>
-          <span
-            className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#e2d6b8] bg-[#fbf6ea] px-3 py-1 text-xs font-medium text-[#7b5d22]"
-            title="Online booking isn't live yet, so appointments, requests and earnings show sample data. Your profile, clinics and fees are real."
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={refreshing}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#d9d3c6] bg-white px-3 py-1.5 text-xs font-semibold text-[#141b34] transition hover:border-[#141b34] disabled:opacity-60"
           >
-            <Info className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Sample appointments</span>
-            <span className="sm:hidden">Sample data</span>
-          </span>
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
         </header>
 
         <main className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{content}</main>
       </div>
 
-      {rescheduling && (
+      {rescheduling && data && (
         <RescheduleModal
+          token={token}
           appointment={rescheduling}
-          now={now}
+          today={data.today}
           onClose={() => setRescheduling(null)}
-          onSave={saveReschedule}
+          onSave={async (date, startTime) => {
+            const a = rescheduling;
+            await runAction(
+              a,
+              'reschedule',
+              () => rescheduleDoctorAppointmentApi(token, a.id, date, startTime),
+              `${a.patientName.split(' ')[0]}'s consultation moved to ${formatDay(date)}, ${displayTime(startTime)}.`,
+              false,
+            );
+            setRescheduling(null);
+          }}
         />
       )}
-      {blockOpen && <BlockTimeModal now={now} onClose={() => setBlockOpen(false)} onSave={saveBlock} />}
+
+      {declining && (
+        <DeclineModal
+          appointment={declining}
+          onClose={() => setDeclining(null)}
+          onConfirm={async (reason) => {
+            const a = declining;
+            await runAction(
+              a,
+              'decline',
+              () => updateDoctorAppointmentStatusApi(token, a.id, 'CANCELLED', reason || undefined),
+              `Declined ${a.patientName.split(' ')[0]}'s consultation.`,
+              false,
+            );
+            setDeclining(null);
+          }}
+        />
+      )}
 
       {/* Toast */}
       <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex justify-center px-4" aria-live="polite">
         {toast && (
           <div
             key={toast.id}
-            className="pointer-events-auto flex max-w-lg items-center gap-4 rounded-xl bg-[#141b34] px-4 py-3 text-sm text-white shadow-2xl"
+            className={`pointer-events-auto flex max-w-lg items-center gap-4 rounded-xl px-4 py-3 text-sm text-white shadow-2xl ${
+              toast.tone === 'error' ? 'bg-[#8f2d2d]' : 'bg-[#141b34]'
+            }`}
           >
             <span className="flex-1">{toast.message}</span>
-            {toast.undo && (
-              <button
-                type="button"
-                onClick={() => {
-                  toast.undo?.();
-                  setToast(null);
-                }}
-                className="font-semibold text-[#d8b25e] hover:text-white"
-              >
-                Undo
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setToast(null)}
-              aria-label="Dismiss"
-              className="rounded p-0.5 text-white/60 hover:text-white"
-            >
+            <button type="button" onClick={() => setToast(null)} aria-label="Dismiss" className="rounded p-0.5 text-white/60 hover:text-white">
               <X className="h-4 w-4" />
             </button>
           </div>
