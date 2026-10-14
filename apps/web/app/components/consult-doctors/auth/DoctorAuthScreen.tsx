@@ -14,12 +14,17 @@ import {
   useDoctorAuth,
 } from '@/app/consult-doctors/context/DoctorAuthContext';
 
-/** 03001234567 / 3001234567 / +923001234567 -> "3001234567" (10 digits) or null */
-function toNationalNumber(input: string): string | null {
+const PHONE_DIGITS = 10;
+
+/**
+ * Keeps the box to the 10-digit number after "+92".
+ * Pasted "+92 300 1234567" or "0300 1234567" become "3001234567".
+ */
+function toPhoneDigits(input: string): string {
   let digits = input.replace(/\D/g, '');
-  if (digits.startsWith('92')) digits = digits.slice(2);
+  if (digits.length > PHONE_DIGITS && digits.startsWith('92')) digits = digits.slice(2);
   digits = digits.replace(/^0+/, '');
-  return /^3\d{9}$/.test(digits) ? digits : null;
+  return digits.slice(0, PHONE_DIGITS);
 }
 
 const formatForDisplay = (national: string) =>
@@ -76,9 +81,13 @@ export default function DoctorAuthScreen() {
 
   const onSubmitPhone = (e: React.FormEvent) => {
     e.preventDefault();
-    const number = toNationalNumber(phoneInput);
-    if (!number) {
-      setError('Enter a valid Pakistani mobile number, e.g. 0300 1234567.');
+    const number = toPhoneDigits(phoneInput);
+    if (number.length !== PHONE_DIGITS) {
+      setError('Phone number must be exactly 10 digits.');
+      return;
+    }
+    if (!number.startsWith('3')) {
+      setError('Enter a mobile number that starts with 3, e.g. 300 1234567.');
       return;
     }
     sendOtp(number);
@@ -136,7 +145,7 @@ export default function DoctorAuthScreen() {
             </p>
 
             <label htmlFor="doctor-phone" className="mt-6 mb-1.5 block text-xs font-medium text-[#3a3f52]">
-              Mobile number
+              Mobile number <span className="font-normal text-[#8a8d99]">(10 digits)</span>
             </label>
             <div
               className={`flex items-center rounded-lg border bg-white transition focus-within:border-[#141b34] focus-within:ring-2 focus-within:ring-[#141b34]/10 ${
@@ -149,15 +158,22 @@ export default function DoctorAuthScreen() {
               <input
                 id="doctor-phone"
                 type="tel"
-                inputMode="tel"
+                inputMode="numeric"
+                pattern="[0-9]{10}"
+                maxLength={PHONE_DIGITS}
                 autoComplete="tel-national"
                 autoFocus
                 value={phoneInput}
                 onChange={(e) => {
-                  setPhoneInput(e.target.value);
+                  setPhoneInput(toPhoneDigits(e.target.value));
                   if (error) setError(null);
                 }}
-                placeholder="300 1234567"
+                onPaste={(e) => {
+                  e.preventDefault();
+                  setPhoneInput(toPhoneDigits(e.clipboardData.getData('text')));
+                  if (error) setError(null);
+                }}
+                placeholder="3001234567"
                 className="w-full rounded-r-lg bg-transparent px-3 py-2.5 text-sm text-[#141b34] outline-none placeholder:text-gray-400"
               />
             </div>

@@ -15,6 +15,12 @@ interface Props {
   onChange: (value: UploadedImage | null) => void;
   shape?: 'square' | 'circle';
   onUploadingChange?: (uploading: boolean) => void;
+  /** Shows a red asterisk next to the label */
+  required?: boolean;
+  /** Validation message from the form (e.g. a required document is missing) */
+  error?: string;
+  /** Extra line under the label */
+  hint?: string;
 }
 
 export default function ImageUploadField({
@@ -24,6 +30,9 @@ export default function ImageUploadField({
   onChange,
   shape = 'square',
   onUploadingChange,
+  required,
+  error: formError,
+  hint,
 }: Props) {
   const { token } = useDoctorAuth();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +77,11 @@ export default function ImageUploadField({
 
   return (
     <div id={`field-${id}`}>
-      <p className="mb-1.5 text-xs font-medium text-[#3a3f52]">{label}</p>
+      <label htmlFor={id} className="mb-1.5 block text-xs font-medium text-[#3a3f52]">
+        {label}
+        {required && <span className="ml-0.5 text-red-500">*</span>}
+        {hint && <span className="ml-1 font-normal text-[#8a8d99]">{hint}</span>}
+      </label>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -81,13 +94,18 @@ export default function ImageUploadField({
           handleFile(e.dataTransfer.files?.[0]);
         }}
         className={`flex flex-wrap items-center gap-4 rounded-xl border border-dashed px-4 py-4 transition ${
-          dragActive ? 'border-[#141b34] bg-[#f6f4ef]' : 'border-[#cfc8b8] bg-white'
+          dragActive
+            ? 'border-[#141b34] bg-[#f6f4ef]'
+            : formError && !value
+              ? 'border-red-400 bg-red-50/40'
+              : 'border-[#cfc8b8] bg-white'
         }`}
       >
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
+          data-upload-trigger
           className="inline-flex items-center gap-2 rounded-lg bg-[#141b34] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#232c4f] disabled:opacity-60"
         >
           {uploading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -132,7 +150,18 @@ export default function ImageUploadField({
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
       </div>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error ? (
+        <p className="mt-1 text-xs text-red-600" role="alert">
+          {error}
+        </p>
+      ) : (
+        formError &&
+        !value && (
+          <p className="mt-1 text-xs text-red-600" role="alert">
+            {formError}
+          </p>
+        )
+      )}
     </div>
   );
 }

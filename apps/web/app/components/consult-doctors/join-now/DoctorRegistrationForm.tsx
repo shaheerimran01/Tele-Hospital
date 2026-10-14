@@ -137,7 +137,9 @@ export default function DoctorRegistrationForm() {
       document.getElementById(`field-${firstKey}`) ??
       document.getElementById(`field-${firstKey.split('.').slice(0, 2).join('.')}`);
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el?.querySelector<HTMLElement>('input, textarea, select')?.focus({ preventScroll: true });
+    el
+      ?.querySelector<HTMLElement>('[data-upload-trigger], input:not([type="file"]), textarea, select')
+      ?.focus({ preventScroll: true });
   };
 
   const handleSubmit = async () => {
@@ -251,7 +253,7 @@ export default function DoctorRegistrationForm() {
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#a8873a]">Join our panel</p>
         <h1 className="mt-2 text-2xl font-semibold text-[#141b34] sm:text-3xl">Register as a doctor</h1>
         <p className="mt-2 max-w-xl text-sm text-[#6b6f80]">
-          Create your profile to consult patients by video, text or at your clinic. Your profile goes live
+          Create your profile to consult patients by video, text or at your clinic / hospital. Your profile goes live
           after our team verifies your PMDC registration.
         </p>
       </div>
@@ -297,7 +299,10 @@ export default function DoctorRegistrationForm() {
             <div className="sm:col-span-2">
               <ImageUploadField
                 id="pmdcCertificate"
-                label="PMDC degree / certificate"
+                label="PMDC License / Certificate"
+                required
+                hint="(clear photo or scan of your PMDC license)"
+                error={errors.pmdcCertificate}
                 value={form.pmdcCertificate}
                 onChange={(v) => setForm((f) => ({ ...f, pmdcCertificate: v }))}
                 onUploadingChange={trackUpload}
@@ -379,7 +384,7 @@ export default function DoctorRegistrationForm() {
         </FormSection>
 
         {/* 2. Clinics */}
-        <FormSection title="2. Clinics" subtitle="Add every clinic where you practise.">
+        <FormSection title="2. Clinics / Hospitals" subtitle="Add every clinic or hospital where you practise.">
           <div className="space-y-5">
             {form.clinics.map((clinic, i) => (
               <ClinicCard
@@ -393,7 +398,7 @@ export default function DoctorRegistrationForm() {
             ))}
             {form.clinics.length === 0 && (
               <p className="rounded-xl border border-dashed border-[#d9d3c6] px-4 py-6 text-center text-sm text-[#8a8d99]">
-                No clinics added. That&apos;s fine if you only consult online.
+                No clinics / hospitals added. That&apos;s fine if you only consult online.
               </p>
             )}
             <button
@@ -402,7 +407,7 @@ export default function DoctorRegistrationForm() {
               className="inline-flex items-center gap-2 rounded-lg border border-[#d9d3c6] bg-white px-4 py-2.5 text-sm font-semibold text-[#141b34] transition hover:border-[#141b34]"
             >
               <Plus className="h-4 w-4" />
-              {form.clinics.length === 0 ? 'Add a clinic' : 'Add another clinic'}
+              {form.clinics.length === 0 ? 'Add Clinic / Hospital' : 'Add Another Clinic / Hospital'}
             </button>
           </div>
         </FormSection>

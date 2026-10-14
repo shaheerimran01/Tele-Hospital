@@ -157,8 +157,8 @@ export default function ClinicLocationPicker({
         setLocating(false);
         setMessage(
           err.code === err.PERMISSION_DENIED
-            ? 'Location permission was denied. Search for the clinic or click the map instead.'
-            : 'Could not get your location. Search for the clinic or click the map instead.',
+            ? 'Location permission was denied. Search for the clinic / hospital or click the map instead.'
+            : 'Could not get your location. Search for the clinic / hospital or click the map instead.',
         );
       },
       { enableHighAccuracy: true, timeout: 15000 },
@@ -185,7 +185,7 @@ export default function ClinicLocationPicker({
   return (
     <div className="rounded-xl border border-[#e2ddd2] bg-white p-4" id={`field-${idPrefix}.address`}>
       <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-[#141b34]">
-        <MapPin className="h-4 w-4" /> Clinic location
+        <MapPin className="h-4 w-4" /> Clinic / Hospital Location
         <span className="font-normal text-[#8a8d99]">(search, then drag the pin to the exact building)</span>
       </p>
 
@@ -202,7 +202,7 @@ export default function ClinicLocationPicker({
                 role="combobox"
                 aria-expanded={open}
                 aria-autocomplete="list"
-                aria-label="Search clinic or area"
+                aria-label="Search clinic / hospital or area"
                 autoComplete="off"
                 value={query}
                 onChange={(e) => {
@@ -211,7 +211,7 @@ export default function ClinicLocationPicker({
                 }}
                 onFocus={() => suggestions.length > 0 && setOpen(true)}
                 onKeyDown={onKeyDown}
-                placeholder="Search clinic or area, e.g. Blue Area Islamabad"
+                placeholder="Search clinic / hospital or area, e.g. Blue Area Islamabad"
                 className="w-full rounded-lg border border-[#d9d3c6] bg-white py-2.5 pl-9 pr-9 text-sm text-[#141b34] shadow-md outline-none placeholder:text-gray-400 focus:border-[#141b34]"
               />
               {searching ? (
@@ -304,7 +304,7 @@ export default function ClinicLocationPicker({
             </button>
           </p>
         ) : (
-          <p className="text-[#8a8d99]">No pin yet. Nearby patients can only find clinics that have one.</p>
+          <p className="text-[#8a8d99]">No pin yet. Nearby patients can only find clinics / hospitals that have one.</p>
         )}
         {message && <p className="mt-1 text-[#8a6d1f]">{message}</p>}
       </div>
@@ -313,7 +313,7 @@ export default function ClinicLocationPicker({
       <div className="mt-3">
         <label htmlFor={`${idPrefix}-address`} className="mb-1.5 flex items-center gap-2 text-xs font-medium text-[#3a3f52]">
           <span>
-            Address<span className="ml-0.5 text-red-500">*</span>
+            Clinic / Hospital Address<span className="ml-0.5 text-red-500">*</span>
           </span>
           <span className="font-normal text-[#8a8d99]">filled from the map; add floor or suite if needed</span>
           {resolvingAddress && <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[#8a8d99]" />}

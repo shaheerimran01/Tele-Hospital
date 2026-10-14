@@ -195,6 +195,23 @@ export function splitList(value: string): string[] {
 }
 
 const PHONE_RE = /^\+?[0-9\s-]{7,20}$/;
+
+export const PHONE_DIGITS = 10;
+export const PHONE_DIGITS_ERROR = 'Phone number must be exactly 10 digits.';
+export const PMDC_CERTIFICATE_ERROR = 'PMDC License / Certificate document is required.';
+
+/**
+ * Keeps a phone entry to the 10-digit national number (the "+92" is shown
+ * beside the box). Pasted "+92 300 1234567" or "0300 1234567" become "3001234567".
+ */
+export function toPhoneDigits(input: string): string {
+  let digits = (input ?? '').replace(/\D/g, '');
+  if (digits.length > PHONE_DIGITS && digits.startsWith('92')) digits = digits.slice(2);
+  digits = digits.replace(/^0+/, '');
+  return digits.slice(0, PHONE_DIGITS);
+}
+
+export const isTenDigitPhone = (digits: string) => /^\d{10}$/.test(digits);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PMDC_RE = /^[A-Z0-9-]{3,30}$/;
 
@@ -214,6 +231,7 @@ export function validateForm(form: DoctorFormState): FormErrors {
   const pmdc = form.pmdcNumber.trim().toUpperCase().replace(/\s+/g, '');
   if (!pmdc) e.pmdcNumber = 'Enter your PMDC number.';
   else if (!PMDC_RE.test(pmdc)) e.pmdcNumber = 'Use only letters, numbers and dashes.';
+  if (!form.pmdcCertificate?.fileUrl) e.pmdcCertificate = PMDC_CERTIFICATE_ERROR;
 
   const years = Number(form.experienceYears);
   if (form.experienceYears.trim() === '') e.experienceYears = 'Enter years of experience.';
@@ -229,17 +247,17 @@ export function validateForm(form: DoctorFormState): FormErrors {
   // 2. Clinics
   form.clinics.forEach((c, i) => {
     const p = `clinics.${i}`;
-    if (!c.name.trim()) e[`${p}.name`] = 'Enter the clinic name.';
-    if (c.phone.trim() && !PHONE_RE.test(c.phone.trim())) e[`${p}.phone`] = 'Enter a valid phone number.';
+    if (!c.name.trim()) e[`${p}.name`] = 'Enter the clinic / hospital name.';
+    if (c.phone.trim() && !isTenDigitPhone(c.phone.trim())) e[`${p}.phone`] = PHONE_DIGITS_ERROR;
     if (!isFee(c.inPersonFee)) e[`${p}.inPersonFee`] = 'Enter the in-person fee.';
-    if (!c.address.trim()) e[`${p}.address`] = 'Enter the clinic address.';
+    if (!c.address.trim()) e[`${p}.address`] = 'Enter the clinic / hospital address.';
     const s = scheduleError(c.schedule);
     if (s) e[`${p}.schedule`] = s;
   });
 
   // 3. Consultation types
   if (!form.video.enabled && !form.text.enabled && form.clinics.length === 0) {
-    e.consultation = 'Offer at least one way to consult: video, text or a clinic.';
+    e.consultation = 'Offer at least one way to consult: video, text or a clinic / hospital.';
   }
   if (form.video.enabled && !isFee(form.video.fee)) e['video.fee'] = 'Enter the video call fee.';
   if (form.text.enabled && !isFee(form.text.fee)) e['text.fee'] = 'Enter the text appointment fee.';
@@ -284,7 +302,7 @@ export function buildPayload(form: DoctorFormState): RegisterDoctorPayload {
 
     clinics: form.clinics.map((c) => ({
       name: c.name.trim(),
-      phone: optional(c.phone),
+      phone: c.phone.trim() ? `+92${toPhoneDigits(c.phone)}` : undefined,
       inPersonFee: Number(c.inPersonFee),
       address: c.address.trim(),
       latitude: c.latitude ?? undefined,
@@ -325,7 +343,10 @@ export function loadDraft(scope: string): DoctorFormState | null {
       video: { ...base.video, ...parsed.video },
       text: { ...base.text, ...parsed.text },
       availability: parsed.availability ?? base.availability,
-      clinics: Array.isArray(parsed.clinics) ? parsed.clinics : base.clinics,
+      // Clinic phones are now stored as the 10-digit number without "+92"
+      clinics: Array.isArray(parsed.clinics)
+        ? parsed.clinics.map((c) => ({ ...c, phone: toPhoneDigits(c.phone ?? '') }))
+        : base.clinics,
     };
   } catch {
     return null;
