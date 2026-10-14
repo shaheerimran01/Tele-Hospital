@@ -319,8 +319,8 @@ export default function IntakeScreen() {
           />
         </div>
 
-        {/* Summary + bookings link stay in view together on desktop */}
-        <div className="space-y-4 lg:sticky lg:top-6 lg:col-span-4">
+        {/* Keep the summary and bookings card in a normal vertical layout. */}
+        <div className="flex w-full flex-col gap-6 lg:col-span-4">
           <IntakeSummaryCard
             patientName={patientName}
             patientMeta={patientMeta}

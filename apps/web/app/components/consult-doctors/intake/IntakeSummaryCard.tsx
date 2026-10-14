@@ -36,7 +36,7 @@ export default function IntakeSummaryCard({
     : null;
 
   return (
-    <aside className="rounded-2xl border border-gray-200 bg-white shadow-sm lg:sticky lg:top-6">
+    <aside className="w-full rounded-2xl border border-gray-200 bg-white shadow-sm">
       <div className="border-b border-gray-100 px-5 py-4">
         <h2 className="text-sm font-bold text-gray-900">Consultation summary</h2>
       </div>
