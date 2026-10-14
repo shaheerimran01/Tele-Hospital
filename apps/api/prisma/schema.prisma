@@ -58,6 +58,7 @@ model User {
   familyMembers       FamilyMember[]
   consultationIntakes ConsultationIntake[]
   doctor              Doctor?
+  appointments        Appointment[]
 }
 
 model Address {
@@ -441,6 +442,7 @@ model FamilyMember {
   updatedAt DateTime @updatedAt
 
   consultations ConsultationIntake[]
+  appointments  Appointment[]
 
   @@map("family_members")
 }
@@ -496,8 +498,9 @@ model ConsultationIntake {
   // Lifecycle Status
   status IntakeStatus @default(DRAFT)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  appointment Appointment?
 
   @@map("consultation_intakes")
 }
@@ -553,8 +556,9 @@ model Doctor {
   clinics              DoctorClinic[]
   onlineAvailabilities DoctorAvailability[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
 
   @@map("doctors")
 }
@@ -577,8 +581,9 @@ model DoctorClinic {
   // Timing schedules for this clinic
   schedules DoctorClinicSchedule[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
 
   @@map("doctor_clinics")
 }
@@ -620,4 +625,84 @@ model DoctorRegistration {
   updatedAt DateTime @updatedAt
 
   @@index([phone])
+}
+
+// ------------------------------------------------------
+// ENUMS FOR APPOINTMENTS
+// ------------------------------------------------------
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+// ------------------------------------------------------
+// APPOINTMENT / CONSULTATION BOOKING MODEL
+// ------------------------------------------------------
+
+model Appointment {
+  id             String @id @default(uuid())
+  appointmentNum String @unique // e.g. "APT-2026-1001"
+
+  // Primary User / Account Holder
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Patient Reference (Self or Family Member)
+  patientType    PatientType   @default(SELF)
+  familyMemberId String?
+  familyMember   FamilyMember? @relation(fields: [familyMemberId], references: [id])
+
+  // Linked Intake Record (Symptoms, Voice Note, Attachments)
+  intakeId String?             @unique
+  intake   ConsultationIntake? @relation(fields: [intakeId], references: [id], onDelete: SetNull)
+
+  // Doctor & Clinic Information
+  doctorId String
+  doctor   Doctor @relation(fields: [doctorId], references: [id])
+
+  clinicId String? // NULL for Video / Text consultations
+  clinic   DoctorClinic? @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+
+  // Service Details
+  serviceMode ConsultationServiceMode // IN_CLINIC, VIDEO, TEXT
+
+  // Date & Time
+  appointmentDate DateTime // Pure Date e.g. 2026-10-25
+  startTime       String // e.g. "10:30 AM"
+  endTime         String // e.g. "11:00 AM"
+
+  // Financials
+  fee           Float
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod String? // "COD", "JAZZCASH", "EASYPAISA", "CARD"
+
+  // Lifecycle & Status
+  status       AppointmentStatus @default(PENDING)
+  cancelReason String?
+
+  // Doctor Clinical Outcome (Post Consultation)
+  doctorNotes     String? @db.Text
+  prescriptionUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([doctorId])
+  @@index([clinicId])
+  @@index([appointmentDate])
+  @@index([status])
+  @@map("appointments")
 }
