@@ -18,6 +18,10 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { GetSlotsDto } from './dto/get-slots.dto.js';
 import {
+  DOCTOR_PORTAL_NOTIFICATION_TYPES,
+  recordDoctorPortalNotification,
+} from '../doctor-admin/doctor-portal-notifications.js';
+import {
   buildSlots,
   dateOnly,
   dayOfWeek,
@@ -235,6 +239,12 @@ export class AppointmentsService {
         if (attempt >= 3) throw new ConflictException('Could not complete the booking. Please try again.');
       }
     }
+
+    await recordDoctorPortalNotification(this.prisma, {
+      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_BOOKED,
+      title: 'New appointment booked',
+      message: `${result.appointmentNum} booked with ${result.doctor.fullName} for ${date}, ${result.startTime}.`,
+    });
 
     this.logger.log(`Appointment ${result.appointmentNum} booked for doctor ${dto.doctorId} on ${date} ${result.startTime}`);
     return result;

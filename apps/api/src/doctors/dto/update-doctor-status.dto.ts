@@ -5,6 +5,8 @@ import { DoctorStatus } from '../../generated/prisma/enums.js';
 export const ADMIN_DOCTOR_STATUSES = [
   DoctorStatus.APPROVED,
   DoctorStatus.REJECTED,
+  // Admin can send a profile back for review
+  DoctorStatus.PENDING,
 ] as const;
 
 export class UpdateDoctorStatusDto {

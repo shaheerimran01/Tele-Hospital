@@ -20,6 +20,10 @@ import { UpdateDoctorStatusDto } from './dto/update-doctor-status.dto.js';
 import { SendDoctorOtpDto, VerifyDoctorOtpDto } from './dto/auth-doctor.dto.js';
 import { GetNearbyDoctorsDto } from './dto/get-nearby-doctors.dto.js';
 import {
+  DOCTOR_PORTAL_NOTIFICATION_TYPES,
+  recordDoctorPortalNotification,
+} from '../doctor-admin/doctor-portal-notifications.js';
+import {
   doctorOtpKey,
   doctorPhoneVariants,
   formatDoctorPhone,
@@ -322,6 +326,13 @@ export class DoctorsService {
         });
 
         return { doctor, registration: updatedRegistration };
+      });
+
+      // Tell the admin Doctor Portal a profile is waiting for PMDC verification
+      await recordDoctorPortalNotification(this.prisma, {
+        type: DOCTOR_PORTAL_NOTIFICATION_TYPES.DOCTOR_REGISTRATION,
+        title: 'New doctor registration',
+        message: `${result.doctor.fullName} submitted PMDC verification (PMDC ${result.doctor.pmdcNumber}).`,
       });
 
       return {

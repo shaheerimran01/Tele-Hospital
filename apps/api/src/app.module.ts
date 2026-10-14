@@ -17,6 +17,7 @@ import { PharmacyProductsModule } from './pharmacy-products/pharmacy-products.mo
 import { ConsultationModule } from './consultation/consultation.module.js';
 import { DoctorsModule } from './doctors/doctors.module.js';
 import { AppointmentsModule } from './appointments/appointments.module.js';
+import { DoctorAdminModule } from './doctor-admin/doctor-admin.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -37,6 +38,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     ConsultationModule,
     DoctorsModule,
     AppointmentsModule,
+    DoctorAdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

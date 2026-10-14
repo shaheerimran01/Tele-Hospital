@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { NOT_DOCTOR_PORTAL_NOTIFICATION_WHERE } from '../doctor-admin/doctor-portal-notifications.js';
 
 @Injectable()
 export class NotificationsService {
@@ -7,6 +8,8 @@ export class NotificationsService {
 
   async getAllNotifications() {
     return this.prisma.notification.findMany({
+      // Doctor and appointment notifications live in the admin Doctor Portal
+      where: NOT_DOCTOR_PORTAL_NOTIFICATION_WHERE,
       include: {
         order: {
           include: {
@@ -27,6 +30,7 @@ export class NotificationsService {
     return this.prisma.notification.findMany({
       where: {
         isRead: false,
+        ...NOT_DOCTOR_PORTAL_NOTIFICATION_WHERE,
       },
       include: {
         order: {

@@ -1,47 +1,129 @@
+'use client';
+
 import Link from 'next/link';
-import { ArrowLeft, Stethoscope } from 'lucide-react';
+import { CalendarDays, Hourglass, Stethoscope, Users } from 'lucide-react';
+import { fetchOverview } from '@/lib/api/doctorPortal';
+import { usePortalData } from './_components/portal-context';
+import AppointmentsTable from './_components/AppointmentsTable';
+import { notificationHref, notificationTypeUi } from './_components/NotificationItem';
+import { Card, EmptyState, ErrorState, LoadingState, PageHeader, Table, timeAgo } from './_components/ui';
 
-const metrics = [
-  { label: 'Total Doctors', value: 0, color: 'text-slate-900' },
-  { label: 'Pending Approvals', value: 0, color: 'text-amber-700' },
-  { label: 'Verified', value: 0, color: 'text-emerald-700' },
-];
+const viewAll = 'inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline';
 
-export default function DoctorDashboardPage() {
+export default function DoctorAdminOverviewPage() {
+  const { data, error, loading, reload } = usePortalData(fetchOverview, []);
+
+  if (!data) {
+    return (
+      <>
+        <PageHeader title="Doctor Admin Dashboard" subtitle="Patients, doctors and appointments at a glance." />
+        <Card padded={false}>{error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState text="Loading dashboard…" />}</Card>
+      </>
+    );
+  }
+
+  const m = data.metrics;
+  const cards = [
+    { label: 'Total Patients', value: m.totalPatients, note: 'Registered user accounts', Icon: Users, tone: 'bg-blue-50 text-blue-600', href: '/doctor-dashboard/patients' },
+    {
+      label: 'Total Doctors',
+      value: m.totalDoctors,
+      note: m.pendingDoctors ? `${m.pendingDoctors} awaiting approval` : 'All profiles reviewed',
+      Icon: Stethoscope,
+      tone: 'bg-teal-50 text-teal-600',
+      href: '/doctor-dashboard/doctors',
+    },
+    { label: 'Total Appointments', value: m.totalAppointments, note: 'All bookings', Icon: CalendarDays, tone: 'bg-violet-50 text-violet-600', href: '/doctor-dashboard/appointments' },
+    {
+      label: 'Pending Appointments',
+      value: m.pendingAppointments,
+      note: 'Waiting for confirmation',
+      Icon: Hourglass,
+      tone: 'bg-amber-50 text-amber-600',
+      href: '/doctor-dashboard/appointments?status=PENDING',
+    },
+  ];
+
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-8 text-slate-900 sm:px-8 lg:px-12">
-      <div className="mx-auto max-w-7xl">
-        <Link href="/" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100">
-          <ArrowLeft className="h-4 w-4" /> Back to Admin Gateway
-        </Link>
-        <header className="mt-8 flex items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700"><Stethoscope className="h-6 w-6" /></span>
-          <div>
-            <p className="text-xs font-bold tracking-[0.16em] text-blue-700">DOCTOR PORTAL</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Doctor Management &amp; Verification Portal</h1>
-          </div>
-        </header>
+    <>
+      <PageHeader
+        title="Doctor Admin Dashboard"
+        subtitle="Patients, doctors and appointments at a glance."
+        action={loading ? <span className="text-xs text-slate-400">Updating…</span> : null}
+      />
 
-        <section aria-label="Doctor metrics" className="mt-8 grid gap-4 sm:grid-cols-3">
-          {metrics.map((metric) => <article key={metric.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">{metric.label}</p>
-            <p className={`mt-3 text-3xl font-bold ${metric.color}`}>{metric.value}</p>
-          </article>)}
-        </section>
+      <section aria-label="Summary" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map((c) => (
+          <Link
+            key={c.label}
+            href={c.href}
+            className="group rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-slate-300 hover:shadow"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm font-medium text-slate-500">{c.label}</p>
+              <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${c.tone}`}>
+                <c.Icon className="h-[18px] w-[18px]" />
+              </span>
+            </div>
+            <p className="mt-2 text-3xl font-bold tabular-nums text-slate-900">{c.value.toLocaleString('en-PK')}</p>
+            <p className="mt-1 text-xs text-slate-500">{c.note}</p>
+          </Link>
+        ))}
+      </section>
 
-        <section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4">
-            <h2 className="font-semibold">Doctor Applications</h2>
-            <p className="mt-1 text-sm text-slate-500">Review submitted applications and verification status.</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Doctor</th><th className="px-5 py-3">PMDC Certification</th><th className="px-5 py-3">Specialty</th><th className="px-5 py-3">Status</th></tr></thead>
-              <tbody><tr><td colSpan={4} className="px-5 py-12 text-center text-slate-500">No pending doctor applications found.</td></tr></tbody>
-            </table>
-          </div>
-        </section>
+      <div className="mt-6 space-y-6">
+        <Card
+          title="Recent Appointments"
+          subtitle="Latest bookings across all doctors"
+          action={<Link href="/doctor-dashboard/appointments" className={viewAll}>View All Appointments ➔</Link>}
+          padded={false}
+        >
+          <AppointmentsTable rows={data.recentAppointments} />
+        </Card>
+
+        <Card
+          title="Recent Notifications"
+          subtitle="Doctor registrations and appointment activity"
+          action={<Link href="/doctor-dashboard/notifications" className={viewAll}>View All Notifications ➔</Link>}
+          padded={false}
+        >
+          {data.recentNotifications.length === 0 ? (
+            <EmptyState title="No activity yet" text="Doctor registrations and new bookings will show up here." />
+          ) : (
+            <Table head={['Title', 'Message', 'Type', 'Time Ago']}>
+              {data.recentNotifications.map((n) => {
+                const ui = notificationTypeUi(n.type);
+                const href = notificationHref(n);
+                return (
+                  <tr key={n.id} className="align-middle hover:bg-slate-50/70">
+                    <td className="px-5 py-3.5">
+                      <span className="flex items-center gap-2 font-medium text-slate-900">
+                        {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-blue-600" aria-label="Unread" />}
+                        {href ? (
+                          <Link href={href} className="hover:text-blue-700">
+                            {n.title}
+                          </Link>
+                        ) : (
+                          n.title
+                        )}
+                      </span>
+                    </td>
+                    <td className="max-w-[420px] px-5 py-3.5 text-slate-600">
+                      <span className="line-clamp-2">{n.message}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-semibold ${ui.tone}`}>
+                        <ui.Icon className="h-3.5 w-3.5" /> {ui.label}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-500">{timeAgo(n.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </Table>
+          )}
+        </Card>
       </div>
-    </main>
+    </>
   );
 }
