@@ -4,6 +4,7 @@
 export interface PatientSession {
   id: string;
   name: string;
+  phone?: string | null;
 }
 
 export function readPatientSession(): PatientSession | null {
@@ -19,7 +20,8 @@ export function readPatientSession(): PatientSession | null {
     if (!id) return null;
     const name =
       [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.name || u.fullName || 'You';
-    return { id, name };
+    const phone = typeof u.phone === 'string' && u.phone.trim() ? u.phone.trim() : null;
+    return { id, name, phone };
   } catch {
     return null;
   }

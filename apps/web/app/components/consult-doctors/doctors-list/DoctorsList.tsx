@@ -72,7 +72,9 @@ export default function DoctorsList() {
   const book = (doctor: NearbyDoctor) => {
     const qs = new URLSearchParams({ intakeId: intakeId ?? '', doctorId: doctor.id });
     if (mode !== 'ALL') qs.set('mode', mode);
-    router.push(`/consult-doctors/book?${qs}`);
+    // Clinic visits start at the clinic nearest to the patient
+    if ((mode === 'IN_CLINIC' || mode === 'ALL') && doctor.nearestClinic) qs.set('clinicId', doctor.nearestClinic.id);
+    router.push(`/consult-doctors/book-appointment?${qs}`);
   };
 
   // ---------------------------------------------------------------------------
