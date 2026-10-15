@@ -18,7 +18,15 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
-import { ConsultationsService, CHAT_UPLOAD_PREFIX, type Requester } from './consultations.service.js';
+import { ConsultationsService, type Requester } from './consultations.service.js';
+import {
+  CHAT_UPLOAD_PREFIX,
+  MAX_CHAT_FILE_BYTES,
+  MAX_VOICE_SECONDS,
+  mediaTypeOfUpload,
+  storedFileName,
+  displayFileName,
+} from './chat-media.js';
 import { ConsultationsGateway } from './consultations.gateway.js';
 import { verifyRoomTicket } from './room-ticket.js';
 
@@ -30,20 +38,20 @@ class EndConsultationDto {
   notes?: string;
 }
 
-const ALLOWED_CHAT_FILES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
-const MAX_CHAT_FILE_BYTES = 10 * 1024 * 1024;
-
 const chatUploadOptions = {
   storage: diskStorage({
     destination: './uploads/consultation-chat',
-    filename: (_req, file, callback) => {
-      callback(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname).toLowerCase()}`);
-    },
+    filename: (_req, file, callback) => callback(null, storedFileName(file.originalname)),
   }),
   limits: { fileSize: MAX_CHAT_FILE_BYTES, files: 1 },
   fileFilter: (_req: unknown, file: Express.Multer.File, callback: (e: Error | null, ok: boolean) => void) => {
-    if (!ALLOWED_CHAT_FILES.includes(file.mimetype.split(';')[0].trim().toLowerCase())) {
-      return callback(new BadRequestException('Only PNG, JPG, WEBP images or PDF files can be shared'), false);
+    if (!mediaTypeOfUpload(file.originalname, file.mimetype)) {
+      return callback(
+        new BadRequestException(
+          'This file type is not supported. Send voice notes (WEBM, MP3, M4A, OGG), images (JPG, PNG, WEBP) or documents (PDF, DOC, DOCX).',
+        ),
+        false,
+      );
     }
     callback(null, true);
   },
@@ -86,13 +94,48 @@ export class ConsultationsController {
     return this.consultations.messages(appointmentId, this.requester(authorization, userId ?? userHeader, as));
   }
 
-  // POST /consultations/:appointmentId/attachments  (multipart "file"; header x-room-ticket from access-check)
-  @Post(':appointmentId/attachments')
+  // POST /consultations/:appointmentId/upload-attachment
+  //   multipart: file (voice note, image or document), audioDuration? (seconds, voice notes)
+  //   header x-room-ticket: the ticket from access-check
+  @Post(':appointmentId/upload-attachment')
   @UseInterceptors(FileInterceptor('file', chatUploadOptions))
-  async upload(
+  uploadAttachment(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Headers('x-room-ticket') ticketHeader: string | undefined,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Body('audioDuration') audioDuration: string | undefined,
+  ) {
+    return this.handleUpload(appointmentId, ticketHeader, file, audioDuration);
+  }
+
+  // POST /consultations/:appointmentId/attachments  (earlier name, used by the video room's chat drawer)
+  @Post(':appointmentId/attachments')
+  @UseInterceptors(FileInterceptor('file', chatUploadOptions))
+  upload(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Headers('x-room-ticket') ticketHeader: string | undefined,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.handleUpload(appointmentId, ticketHeader, file, undefined);
+  }
+
+  // GET /consultations/:appointmentId/summary  (after the consultation: notes, transcript, voice notes, files)
+  @Get(':appointmentId/summary')
+  summary(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Query('userId') userId: string | undefined,
+    @Query('as') as: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('x-user-id') userHeader: string | undefined,
+  ) {
+    return this.consultations.summary(appointmentId, this.requester(authorization, userId ?? userHeader, as));
+  }
+
+  private async handleUpload(
+    appointmentId: string,
+    ticketHeader: string | undefined,
+    file: Express.Multer.File | undefined,
+    audioDuration: string | undefined,
   ) {
     const ticket = verifyRoomTicket(ticketHeader);
     if (!ticket || ticket.aid !== appointmentId) {
@@ -100,9 +143,19 @@ export class ConsultationsController {
     }
     await this.consultations.assertRoomOpen(appointmentId);
     if (!file) throw new BadRequestException('Please choose a file');
+    const messageType = mediaTypeOfUpload(file.originalname, file.mimetype)!;
+    const fileUrl = `${CHAT_UPLOAD_PREFIX}${file.filename}`;
+
+    let duration: number | undefined;
+    if (messageType === 'VOICE') {
+      const d = Number(audioDuration);
+      if (Number.isFinite(d) && d > 0) duration = Math.min(MAX_VOICE_SECONDS, Math.round(d));
+    }
     return {
-      fileUrl: `${CHAT_UPLOAD_PREFIX}${file.filename}`,
-      fileName: file.originalname,
+      fileUrl,
+      fileName: displayFileName(fileUrl),
+      messageType,
+      ...(duration !== undefined ? { audioDuration: duration } : {}),
       fileType: file.mimetype,
       size: file.size,
     };

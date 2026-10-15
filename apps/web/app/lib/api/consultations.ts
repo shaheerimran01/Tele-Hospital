@@ -28,6 +28,8 @@ export interface RoomAppointment {
   clinicName: string | null;
   symptoms: string[];
   doctorNotes: string | null;
+  /** text consultations: transcript, voice notes and files compiled at the end (GET /summary) */
+  hasCompiledSummary?: boolean;
 }
 
 export type LockedReason =
@@ -62,13 +64,19 @@ export type AccessResult =
       endsAt: string;
     });
 
+export type MessageType = 'TEXT' | 'VOICE' | 'IMAGE' | 'DOCUMENT';
+
 export interface ChatMessage {
   id: string;
   appointmentId: string;
   senderId: string;
   senderType: 'USER' | 'DOCTOR' | 'SYSTEM';
+  /** set by the API; older messages default to TEXT */
+  messageType?: MessageType;
   message: string | null;
   attachments: string[];
+  /** voice notes: length in seconds */
+  audioDuration?: number | null;
   isRead: boolean;
   createdAt: string;
   /** set on messages this browser sent, to match the server copy */
@@ -150,3 +158,66 @@ export const endConsultationApi = (appointmentId: string, token: string, notes?:
     },
     'Could not end the consultation.',
   );
+
+// ---------------------------------------------------------------------------
+// Media messages (text consultation room)
+// ---------------------------------------------------------------------------
+
+export interface UploadedMedia {
+  fileUrl: string;
+  fileName: string;
+  messageType: Exclude<MessageType, 'TEXT'>;
+  audioDuration?: number;
+  fileType: string;
+  size: number;
+}
+
+/** Uploads a voice note, image or document for this consultation (POST /upload-attachment). */
+export function uploadChatMediaApi(appointmentId: string, ticket: string, file: File, audioDuration?: number) {
+  const body = new FormData();
+  if (audioDuration !== undefined) body.append('audioDuration', String(Math.round(audioDuration)));
+  body.append('file', file);
+  return call<UploadedMedia>(
+    `${API_BASE}/consultations/${encodeURIComponent(appointmentId)}/upload-attachment`,
+    { method: 'POST', headers: { 'x-room-ticket': ticket }, body },
+    `Could not upload ${file.name}.`,
+  );
+}
+
+interface SummaryEntry {
+  id: string;
+  at: string;
+  senderRole: ParticipantRole;
+  senderName: string;
+}
+
+export interface ConsultationSummary {
+  appointment: RoomAppointment;
+  clinicalNotes: string | null;
+  transcript: (SummaryEntry & { messageType: MessageType; text: string })[];
+  voiceNotes: (SummaryEntry & { url: string; duration: number | null })[];
+  files: (SummaryEntry & { url: string; kind: 'IMAGE' | 'DOCUMENT'; fileName: string; caption: string | null })[];
+  counts: { messages: number; voiceNotes: number; images: number; documents: number };
+}
+
+export const getConsultationSummaryApi = (appointmentId: string, viewer: Viewer) =>
+  call<ConsultationSummary>(
+    `${API_BASE}/consultations/${encodeURIComponent(appointmentId)}/summary?${query(viewer)}`,
+    { headers: headers(viewer) },
+    'Could not load the consultation summary.',
+  );
+
+/** "1760-123__Blood-test-report.pdf" -> "Blood-test-report.pdf" */
+export function attachmentName(url: string) {
+  const file = decodeURIComponent(url.split('/').pop() ?? url);
+  const i = file.indexOf('__');
+  return i >= 0 ? file.slice(i + 2) : file;
+}
+
+export type AttachmentKind = 'VOICE' | 'IMAGE' | 'DOCUMENT';
+export function attachmentKind(url: string): AttachmentKind {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return 'IMAGE';
+  if (['webm', 'mp3', 'm4a', 'ogg', 'mp4', 'aac', 'wav'].includes(ext)) return 'VOICE';
+  return 'DOCUMENT';
+}

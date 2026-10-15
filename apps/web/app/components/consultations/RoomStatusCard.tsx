@@ -12,7 +12,6 @@ import {
   CircleCheck,
   ClipboardList,
   Clock,
-  FileText,
   Hospital,
   Hourglass,
   Lock,
@@ -25,15 +24,14 @@ import {
   Video,
 } from 'lucide-react';
 import {
-  fileUrl,
-  getRoomMessagesApi,
   type AccessResult,
-  type ChatMessage,
   type LockedReason,
   type ParticipantRole,
   type RoomAppointment,
   type Viewer,
 } from '@/app/lib/api/consultations';
+import ConversationHistory from './ConversationHistory';
+import TextSessionSummary from '@/app/consultations/[appointmentId]/text/components/TextSessionSummary';
 import { clock, dashboardHref, dashboardLabel, displayTime, MODE_LABEL } from './room-utils';
 
 type Tone = 'amber' | 'slate' | 'rose' | 'emerald' | 'sky';
@@ -133,43 +131,6 @@ function Countdown({ to }: { to: string }) {
   );
 }
 
-/** Read-only conversation shown on the summary after the session */
-function Transcript({ appointmentId, viewer }: { appointmentId: string; viewer: Viewer }) {
-  const [messages, setMessages] = useState<ChatMessage[] | null>(null);
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    getRoomMessagesApi(appointmentId, viewer)
-      .then((r) => setMessages(r.messages))
-      .catch(() => setMessages([]));
-  }, [appointmentId, viewer]);
-  if (!messages || messages.length === 0) return null;
-  const mine = viewer.role;
-  return (
-    <div className="mt-4">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="inline-flex items-center gap-2 text-sm font-semibold text-[#141b34] hover:underline">
-        <MessageSquareText className="h-4 w-4" /> {open ? 'Hide' : 'Show'} conversation ({messages.length})
-      </button>
-      {open && (
-        <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 text-sm">
-          {messages.map((m) => (
-            <li key={m.id} className={m.senderType === 'SYSTEM' ? 'text-center text-xs text-slate-400' : m.senderType === mine ? 'text-right' : ''}>
-              {m.senderType !== 'SYSTEM' && (
-                <span className="block text-[11px] font-semibold text-slate-400">{m.senderType === 'DOCTOR' ? 'Doctor' : 'Patient'}</span>
-              )}
-              {m.message && <span className="whitespace-pre-wrap text-slate-800">{m.message}</span>}
-              {m.attachments.map((u) => (
-                <a key={u} href={fileUrl(u)} target="_blank" rel="noreferrer" className="ml-1 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 hover:underline">
-                  <FileText className="h-3.5 w-3.5" /> Attachment
-                </a>
-              ))}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 export type StatusView =
   | { kind: 'locked'; access: Extract<AccessResult, { canJoin: false }>; viewer: Viewer }
   | { kind: 'left'; access: AccessResult; viewer: Viewer; onRejoin: () => void }
@@ -250,7 +211,10 @@ export default function RoomStatusCard({ view, appointmentId }: { view: StatusVi
 
       <Brief a={access.appointment} role={viewer.role} />
 
-      {access.appointment.status === 'COMPLETED' && (
+      {access.appointment.status === 'COMPLETED' && access.appointment.serviceMode === 'TEXT' && (
+        <TextSessionSummary appointmentId={appointmentId} viewer={viewer} />
+      )}
+      {access.appointment.status === 'COMPLETED' && access.appointment.serviceMode !== 'TEXT' && (
         <>
           {access.appointment.doctorNotes && (
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
@@ -260,7 +224,12 @@ export default function RoomStatusCard({ view, appointmentId }: { view: StatusVi
               <p className="mt-1.5 whitespace-pre-wrap text-sm text-slate-800">{access.appointment.doctorNotes}</p>
             </div>
           )}
-          <Transcript appointmentId={appointmentId} viewer={viewer} />
+          <ConversationHistory
+            appointmentId={appointmentId}
+            viewer={viewer}
+            doctorName={access.appointment.doctor.name}
+            patientName={access.appointment.patientName}
+          />
         </>
       )}
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CircleCheck, Clock, LogOut, PhoneOff, WifiOff } from 'lucide-react';
 import type { Viewer } from '@/app/lib/api/consultations';
-import ChatPanel from './ChatPanel';
+import TextChatPanel from '@/app/consultations/[appointmentId]/text/components/TextChatPanel';
 import EndConsultationModal from './EndConsultationModal';
 import type { JoinedAccess } from './RoomGuard';
 import { clock, displayTime, initials, roomHref } from './room-utils';
@@ -123,12 +123,11 @@ export default function TextRoom({ appointmentId, access, viewer }: { appointmen
       </div>
 
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <ChatPanel
+        <TextChatPanel
           room={room}
           appointmentId={appointmentId}
           ticket={access.rtcToken}
           otherName={other}
-          active
           disabled={!!room.ended || (room.status === 'closed' && !!room.error)}
         />
       </div>

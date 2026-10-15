@@ -5,7 +5,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { API_BASE, getRoomMessagesApi, type ChatMessage, type ParticipantRole, type Viewer } from '@/app/lib/api/consultations';
+import {
+  API_BASE,
+  getRoomMessagesApi,
+  type ChatMessage,
+  type MessageType,
+  type ParticipantRole,
+  type Viewer,
+} from '@/app/lib/api/consultations';
+
+/** Extra fields for media messages (text consultation room) */
+export interface SendOptions {
+  messageType?: MessageType;
+  audioDuration?: number;
+}
 
 export type RtcSignalType = 'ready' | 'offer' | 'answer' | 'candidate' | 'hangup';
 export interface RtcSignal {
@@ -171,7 +184,7 @@ export function useConsultationRoom({
   );
 
   const sendMessage = useCallback(
-    async (text: string, attachments: string[] = [], retryOf?: string) => {
+    async (text: string, attachments: string[] = [], retryOf?: string, options: SendOptions = {}) => {
       const clientId = retryOf ?? `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const local: LocalMessage = {
         id: clientId,
@@ -184,10 +197,17 @@ export function useConsultationRoom({
         isRead: false,
         createdAt: new Date().toISOString(),
         pending: true,
+        ...(options.messageType ? { messageType: options.messageType } : {}),
+        ...(options.audioDuration !== undefined ? { audioDuration: options.audioDuration } : {}),
       };
       setMessages((prev) => [...prev.filter((m) => m.clientId !== clientId), local].sort(byTime));
       try {
-        const res = await emitWithAck<{ ok: boolean; message?: ChatMessage; error?: string }>('message:send', { text, attachments, clientId });
+        const res = await emitWithAck<{ ok: boolean; message?: ChatMessage; error?: string }>('message:send', {
+          text,
+          attachments,
+          clientId,
+          ...options,
+        });
         if (!res?.ok || !res.message) throw new Error(res?.error || 'Message not sent.');
         merge([{ ...res.message, clientId }]);
         return true;
@@ -201,7 +221,11 @@ export function useConsultationRoom({
   );
 
   const retryMessage = useCallback(
-    (m: LocalMessage) => sendMessage(m.message ?? '', m.attachments, m.clientId),
+    (m: LocalMessage) =>
+      sendMessage(m.message ?? '', m.attachments, m.clientId, {
+        ...(m.messageType ? { messageType: m.messageType } : {}),
+        ...(m.audioDuration != null ? { audioDuration: m.audioDuration } : {}),
+      }),
     [sendMessage],
   );
 

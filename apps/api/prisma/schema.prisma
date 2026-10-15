@@ -48,6 +48,7 @@ model User {
   healthcareProfessional Boolean @default(false)
 
   addresses Address[]
+  consultationPrescriptions ConsultationPrescription[]
 
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
@@ -555,6 +556,7 @@ model Doctor {
   // Relations
   clinics              DoctorClinic[]
   onlineAvailabilities DoctorAvailability[]
+  consultationPrescriptions ConsultationPrescription[]
 
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
@@ -695,7 +697,7 @@ model Appointment {
   // Doctor Clinical Outcome (Post Consultation)
   doctorNotes     String? @db.Text
   prescriptionUrl String?
-
+  consultationPrescription ConsultationPrescription?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   doctorNotifications DoctorNotification[]
@@ -775,4 +777,36 @@ model ConsultationMessage {
   @@index([appointmentId])
   @@index([senderId])
   @@map("consultation_messages")
+}
+
+// ------------------------------------------------------
+// DOCTOR CONSULTATION PRESCRIPTION MODEL
+// ------------------------------------------------------
+
+model ConsultationPrescription {
+  id            String      @id @default(uuid())
+  
+  // Linked Appointment (One Prescription per Appointment)
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  
+  doctorId      String
+  doctor        Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  diagnosis     String?     @db.Text
+  // Stores array: [{ name: "Panadol", dosage: "500mg", frequency: "1-0-1", duration: "5 Days", instructions: "After meals" }]
+  medicines     Json        
+  labTests      String[]    @default([]) // e.g. ["Blood Complete Picture (CP)", "Chest X-Ray"]
+  advice        String?     @db.Text     // General diet / precaution instructions
+  pdfUrl        String?                  // Generated PDF document URL
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([doctorId])
+  @@index([userId])
+  @@map("consultation_prescriptions")
 }

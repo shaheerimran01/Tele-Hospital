@@ -46,6 +46,15 @@ import {
   relationLabel,
 } from '../../_components/ui';
 
+/** Text consultations store an automatic record of the chat after the doctor's notes */
+const SUMMARY_MARKER = '----- Consultation summary (compiled automatically) -----';
+function splitNotes(notes: string | null) {
+  if (!notes) return { clinical: '', record: '' };
+  const i = notes.indexOf(SUMMARY_MARKER);
+  if (i < 0) return { clinical: notes.trim(), record: '' };
+  return { clinical: notes.slice(0, i).trim(), record: notes.slice(i + SUMMARY_MARKER.length).trim() };
+}
+
 const STATUSES = Object.keys(APPOINTMENT_STATUS_LABELS) as AppointmentStatus[];
 
 type AttachmentKind = 'audio' | 'image' | 'pdf' | 'file';
@@ -403,9 +412,17 @@ export default function AppointmentDetailPage({ params }: { params: Promise<{ id
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Doctor notes</p>
                 <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
-                  {a.doctorNotes || 'The doctor has not added notes.'}
+                  {splitNotes(a.doctorNotes).clinical || 'The doctor has not added notes.'}
                 </p>
               </div>
+              {splitNotes(a.doctorNotes).record && (
+                <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Consultation record (chat, voice notes, files)
+                  </summary>
+                  <p className="mt-2 whitespace-pre-line break-words text-xs leading-relaxed text-slate-700">{splitNotes(a.doctorNotes).record}</p>
+                </details>
+              )}
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Prescription</p>
                 {a.prescriptionUrl ? (

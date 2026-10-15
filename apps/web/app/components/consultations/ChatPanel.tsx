@@ -14,7 +14,9 @@ import {
   SendHorizontal,
   X,
 } from 'lucide-react';
-import { fileUrl, uploadRoomFileApi, type UploadedChatFile } from '@/app/lib/api/consultations';
+import { attachmentKind, fileUrl, uploadRoomFileApi, type UploadedChatFile } from '@/app/lib/api/consultations';
+import AudioPlayerBubble from '@/app/consultations/[appointmentId]/text/components/AudioPlayerBubble';
+import DocumentBubble from '@/app/consultations/[appointmentId]/text/components/DocumentBubble';
 import type { ConsultationRoom, LocalMessage } from './useConsultationRoom';
 
 const ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf';
@@ -50,16 +52,10 @@ function Bubble({ m, mine, onRetry, onOpen }: { m: LocalMessage; mine: boolean; 
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={fileUrl(u)} alt="Shared image" className="h-28 w-28 object-cover" />
                   </button>
+                ) : attachmentKind(u) === 'VOICE' ? (
+                  <AudioPlayerBubble key={u} url={u} duration={m.audioDuration} mine={mine} />
                 ) : (
-                  <a
-                    key={u}
-                    href={fileUrl(u)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold ${mine ? 'bg-white/10 text-white' : 'bg-slate-100 text-slate-800'}`}
-                  >
-                    <FileText className="h-4 w-4" /> PDF document
-                  </a>
+                  <DocumentBubble key={u} url={u} mine={mine} />
                 ),
               )}
             </div>
@@ -138,7 +134,10 @@ export default function ChatPanel({
     if (idleTimer.current) window.clearTimeout(idleTimer.current);
   }, []);
 
-  const shared = useMemo(() => messages.flatMap((m) => m.attachments.map((u) => ({ url: u, mine: m.senderType === role }))), [messages, role]);
+  const shared = useMemo(
+    () => messages.flatMap((m) => m.attachments.filter((u) => attachmentKind(u) !== 'VOICE').map((u) => ({ url: u, mine: m.senderType === role }))),
+    [messages, role],
+  );
 
   const onType = (v: string) => {
     setText(v);
@@ -208,7 +207,7 @@ export default function ChatPanel({
                   </button>
                 ) : (
                   <a key={f.url} href={fileUrl(f.url)} target="_blank" rel="noreferrer" className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-lg bg-slate-100 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">
-                    <FileText className="h-5 w-5" /> PDF
+                    <FileText className="h-5 w-5" /> {f.url.split('.').pop()?.toUpperCase()}
                   </a>
                 ),
               )}

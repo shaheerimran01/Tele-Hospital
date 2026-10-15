@@ -182,6 +182,17 @@ function Actions({
   stacked?: boolean;
 }) {
   const canAct = a.status === 'PENDING' || a.status === 'CONFIRMED' || a.status === 'RESCHEDULED';
+  // Finished online consultations: the summary (notes, chat, voice notes, files), same view as the patient's
+  if (a.status === 'COMPLETED' && (a.serviceMode === 'VIDEO' || a.serviceMode === 'TEXT')) {
+    return (
+      <Link
+        href={`/consultations/${encodeURIComponent(a.id)}?as=doctor`}
+        className={`${btnBase} border border-[#dde1ec] bg-white text-[#3a4366] hover:bg-[#f4f5fa]`}
+      >
+        <CheckCheck className="h-3.5 w-3.5" /> View Summary
+      </Link>
+    );
+  }
   if (!canAct) {
     return <span className="block whitespace-nowrap text-xs text-[#8a8d99]">No action needed</span>;
   }

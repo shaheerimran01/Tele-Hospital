@@ -4,7 +4,8 @@
 // (handshake auth: { ticket }). Each appointment is its own room.
 //
 // Client -> server events
-//   message:send   { text?, attachments?: string[], clientId? }   (ack: { ok, message } | { ok: false, error })
+//   message:send   { messageType?, text?, attachments?: string[], audioDuration?, clientId? }   (ack: { ok, message } | { ok: false, error })
+//   sendMessage    same as message:send
 //   message:read   {}                                             mark the other side's messages read
 //   typing         { isTyping: boolean }
 //   rtc:signal     { type: 'ready' | 'offer' | 'answer' | 'candidate' | 'hangup', payload? }   WebRTC signaling relay
@@ -38,6 +39,17 @@ const ORIGINS = [
 ];
 
 const roomOf = (appointmentId: string) => `consultation:${appointmentId}`;
+
+/** A chat message: TEXT, or a VOICE / IMAGE / DOCUMENT message with uploaded attachments */
+interface MessagePayload {
+  messageType?: unknown;
+  text?: unknown;
+  /** caption (spec name); same as text */
+  message?: unknown;
+  attachments?: unknown;
+  audioDuration?: unknown;
+  clientId?: unknown;
+}
 
 type RoomSocket = Pick<Socket, 'id' | 'data' | 'emit' | 'to' | 'join' | 'disconnect'> & {
   handshake: { auth?: Record<string, unknown> };
@@ -92,12 +104,22 @@ export class ConsultationsGateway implements OnGatewayConnection, OnGatewayDisco
   // Chat
   // ---------------------------------------------------------------------------
 
+  @SubscribeMessage('sendMessage')
+  onSendMessage(@ConnectedSocket() client: RoomSocket, @MessageBody() body: MessagePayload) {
+    return this.onMessage(client, body);
+  }
+
   @SubscribeMessage('message:send')
-  async onMessage(@ConnectedSocket() client: RoomSocket, @MessageBody() body: { text?: unknown; attachments?: unknown; clientId?: unknown }) {
+  async onMessage(@ConnectedSocket() client: RoomSocket, @MessageBody() body: MessagePayload) {
     const ticket = this.ticketOf(client);
     if (!ticket) return { ok: false, error: 'Your access to this consultation room has expired. Please reopen the room.' };
     try {
-      const message = await this.consultations.saveMessage(ticket, body ?? {});
+      const message = await this.consultations.saveMessage(ticket, {
+        messageType: body?.messageType,
+        text: body?.text ?? body?.message,
+        attachments: body?.attachments,
+        audioDuration: body?.audioDuration,
+      });
       const clientId = typeof body?.clientId === 'string' ? body.clientId.slice(0, 64) : undefined;
       this.server.to(roomOf(ticket.aid)).emit('message:new', { ...message, clientId });
       return { ok: true, message: { ...message, clientId } };
