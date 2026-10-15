@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {
   Ban,
   BadgeCheck,
@@ -188,8 +189,26 @@ function Actions({
   const spin = (x: AppointmentAction, Icon: typeof Check) =>
     busy === x ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />;
 
+  // Confirmed online consultations: open the video / chat room
+  const online = a.status === 'CONFIRMED' && (a.serviceMode === 'VIDEO' || a.serviceMode === 'TEXT');
+
   return (
-    <div className={stacked ? 'grid w-[208px] grid-cols-2 gap-1.5 [&>button:first-child]:col-span-2' : 'flex flex-wrap items-center gap-2'}>
+    <div
+      className={
+        stacked
+          ? 'grid w-[208px] grid-cols-2 gap-1.5 [&>:first-child]:col-span-2'
+          : 'flex flex-wrap items-center gap-2'
+      }
+    >
+      {online && (
+        <Link
+          href={`/consultations/${encodeURIComponent(a.id)}?as=doctor`}
+          className={`${btnBase} bg-[#b38a3a] text-white hover:bg-[#9c7630]`}
+        >
+          {a.serviceMode === 'VIDEO' ? <Video className="h-3.5 w-3.5" /> : <MessageSquareText className="h-3.5 w-3.5" />}
+          {a.serviceMode === 'VIDEO' ? 'Join Video Call' : 'Open Chat'}
+        </Link>
+      )}
       {primary === 'accept-slot' ? (
         <button
           type="button"

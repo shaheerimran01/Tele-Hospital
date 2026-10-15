@@ -157,6 +157,11 @@ function Group({ title, items, empty }: { title: string; items: Appointment[]; e
 function AppointmentCard({ a }: { a: Appointment }) {
   const status = STATUS_UI[a.status] ?? STATUS_UI.PENDING;
   const ModeIcon = a.serviceMode === 'VIDEO' ? Video : a.serviceMode === 'TEXT' ? MessageSquareText : MapPin;
+  // Online consultations always show the room button; before approval it opens a screen explaining why the room is locked
+  const online =
+    (a.serviceMode === 'VIDEO' || a.serviceMode === 'TEXT') &&
+    ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'COMPLETED'].includes(a.status);
+  const waiting = a.status === 'PENDING' || a.status === 'RESCHEDULED';
   const patient =
     a.patientType === 'FAMILY_MEMBER' && a.familyMember
       ? a.familyMember.fullName
@@ -191,6 +196,28 @@ function AppointmentCard({ a }: { a: Appointment }) {
           {formatPkr(a.fee)} <span className="font-normal text-gray-500">· {a.paymentStatus === 'PAID' ? 'Paid' : 'Not paid yet'}</span>
         </span>
       </div>
+      {online && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-gray-500">
+            {a.status === 'COMPLETED'
+              ? 'See the doctor\u2019s notes and your conversation.'
+              : waiting
+                ? 'The room unlocks once the doctor confirms your appointment.'
+                : 'The room opens 10 minutes before your appointment.'}
+          </p>
+          <Link
+            href={`/consultations/${encodeURIComponent(a.id)}`}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition ${
+              a.status === 'COMPLETED' || waiting
+                ? 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                : 'bg-[#ff6f61] text-white hover:bg-[#e85b4d]'
+            }`}
+          >
+            <ModeIcon className="h-4 w-4" />
+            {a.status === 'COMPLETED' ? 'View Summary' : a.serviceMode === 'VIDEO' ? 'Join Video Call' : 'Open Chat Room'}
+          </Link>
+        </div>
+      )}
     </li>
   );
 }

@@ -699,6 +699,7 @@ model Appointment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   doctorNotifications DoctorNotification[]
+  messages ConsultationMessage[]
   @@index([userId])
   @@index([doctorId])
   @@index([clinicId])
@@ -729,4 +730,49 @@ model DoctorNotification {
   @@index([doctorId])
   @@index([isRead])
   @@map("doctor_notifications")
+}
+
+// ------------------------------------------------------
+// ENUM FOR CONSULTATION CHAT SENDER
+// ------------------------------------------------------
+
+enum SenderType {
+  USER
+  DOCTOR
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  VOICE
+  IMAGE
+  DOCUMENT
+}
+
+// ------------------------------------------------------
+// CONSULTATION CHAT MESSAGES MODEL
+// ------------------------------------------------------
+
+model ConsultationMessage {
+  id            String      @id @default(uuid())
+  
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  senderId      String
+  senderType    SenderType  @default(USER)
+
+  messageType   MessageType @default(TEXT)
+  message       String?     @db.Text
+  attachments   String[]    @default([])
+  audioDuration Int?        // Voice note duration in seconds (e.g., 15)
+
+  isRead        Boolean     @default(false)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([appointmentId])
+  @@index([senderId])
+  @@map("consultation_messages")
 }
