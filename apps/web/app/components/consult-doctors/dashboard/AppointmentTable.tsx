@@ -25,7 +25,7 @@ import {
   type ServiceMode,
 } from './dashboard-data';
 
-export type AppointmentAction = 'approve' | 'complete' | 'reschedule' | 'decline';
+export type AppointmentAction = 'approve' | 'complete' | 'reschedule' | 'decline' | 'accept-slot';
 
 // ---------------------------------------------------------------------------
 // Badges
@@ -40,8 +40,14 @@ const STATUS_BADGE: Record<AppointmentStatus, { label: string; className: string
   NO_SHOW: { label: 'No-show', className: 'bg-[#f3f1ec] text-[#5c5a52] ring-[#e2ded4]', Icon: UserX },
 };
 
-export function StatusBadge({ status }: { status: AppointmentStatus }) {
-  const { label, className, Icon } = STATUS_BADGE[status] ?? STATUS_BADGE.PENDING;
+const TIME_REQUESTED_BADGE = {
+  label: 'Time requested',
+  className: 'bg-[#fdf4e3] text-[#8a6416] ring-[#f0dfb8]',
+  Icon: CalendarClock,
+};
+
+export function StatusBadge({ status, timeRequested = false }: { status: AppointmentStatus; timeRequested?: boolean }) {
+  const { label, className, Icon } = timeRequested ? TIME_REQUESTED_BADGE : STATUS_BADGE[status] ?? STATUS_BADGE.PENDING;
   return (
     <span
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${className}`}
@@ -135,10 +141,18 @@ function ReasonCell({ a }: { a: DashboardAppointment }) {
       <p className="truncate text-sm text-[#141b34]" title={reason || undefined}>
         {reason || <span className="text-[#a9a59a]">Not provided</span>}
       </p>
-      {a.status === 'RESCHEDULED' && a.cancelReason && (
-        <p className="mt-0.5 line-clamp-1 text-xs font-medium text-[#2c4f8f]" title={a.cancelReason}>
-          Your note: {a.cancelReason}
+      {a.patientRequestedSlot ? (
+        <p className="mt-0.5 line-clamp-2 text-xs font-medium text-[#8a6416]" title={a.cancelReason ?? undefined}>
+          The patient asked for this time.{' '}
+          {a.cancelReason?.includes('Note: ') ? `Note: ${a.cancelReason.split('Note: ')[1]}` : 'Accept it or propose another time.'}
         </p>
+      ) : (
+        a.status === 'RESCHEDULED' &&
+        a.cancelReason && (
+          <p className="mt-0.5 line-clamp-1 text-xs font-medium text-[#2c4f8f]" title={a.cancelReason}>
+            Your note: {a.cancelReason}
+          </p>
+        )
       )}
       {(a.description || a.symptomDuration) && (
         <p className="mt-0.5 line-clamp-1 text-xs text-[#6b6f80]" title={a.description ?? undefined}>
@@ -170,13 +184,22 @@ function Actions({
   if (!canAct) {
     return <span className="block whitespace-nowrap text-xs text-[#8a8d99]">No action needed</span>;
   }
-  const primary: AppointmentAction = a.status === 'PENDING' ? 'approve' : 'complete';
+  const primary: AppointmentAction = a.patientRequestedSlot ? 'accept-slot' : a.status === 'PENDING' ? 'approve' : 'complete';
   const spin = (x: AppointmentAction, Icon: typeof Check) =>
     busy === x ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />;
 
   return (
     <div className={stacked ? 'grid w-[208px] grid-cols-2 gap-1.5 [&>button:first-child]:col-span-2' : 'flex flex-wrap items-center gap-2'}>
-      {primary === 'complete' ? (
+      {primary === 'accept-slot' ? (
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => onAction('accept-slot', a)}
+          className={`${btnBase} bg-[#2f6b45] text-white hover:bg-[#275a3a]`}
+        >
+          {spin('accept-slot', Check)} Accept Slot
+        </button>
+      ) : primary === 'complete' ? (
         <button
           type="button"
           disabled={busy !== null}
@@ -261,7 +284,7 @@ export default function AppointmentTable({ rows, today, onAction, busy, empty, s
                 <td className="px-3 py-4"><WhenCell a={a} today={today} /></td>
                 <td className="px-3 py-4"><div className="max-w-[190px]"><ModeBadge mode={a.serviceMode} clinicName={a.clinic?.name} short={shortMode} /></div></td>
                 <td className="w-full px-3 py-4"><div className="min-w-[150px] max-w-[340px]"><ReasonCell a={a} /></div></td>
-                <td className="px-3 py-4"><StatusBadge status={a.status} /></td>
+                <td className="px-3 py-4"><StatusBadge status={a.status} timeRequested={a.patientRequestedSlot} /></td>
                 <td className="py-4 pl-3 pr-5"><Actions a={a} onAction={onAction} busy={busy[a.id] ?? null} stacked /></td>
               </tr>
             ))}
@@ -274,7 +297,7 @@ export default function AppointmentTable({ rows, today, onAction, busy, empty, s
           <li key={a.id} className={`space-y-3 px-4 py-4 sm:px-6 ${busy[a.id] ? 'opacity-70' : ''}`}>
             <div className="flex items-start justify-between gap-3">
               <PatientCell a={a} />
-              <StatusBadge status={a.status} />
+              <StatusBadge status={a.status} timeRequested={a.patientRequestedSlot} />
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <span className="text-sm font-semibold text-[#141b34]">

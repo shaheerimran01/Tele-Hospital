@@ -11,6 +11,7 @@ import {
 } from '@/lib/api/doctorPortal';
 import { usePortal, usePortalData } from '../_components/portal-context';
 import NotificationItem from '../_components/NotificationItem';
+import { ResolutionActions } from '../_components/ResolutionActions';
 import { Card, EmptyState, ErrorState, FilterTabs, LoadingState, PageHeader } from '../_components/ui';
 
 const TABS: { value: NotificationFilter; label: string }[] = [
@@ -23,13 +24,16 @@ const TABS: { value: NotificationFilter; label: string }[] = [
   { value: 'RESCHEDULED', label: 'Rescheduled Appointments' },
 ];
 
+/** Notifications that need a follow-up (sending a new time to the patient, recommending a doctor) */
+const ACTION_TYPES = new Set(['APPOINTMENT_RESCHEDULED', 'APPOINTMENT_DECLINED', 'APPOINTMENT_ALTERNATIVE_REQUESTED']);
+
 const EMPTY_TEXT: Record<NotificationFilter, string> = {
-  ALL: 'Doctor registrations, status changes and bookings will appear here.',
+  ALL: 'Doctor registrations, status changes, bookings and patient replies will appear here.',
   UNREAD: "You're all caught up.",
   READ: 'Notifications you have read will appear here.',
   DOCTORS: 'New doctor registrations and approval changes will appear here.',
   APPOINTMENTS: 'New bookings and appointment updates will appear here.',
-  DECLINED: 'When a doctor declines an appointment, it appears here with their reason.',
+  DECLINED: 'When a doctor declines an appointment, or a patient asks for a different doctor, it appears here with the reason.',
   RESCHEDULED: 'When a doctor moves an appointment, it appears here with their reason.',
 };
 
@@ -80,6 +84,17 @@ export default function NotificationsPage() {
   };
 
   const unread = data?.counts.UNREAD ?? 0;
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // Follow-up buttons go on the newest actionable notification of each appointment only
+  const actionFor = new Set<string>();
+  const seen = new Set<string>();
+  for (const n of data?.notifications ?? []) {
+    const num = n.appointment?.appointmentNum;
+    if (!num || !ACTION_TYPES.has(n.type) || seen.has(num)) continue;
+    seen.add(num);
+    actionFor.add(n.id);
+  }
 
   return (
     <>
@@ -108,6 +123,15 @@ export default function NotificationsPage() {
         />
       </div>
 
+      {notice && (
+        <p className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800" role="status">
+          {notice}
+          <button type="button" onClick={() => setNotice(null)} className="text-xs font-semibold text-emerald-700 hover:underline">
+            Dismiss
+          </button>
+        </p>
+      )}
+
       {actionError && (
         <p className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700" role="alert">
           {actionError}
@@ -127,7 +151,28 @@ export default function NotificationsPage() {
       ) : (
         <ul className={`space-y-3 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           {data.notifications.map((n) => (
-            <NotificationItem key={n.id} n={n} onMarkRead={markRead} busy={busyId === n.id} />
+            <NotificationItem
+              key={n.id}
+              n={n}
+              onMarkRead={markRead}
+              busy={busyId === n.id}
+              actions={
+                actionFor.has(n.id) && n.appointment ? (
+                  <ResolutionActions
+                    appointmentId={n.appointment.id}
+                    stage={n.appointment.stage}
+                    forwardedAt={n.appointment.forwardedAt}
+                    recommendedAt={n.appointment.recommendedAt}
+                    recommendedDoctorName={n.appointment.recommendedDoctorName}
+                    onDone={(message) => {
+                      setNotice(message);
+                      reload();
+                      reloadCounts();
+                    }}
+                  />
+                ) : undefined
+              }
+            />
           ))}
         </ul>
       )}

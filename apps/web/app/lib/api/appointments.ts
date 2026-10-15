@@ -174,3 +174,84 @@ export async function getMyAppointmentsApi(userId: string): Promise<Appointment[
   if (!response.ok) throw await readError(response, 'Could not load your appointments.');
   return response.json();
 }
+
+// ---------------------------------------------------------------------------
+// Follow-up after the doctor moves or cancels a booking (patient's choices)
+// ---------------------------------------------------------------------------
+
+/**
+ * RESCHEDULE_PROPOSED: approve or decline the doctor's new time
+ * AWAITING_DOCTOR: the patient picked another time; the doctor must accept it
+ * AWAITING_RECOMMENDATION: the patient asked for another doctor; the team will suggest one
+ * ALTERNATIVE_RECOMMENDED: book the recommended doctor
+ */
+export type PendingStage = 'RESCHEDULE_PROPOSED' | 'AWAITING_DOCTOR' | 'AWAITING_RECOMMENDATION' | 'ALTERNATIVE_RECOMMENDED';
+
+export interface PendingAppointmentAction {
+  appointmentId: string;
+  appointmentNum: string;
+  stage: PendingStage;
+  status: AppointmentStatus;
+  serviceMode: ServiceMode;
+  clinicId: string | null;
+  clinicName: string | null;
+  doctor: { id: string; fullName: string };
+  /** ISO date at UTC midnight */
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  fee: number;
+  reason: string | null;
+  patientName: string;
+  recommendation: {
+    doctor: {
+      id: string;
+      fullName: string;
+      title: string;
+      specialisations: string[];
+      experienceYears: number;
+      profilePhotoUrl: string | null;
+    };
+    fee: number | null;
+    feeVaries: boolean;
+    available: boolean;
+    serviceMode: ServiceMode;
+    booking: { doctorId: string; mode: ServiceMode; intakeId: string | null };
+    bookedAppointment: { id: string; appointmentNum: string } | null;
+  } | null;
+}
+
+export type RescheduleResponse =
+  | { action: 'ACCEPT'; note?: string }
+  | { action: 'PROPOSE_SLOT'; date: string; startTime: string; note?: string }
+  | { action: 'REQUEST_NEW_DOCTOR'; note?: string };
+
+export async function getPendingAppointmentActionsApi(userId: string): Promise<PendingAppointmentAction[]> {
+  const response = await fetch(`${API_BASE}/appointments/pending-actions?${withUser(userId)}`, { cache: 'no-store' });
+  if (!response.ok) throw await readError(response, 'Could not load your appointment updates.');
+  return response.json();
+}
+
+export async function respondToRescheduleApi(
+  userId: string,
+  appointmentId: string,
+  body: RescheduleResponse,
+): Promise<{ stage: PendingStage | null; status: AppointmentStatus; message: string }> {
+  const response = await fetch(
+    `${API_BASE}/appointments/${encodeURIComponent(appointmentId)}/patient-reschedule-response?${withUser(userId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, userId }),
+    },
+  );
+  if (!response.ok) throw await readError(response, 'Could not send your reply. Please try again.');
+  return response.json();
+}
+
+/** Booking page link for a recommended doctor (keeps the symptoms and voice note). */
+export function recommendedBookingHref(b: { doctorId: string; mode: ServiceMode; intakeId: string | null }) {
+  const q = new URLSearchParams({ doctorId: b.doctorId, mode: b.mode });
+  if (b.intakeId) q.set('intakeId', b.intakeId);
+  return `/consult-doctors/book-appointment?${q}`;
+}

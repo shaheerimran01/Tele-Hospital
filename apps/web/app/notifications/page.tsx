@@ -3,6 +3,16 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import AppointmentActionCard from '@/app/components/notifications/AppointmentActionCard';
+import {
+  getPendingAppointmentActionsApi,
+  type PendingAppointmentAction,
+} from '@/app/lib/api/appointments';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const APPOINTMENT_NUMBER = /\bAPT-\d{6}-\d{4,6}\b/;
+/** Notifications that can carry the patient's choices for an appointment */
+const ACTIONABLE_TYPES = new Set(['APPOINTMENT_RESCHEDULE_PROPOSED', 'APPOINTMENT_ALTERNATIVE_DOCTOR']);
 
 interface UserNotification {
   id: string;
@@ -19,6 +29,9 @@ export default function UserNotificationsPage() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [user, setUser] = useState<any>(null);
+  const [actions, setActions] = useState<PendingAppointmentAction[]>([]);
+  /** cards the patient has just answered stay visible (with their confirmation) after the refresh */
+  const [answered, setAnswered] = useState<Record<string, PendingAppointmentAction>>({});
 
   useEffect(() => {
     try {
@@ -46,17 +59,50 @@ export default function UserNotificationsPage() {
   const loadNotifications = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`http://localhost:4000/user-notifications?userId=${user.id}`);
+      const [res, pending] = await Promise.all([
+        fetch(`${API_BASE}/user-notifications?userId=${encodeURIComponent(user.id)}`, { cache: 'no-store' }),
+        getPendingAppointmentActionsApi(user.id).catch(() => [] as PendingAppointmentAction[]),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setNotifications(data);
       }
+      setActions(pending);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
+
+  /** After the patient replies: refresh choices and mark that notification read */
+  const afterReply = async (notificationId: string, action: PendingAppointmentAction) => {
+    setAnswered((a) => ({ ...a, [notificationId]: action }));
+    try {
+      await fetch(`${API_BASE}/user-notifications/${encodeURIComponent(notificationId)}/read`, { method: 'PATCH' });
+    } catch {
+      // not critical
+    }
+    try {
+      setActions(await getPendingAppointmentActionsApi(user.id));
+      setNotifications((list) => list.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)));
+    } catch {
+      // the card already shows the result
+    }
+  };
+
+  // Each appointment's choices go on its newest related notification only
+  const actionByNotification = new Map<string, PendingAppointmentAction>();
+  const placed = new Set<string>();
+  for (const n of notifications) {
+    if (!ACTIONABLE_TYPES.has(n.type)) continue;
+    const num = n.message.match(APPOINTMENT_NUMBER)?.[0];
+    if (!num || placed.has(num)) continue;
+    const action = actions.find((a) => a.appointmentNum === num) ?? answered[n.id];
+    if (!action) continue;
+    placed.add(num);
+    actionByNotification.set(n.id, action);
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-10 px-4 sm:px-6">
@@ -66,7 +112,7 @@ export default function UserNotificationsPage() {
           <div>
             <h1 className="text-2xl font-black text-gray-900">Notifications</h1>
             <p className="text-xs text-gray-500 mt-1">
-              There is no notification for you yet. You will be notified when there is a new notification.
+              Updates about your orders and doctor appointments.
             </p>
           </div>
           <button
@@ -95,7 +141,7 @@ export default function UserNotificationsPage() {
                   !item.isRead ? 'bg-red-50/30 border-red-200' : 'bg-white border-gray-100'
                 }`}
               >
-                <div className="space-y-1">
+                <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">🔔</span>
                     <h3 className="text-sm font-bold text-gray-900">{item.title}</h3>
@@ -114,6 +160,15 @@ export default function UserNotificationsPage() {
                       minute: '2-digit',
                     })}
                   </p>
+                  {actionByNotification.has(item.id) && user?.id && (
+                    <div className="pl-6">
+                      <AppointmentActionCard
+                        userId={user.id}
+                        action={actionByNotification.get(item.id)!}
+                        onChanged={() => afterReply(item.id, actionByNotification.get(item.id)!)}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {item.orderId && (

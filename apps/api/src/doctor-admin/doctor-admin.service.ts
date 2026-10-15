@@ -4,11 +4,13 @@ import { AppointmentStatus, DoctorStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { DoctorsService } from '../doctors/doctors.service.js';
 import { AppointmentsService } from '../appointments/appointments.service.js';
+import { AppointmentResolutionService } from '../appointments/appointment-resolution.service.js';
 import {
   APPOINTMENT_NUMBER_REGEX,
   APPOINTMENT_TYPE_PREFIX,
   appointmentWhen,
   DOCTOR_ACTION_NOTIFICATION_TYPES,
+  DOCTOR_NOTIFICATION_TYPES,
   DOCTOR_PORTAL_NOTIFICATION_TYPES,
   DOCTOR_PORTAL_NOTIFICATION_WHERE,
   DOCTOR_TYPE_PREFIX,
@@ -28,6 +30,12 @@ import {
   UpdateAppointmentStatusDto,
   UpdateDoctorStatusAdminDto,
 } from './dto/doctor-admin.dto.js';
+
+/** "Declined Appointments" tab: doctor declines and patients who asked for another doctor */
+const DECLINED_TAB_TYPES: string[] = [
+  DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED,
+  DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_ALTERNATIVE_REQUESTED,
+];
 
 /** Lists are capped; the admin narrows them with search and filters. */
 const LIST_LIMIT = 300;
@@ -73,6 +81,7 @@ export class DoctorAdminService {
     private readonly prisma: PrismaService,
     private readonly doctorsService: DoctorsService,
     private readonly appointmentsService: AppointmentsService,
+    private readonly resolution: AppointmentResolutionService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -342,8 +351,16 @@ export class DoctorAdminService {
       this.prisma.appointment.count({ where: { AND: [DOCTOR_ACTION_CASE_WHERE, { appointmentNum: { in: [...openCases] } }] } }),
     ]);
 
+    // Follow-up step for the declined / rescheduled queue
+    const states = query.queue ? await this.resolution.states(appointments) : new Map();
     return {
-      appointments: appointments.map((a) => ({ ...this.toAppointmentRow(a), caseOpen: openCases.has(a.appointmentNum) })),
+      appointments: appointments.map((a) => ({
+        ...this.toAppointmentRow(a),
+        caseOpen: openCases.has(a.appointmentNum),
+        stage: states.get(a.id)?.stage ?? null,
+        forwardedAt: states.get(a.id)?.forwardedAt ?? null,
+        recommendedAt: states.get(a.id)?.recommendedAt ?? null,
+      })),
       total,
       statusCounts: Object.fromEntries(counts.map((c) => [c.status, c._count._all])) as Record<string, number>,
       /** declined / rescheduled cases the admin hasn't resolved yet */
@@ -422,7 +439,7 @@ export class DoctorAdminService {
     if (filter === 'READ') and.push({ isRead: true });
     if (filter === 'DOCTORS') and.push({ type: { startsWith: DOCTOR_TYPE_PREFIX } });
     if (filter === 'APPOINTMENTS') and.push({ type: { startsWith: APPOINTMENT_TYPE_PREFIX } });
-    if (filter === 'DECLINED') and.push({ type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED });
+    if (filter === 'DECLINED') and.push({ type: { in: DECLINED_TAB_TYPES } });
     if (filter === 'RESCHEDULED') and.push({ type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED });
 
     const [rows, unread, doctors, appointments, total, declined, rescheduled] = await Promise.all([
@@ -431,7 +448,7 @@ export class DoctorAdminService {
       this.prisma.notification.count({ where: { type: { startsWith: DOCTOR_TYPE_PREFIX } } }),
       this.prisma.notification.count({ where: { type: { startsWith: APPOINTMENT_TYPE_PREFIX } } }),
       this.prisma.notification.count({ where: DOCTOR_PORTAL_NOTIFICATION_WHERE }),
-      this.prisma.notification.count({ where: { type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED } }),
+      this.prisma.notification.count({ where: { type: { in: DECLINED_TAB_TYPES } } }),
       this.prisma.notification.count({ where: { type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED } }),
     ]);
 
@@ -559,6 +576,11 @@ export class DoctorAdminService {
       where: { type: { in: DOCTOR_ACTION_NOTIFICATION_TYPES }, isRead: false, message: { contains: appointmentNum } },
       data: { isRead: true },
     });
+    // The admin settled it, so a patient's pending time request no longer waits for the doctor
+    await this.prisma.doctorNotification.updateMany({
+      where: { appointment: { appointmentNum }, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false },
+      data: { isRead: true },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -622,16 +644,31 @@ export class DoctorAdminService {
         : Promise.resolve([]),
     ]);
     const aptIds = new Map(appointments.map((a) => [a.appointmentNum, a.id]));
+    const states = await this.resolution.states(appointments);
+    const recommendedPmdcs = [...new Set([...states.values()].map((x) => x.recommendedPmdc).filter(Boolean))] as string[];
+    const recommendedDoctors = recommendedPmdcs.length
+      ? await this.prisma.doctor.findMany({ where: { pmdcNumber: { in: recommendedPmdcs } }, select: { pmdcNumber: true, fullName: true } })
+      : [];
+    const recommendedName = new Map(recommendedDoctors.map((d) => [d.pmdcNumber, doctorName(d.fullName)]));
     const aptDetails = new Map(
-      appointments.map((a) => [
-        a.appointmentNum,
-        {
-          appointmentNum: a.appointmentNum,
-          status: a.status,
-          doctorName: doctorName(a.doctor.fullName),
-          patientName: this.patientName(a),
-        },
-      ]),
+      appointments.map((a) => {
+        const st = states.get(a.id);
+        return [
+          a.appointmentNum,
+          {
+            id: a.id,
+            appointmentNum: a.appointmentNum,
+            status: a.status,
+            doctorName: doctorName(a.doctor.fullName),
+            patientName: this.patientName(a),
+            /** follow-up step: what the admin / patient / doctor needs to do next */
+            stage: st?.stage ?? null,
+            forwardedAt: st?.forwardedAt ?? null,
+            recommendedAt: st?.recommendedAt ?? null,
+            recommendedDoctorName: st?.recommendedPmdc ? recommendedName.get(st.recommendedPmdc) ?? null : null,
+          },
+        ];
+      }),
     );
     const docIds = new Map(doctors.map((d) => [d.pmdcNumber, d.id]));
 

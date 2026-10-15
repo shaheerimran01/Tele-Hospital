@@ -17,9 +17,10 @@ import {
   reassignAppointment,
   refundAppointment,
   resolveAppointmentCase,
-  type AppointmentRow,
+  type CaseRow,
   type ReassignOptions,
 } from '@/lib/api/doctorPortal';
+import { ResolutionActions } from './ResolutionActions';
 import { usePortal } from './portal-context';
 import {
   AppointmentStatusBadge,
@@ -32,7 +33,6 @@ import {
   pkr,
 } from './ui';
 
-type CaseRow = AppointmentRow & { caseOpen: boolean };
 type Busy = 'resolve' | 'refund' | null;
 
 const btn =
@@ -73,6 +73,14 @@ export default function DoctorActionCases({ rows, onChanged }: { rows: CaseRow[]
       <ul className="divide-y divide-slate-100">
         {rows.map((a) => {
           const declined = a.status === 'CANCELLED';
+          const byPatient = a.cancelReason?.startsWith('The patient ') ?? false;
+          const caseLabel = a.cancelReason?.startsWith('The patient declined')
+            ? 'Patient wants another doctor'
+            : a.cancelReason?.startsWith('The patient asked')
+              ? 'Patient picked a new time'
+              : declined
+                ? 'Declined by doctor'
+                : 'Rescheduled by doctor';
           const paid = a.paymentStatus === 'PAID';
           const b = busy[a.id] ?? null;
           const msg = messages[a.id];
@@ -89,7 +97,7 @@ export default function DoctorActionCases({ rows, onChanged }: { rows: CaseRow[]
                         declined ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-violet-50 text-violet-700 ring-violet-200'
                       }`}
                     >
-                      {declined ? 'Declined by doctor' : 'Rescheduled by doctor'}
+                      {caseLabel}
                     </span>
                     <AppointmentStatusBadge status={a.status} />
                     {!a.caseOpen && (
@@ -138,10 +146,24 @@ export default function DoctorActionCases({ rows, onChanged }: { rows: CaseRow[]
                   <blockquote className="mt-3 flex gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                     <Quote className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                     <span>
-                      <span className="font-semibold text-slate-900">Doctor&apos;s reason / note: </span>
+                      <span className="font-semibold text-slate-900">{byPatient ? 'Note' : 'Doctor\u2019s reason / note'}: </span>
                       {a.cancelReason}
                     </span>
                   </blockquote>
+
+                  <div className="mt-3">
+                    <ResolutionActions
+                      appointmentId={a.id}
+                      stage={a.stage}
+                      forwardedAt={a.forwardedAt}
+                      recommendedAt={a.recommendedAt}
+                      onDone={(text) => {
+                        setMessages((m) => ({ ...m, [a.id]: { tone: 'ok', text } }));
+                        reloadCounts();
+                        onChanged();
+                      }}
+                    />
+                  </div>
 
                   {msg && (
                     <p

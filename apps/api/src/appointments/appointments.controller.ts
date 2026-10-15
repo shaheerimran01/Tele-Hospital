@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -13,21 +14,36 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { AppointmentsService } from './appointments.service.js';
+import { AppointmentResolutionService } from './appointment-resolution.service.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { GetSlotsDto } from './dto/get-slots.dto.js';
+import {
+  ForwardRescheduleDto,
+  PatientRescheduleResponseDto,
+  RecommendAlternativeDto,
+} from './dto/resolution.dto.js';
 
 type RequestWithUser = Request & { user?: { id?: string } };
 
 @Controller('appointments')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) {}
+  constructor(
+    private readonly appointmentsService: AppointmentsService,
+    private readonly resolution: AppointmentResolutionService,
+  ) {}
 
   // GET /appointments/available-slots?doctorId=&serviceMode=&clinicId=&date=YYYY-MM-DD
   // (declared before ":id" so it isn't treated as an id)
   @Get('available-slots')
   getAvailableSlots(@Query() query: GetSlotsDto) {
     return this.appointmentsService.getAvailableSlots(query);
+  }
+
+  // GET /appointments/pending-actions?userId=  (appointments waiting for the patient's reply)
+  @Get('pending-actions')
+  pendingActions(@Req() req: RequestWithUser) {
+    return this.resolution.pendingForPatient(this.getUserId(req));
   }
 
   // POST /appointments
@@ -46,6 +62,45 @@ export class AppointmentsController {
   @Get(':id')
   findOne(@Req() req: RequestWithUser, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.appointmentsService.findOne(this.getUserId(req), id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Follow-up after a doctor reschedules or declines (admin <-> patient <-> doctor)
+  // ---------------------------------------------------------------------------
+
+  // POST /appointments/:id/forward-reschedule  { note? }  (admin -> patient)
+  @Post(':id/forward-reschedule')
+  forwardReschedule(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: ForwardRescheduleDto) {
+    return this.resolution.forwardReschedule(id, dto.note);
+  }
+
+  // PATCH /appointments/:id/patient-reschedule-response
+  //   { action: ACCEPT | PROPOSE_SLOT | REQUEST_NEW_DOCTOR, date?, startTime?, note? }
+  @Patch(':id/patient-reschedule-response')
+  patientResponse(
+    @Req() req: RequestWithUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: PatientRescheduleResponseDto,
+  ) {
+    return this.resolution.patientResponse(this.getUserId(req, dto.userId), id, dto);
+  }
+
+  // GET /appointments/:id/alternative-doctors  (admin: doctors matching speciality and fee)
+  @Get(':id/alternative-doctors')
+  alternativeDoctors(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.resolution.alternativeDoctors(id);
+  }
+
+  // POST /appointments/:id/recommend-alternative  { doctorId, note? }  (admin -> patient)
+  @Post(':id/recommend-alternative')
+  recommendAlternative(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RecommendAlternativeDto) {
+    return this.resolution.recommendAlternative(id, dto.doctorId, dto.note);
+  }
+
+  // GET /appointments/:id/resolution  (admin: where the follow-up stands)
+  @Get(':id/resolution')
+  resolutionSummary(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.resolution.adminSummary(id);
   }
 
   /**

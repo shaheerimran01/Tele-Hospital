@@ -8,6 +8,13 @@ export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELL
 export type ServiceMode = 'IN_CLINIC' | 'VIDEO' | 'TEXT';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
 export type PatientType = 'SELF' | 'FAMILY_MEMBER';
+export type CaseRow = AppointmentRow & {
+  caseOpen: boolean;
+  stage?: ResolutionStage;
+  forwardedAt?: string | null;
+  recommendedAt?: string | null;
+};
+
 export type NotificationFilter = 'ALL' | 'UNREAD' | 'READ' | 'DOCTORS' | 'APPOINTMENTS' | 'DECLINED' | 'RESCHEDULED';
 
 export interface TimeSlot {
@@ -64,6 +71,20 @@ export interface AppointmentRow {
   createdAt: string;
 }
 
+/**
+ * Follow-up step after a doctor reschedules or declines:
+ * AWAITING_FORWARD (admin sends the new time) -> RESCHEDULE_PROPOSED (patient replies)
+ * -> AWAITING_DOCTOR (doctor accepts the patient's time);
+ * AWAITING_RECOMMENDATION (admin recommends a doctor) -> ALTERNATIVE_RECOMMENDED (patient books).
+ */
+export type ResolutionStage =
+  | 'AWAITING_FORWARD'
+  | 'RESCHEDULE_PROPOSED'
+  | 'AWAITING_DOCTOR'
+  | 'AWAITING_RECOMMENDATION'
+  | 'ALTERNATIVE_RECOMMENDED'
+  | null;
+
 export interface PortalNotification {
   id: string;
   type: string;
@@ -74,7 +95,17 @@ export interface PortalNotification {
   category: 'DOCTORS' | 'APPOINTMENTS';
   link: { kind: 'appointment' | 'doctor'; id: string } | null;
   /** the appointment this is about (current state) */
-  appointment: { appointmentNum: string; status: AppointmentStatus; doctorName: string; patientName: string } | null;
+  appointment: {
+    id: string;
+    appointmentNum: string;
+    status: AppointmentStatus;
+    doctorName: string;
+    patientName: string;
+    stage: ResolutionStage;
+    forwardedAt: string | null;
+    recommendedAt: string | null;
+    recommendedDoctorName: string | null;
+  } | null;
   /** the doctor's note for declined / rescheduled notifications */
   reason: string | null;
 }
@@ -269,7 +300,7 @@ export const fetchAppointments = (p: {
   includeResolved?: boolean;
 }) =>
   request<{
-    appointments: (AppointmentRow & { caseOpen: boolean })[];
+    appointments: CaseRow[];
     total: number;
     statusCounts: Partial<Record<AppointmentStatus, number>>;
     openCaseCount: number;
@@ -326,3 +357,85 @@ export async function markPortalNotificationRead(id: string) {
   const res = await fetch(`${API_BASE_URL}/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
   if (!res.ok) throw new PortalApiError('Could not mark the notification as read.', res.status);
 }
+
+// --- Follow-up: admin -> patient -> doctor (apps/api: /appointments/:id/*) ----------
+
+async function requestAppointments<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/appointments${path}`, {
+      cache: 'no-store',
+      ...init,
+      headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+    });
+  } catch {
+    throw new PortalApiError(`Could not reach the API at ${API_BASE_URL}. Is the server running?`, 0);
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    const message = Array.isArray(data?.message) ? data.message[0] : data?.message;
+    throw new PortalApiError(message || `Request failed (${res.status})`, res.status);
+  }
+  return res.json();
+}
+
+/** Where one appointment's follow-up stands */
+export interface ResolutionSummary {
+  id: string;
+  appointmentNum: string;
+  status: AppointmentStatus;
+  serviceMode: ServiceMode;
+  appointmentDate: string;
+  startTime: string;
+  fee: number;
+  /** the doctor's (or patient's) note */
+  reason: string | null;
+  doctorName: string;
+  patientName: string;
+  stage: ResolutionStage;
+  forwardedAt: string | null;
+  alternativeRequestedAt: string | null;
+  recommendedAt: string | null;
+  recommendedDoctor: { id: string; name: string } | null;
+}
+
+export interface AlternativeDoctorsResponse {
+  appointment: ResolutionSummary;
+  /** speciality the patient needs (from the consultation request, else the original doctor's) */
+  speciality: string[];
+  serviceMode: ServiceMode;
+  originalFee: number;
+  feeRange: { min: number; max: number };
+  doctors: {
+    doctorId: string;
+    fullName: string;
+    title: string;
+    pmdcNumber: string;
+    specialisations: string[];
+    experienceYears: number;
+    profilePhotoUrl: string | null;
+    fees: { clinicId: string | null; clinicName: string | null; fee: number }[];
+    /** lowest fee for this consultation type */
+    fee: number;
+    matchesSpeciality: boolean;
+    withinFeeRange: boolean;
+  }[];
+}
+
+export const fetchResolution = (id: string) =>
+  requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/resolution`);
+
+export const forwardRescheduleToPatient = (id: string, note?: string) =>
+  requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/forward-reschedule`, {
+    method: 'POST',
+    body: JSON.stringify(note ? { note } : {}),
+  });
+
+export const fetchAlternativeDoctors = (id: string) =>
+  requestAppointments<AlternativeDoctorsResponse>(`/${encodeURIComponent(id)}/alternative-doctors`);
+
+export const recommendAlternativeDoctor = (id: string, doctorId: string, note?: string) =>
+  requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/recommend-alternative`, {
+    method: 'POST',
+    body: JSON.stringify({ doctorId, ...(note ? { note } : {}) }),
+  });

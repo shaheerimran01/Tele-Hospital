@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { CircleX, Hourglass, LoaderCircle, Menu, RefreshCw, Stethoscope, X } from 'lucide-react';
 import { ApiError, getDoctorMeApi, type DoctorProfile } from '@/app/lib/api/doctors';
 import {
+  acceptPatientSlotApi,
   getDoctorDashboardApi,
+  markAllDoctorNotificationsReadApi,
+  markDoctorNotificationReadApi,
   rescheduleDoctorAppointmentApi,
   updateDoctorAppointmentStatusApi,
   type DoctorDashboardData,
@@ -252,7 +255,14 @@ export default function DoctorDashboard() {
       if (!token || locked) return;
       const first = a.patientName.split(' ')[0];
       const when = `${formatDay(a.appointmentDate)}, ${displayTime(a.startTime)}`;
-      if (action === 'approve') {
+      if (action === 'accept-slot') {
+        runAction(
+          a,
+          action,
+          () => acceptPatientSlotApi(token, a.id),
+          `Time accepted. ${first}'s consultation on ${when} is confirmed and the patient has been notified.`,
+        ).catch(() => undefined);
+      } else if (action === 'approve') {
         runAction(a, action, () => updateDoctorAppointmentStatusApi(token, a.id, 'CONFIRMED'), `Approved. ${first}'s consultation on ${when} is confirmed and the patient has been notified.`).catch(
           () => undefined,
         );
@@ -271,6 +281,40 @@ export default function DoctorDashboard() {
     },
     [token, locked, runAction],
   );
+
+  const markNotificationRead = useCallback(
+    async (id: string) => {
+      if (!token) return;
+      setData((d) =>
+        d?.notifications
+          ? {
+              ...d,
+              notifications: {
+                items: d.notifications.items.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+                unread: Math.max(0, d.notifications.unread - 1),
+              },
+            }
+          : d,
+      );
+      try {
+        await markDoctorNotificationReadApi(token, id);
+      } catch (err) {
+        if (!handleAuthError(err)) loadData();
+      }
+    },
+    [token, handleAuthError, loadData],
+  );
+
+  const markAllNotificationsRead = useCallback(async () => {
+    if (!token) return;
+    try {
+      await markAllDoctorNotificationsReadApi(token);
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      showToast(err instanceof ApiError ? err.messages[0] : 'Could not update notifications.', 'error');
+    }
+    loadData();
+  }, [token, handleAuthError, loadData, showToast]);
 
   const signOut = () => {
     logout();
@@ -341,6 +385,8 @@ export default function DoctorDashboard() {
           doctorName={displayName}
           locked={locked}
           {...dataProps}
+          onMarkNotificationRead={markNotificationRead}
+          onMarkAllNotificationsRead={markAllNotificationsRead}
           onAction={handleAction}
           busy={busy}
           onNavigate={navigate}

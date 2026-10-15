@@ -6,6 +6,7 @@ import { AppointmentsService } from '../appointments/appointments.service.js';
 import { dateOnly, nowInAppZone, toMinutes } from '../appointments/slot-utils.js';
 import {
   appointmentWhen,
+  DOCTOR_NOTIFICATION_TYPES,
   DOCTOR_PORTAL_NOTIFICATION_TYPES,
   doctorName,
   PATIENT_NOTIFICATION_TYPES,
@@ -49,6 +50,13 @@ export class DoctorDashboardService {
     const today = dateOnly(todayIso);
     const mine = { doctorId };
 
+    // Appointments where the patient asked for another time (the doctor clicks "Accept Slot")
+    const slotRequests = await this.prisma.doctorNotification.findMany({
+      where: { doctorId, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false, appointmentId: { not: null } },
+      select: { appointmentId: true },
+    });
+    const slotRequestedIds = [...new Set(slotRequests.map((r) => r.appointmentId!))];
+
     const [
       todaySchedule,
       requests,
@@ -66,9 +74,15 @@ export class DoctorDashboardService {
         where: { ...mine, appointmentDate: today, status: { in: [AppointmentStatus.PENDING, ...UPCOMING_STATUSES] } },
         include: ROW_INCLUDE,
       }),
-      // Requests waiting for a reply, soonest first
+      // Requests waiting for a reply (new bookings and times the patient asked for), soonest first
       this.prisma.appointment.findMany({
-        where: { ...mine, status: AppointmentStatus.PENDING },
+        where: {
+          ...mine,
+          OR: [
+            { status: AppointmentStatus.PENDING },
+            { status: AppointmentStatus.RESCHEDULED, id: { in: slotRequestedIds } },
+          ],
+        },
         include: ROW_INCLUDE,
         orderBy: [{ appointmentDate: 'asc' }, { createdAt: 'asc' }],
         take: 200,
@@ -89,7 +103,15 @@ export class DoctorDashboardService {
       this.prisma.appointment.count({
         where: { ...mine, appointmentDate: today, status: { notIn: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW] } },
       }),
-      this.prisma.appointment.count({ where: { ...mine, status: AppointmentStatus.PENDING } }),
+      this.prisma.appointment.count({
+        where: {
+          ...mine,
+          OR: [
+            { status: AppointmentStatus.PENDING },
+            { status: AppointmentStatus.RESCHEDULED, id: { in: slotRequestedIds } },
+          ],
+        },
+      }),
       this.prisma.appointment.aggregate({
         where: { ...mine, status: AppointmentStatus.COMPLETED, paymentStatus: PaymentStatus.PAID },
         _sum: { fee: true },
@@ -118,6 +140,19 @@ export class DoctorDashboardService {
     });
     const userById = new Map(users.map((u) => [u.id, u]));
 
+    const [notificationItems, unreadNotifications] = await Promise.all([
+      this.prisma.doctorNotification.findMany({
+        where: { doctorId },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+        select: { id: true, type: true, title: true, message: true, isRead: true, createdAt: true, appointmentId: true },
+      }),
+      this.prisma.doctorNotification.count({ where: { doctorId, isRead: false } }),
+    ]);
+
+    const slotRequested = new Set(slotRequestedIds);
+    const row = (a: Row) => this.toRow(a, slotRequested.has(a.id));
+
     return {
       today: todayIso,
       metrics: {
@@ -126,10 +161,12 @@ export class DoctorDashboardService {
         totalEarned: earned._sum.fee ?? 0,
         patients: distinctPatients.length,
       },
-      todaySchedule: todaySchedule.sort(chronological).map((a) => this.toRow(a)),
-      requests: requests.sort(chronological).map((a) => this.toRow(a)),
-      upcoming: upcoming.sort(chronological).map((a) => this.toRow(a)),
-      completed: completed.map((a) => this.toRow(a)),
+      todaySchedule: todaySchedule.sort(chronological).map(row),
+      requests: requests.sort(chronological).map(row),
+      upcoming: upcoming.sort(chronological).map(row),
+      completed: completed.map(row),
+      /** updates from patients (accepted / requested times, declined proposals) */
+      notifications: { items: notificationItems, unread: unreadNotifications },
       earnings: completedByMode.map((g) => ({
         serviceMode: g.serviceMode,
         paymentStatus: g.paymentStatus,
@@ -189,6 +226,9 @@ export class DoctorDashboardService {
         : []),
     ]);
 
+    // A pending "patient asked for this time" request is settled by any decision on the appointment
+    await this.clearSlotRequest(doctorId, appointment.id);
+
     const dr = doctorName(appointment.doctor.fullName);
     const when = appointmentWhen(appointment.appointmentDate, appointment.startTime);
     const patient = this.patientLabel(appointment);
@@ -237,6 +277,8 @@ export class DoctorDashboardService {
     if (!before) throw new NotFoundException('Appointment not found');
 
     const moved = await this.appointments.rescheduleByDoctor(doctorId, appointmentId, date, startTime, note);
+    // The doctor proposed a different time instead of the patient's one
+    await this.clearSlotRequest(doctorId, moved.id);
     const a = await this.prisma.appointment.findUniqueOrThrow({
       where: { id: moved.id },
       select: {
@@ -259,6 +301,81 @@ export class DoctorDashboardService {
     return this.getRow(doctorId, moved.id);
   }
 
+  /** "Accept Slot": the doctor confirms the time the patient asked for. */
+  async acceptSlot(doctorId: string, appointmentId: string) {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, doctorId },
+      select: {
+        id: true,
+        status: true,
+        appointmentNum: true,
+        userId: true,
+        appointmentDate: true,
+        startTime: true,
+        patientType: true,
+        doctor: { select: { fullName: true } },
+        user: { select: { firstName: true, lastName: true, phone: true } },
+        familyMember: { select: { fullName: true } },
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+
+    const request = await this.prisma.doctorNotification.findFirst({
+      where: { doctorId, appointmentId, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false },
+      select: { id: true },
+    });
+    if (appointment.status !== AppointmentStatus.RESCHEDULED || !request) {
+      throw new BadRequestException('There is no time request from the patient waiting for this appointment');
+    }
+
+    const { count } = await this.prisma.appointment.updateMany({
+      where: { id: appointment.id, status: AppointmentStatus.RESCHEDULED },
+      data: { status: AppointmentStatus.CONFIRMED, cancelReason: null },
+    });
+    if (count === 0) throw new BadRequestException('This appointment has already been updated');
+    await this.clearSlotRequest(doctorId, appointment.id);
+
+    const dr = doctorName(appointment.doctor.fullName);
+    const when = appointmentWhen(appointment.appointmentDate, appointment.startTime);
+    await recordPatientNotification(this.prisma, {
+      userId: appointment.userId,
+      type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_CONFIRMED,
+      title: 'Appointment Confirmed!',
+      message: `${dr} has accepted your requested time. Your appointment ${appointment.appointmentNum} is confirmed for ${when}.`,
+    });
+    await recordDoctorPortalNotification(this.prisma, {
+      type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_STATUS_UPDATED,
+      title: "Doctor accepted the patient's time",
+      message: `${dr} accepted the time requested by patient ${this.patientLabel(appointment)} for ${appointment.appointmentNum} (${when}). The appointment is confirmed.`,
+    });
+    return this.getRow(doctorId, appointment.id);
+  }
+
+  async markNotificationRead(doctorId: string, id: string) {
+    const n = await this.prisma.doctorNotification.findFirst({ where: { id, doctorId }, select: { id: true, type: true } });
+    if (!n) throw new NotFoundException('Notification not found');
+    // A time request stays open until the doctor accepts it, proposes another time or declines
+    if (n.type !== DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED) {
+      await this.prisma.doctorNotification.update({ where: { id }, data: { isRead: true } });
+    }
+    return { id, isRead: n.type !== DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED };
+  }
+
+  async markAllNotificationsRead(doctorId: string) {
+    const { count } = await this.prisma.doctorNotification.updateMany({
+      where: { doctorId, isRead: false, type: { not: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED } },
+      data: { isRead: true },
+    });
+    return { updated: count };
+  }
+
+  private async clearSlotRequest(doctorId: string, appointmentId: string) {
+    await this.prisma.doctorNotification.updateMany({
+      where: { doctorId, appointmentId, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false },
+      data: { isRead: true },
+    });
+  }
+
   private patientLabel(a: {
     patientType: string;
     familyMember: { fullName: string } | null;
@@ -273,10 +390,13 @@ export class DoctorDashboardService {
   private async getRow(doctorId: string, id: string) {
     const a = await this.prisma.appointment.findFirst({ where: { id, doctorId }, include: ROW_INCLUDE });
     if (!a) throw new NotFoundException('Appointment not found');
-    return this.toRow(a);
+    const pending = await this.prisma.doctorNotification.count({
+      where: { doctorId, appointmentId: id, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false },
+    });
+    return this.toRow(a, pending > 0);
   }
 
-  private toRow(a: Row) {
+  private toRow(a: Row, patientRequestedSlot = false) {
     const forFamily = a.patientType === 'FAMILY_MEMBER' && a.familyMember;
     const accountName = [a.user.firstName, a.user.lastName].filter(Boolean).join(' ').trim();
     return {
@@ -301,6 +421,8 @@ export class DoctorDashboardService {
       symptoms: a.intake?.symptoms ?? [],
       symptomDuration: a.intake?.symptomDuration ?? null,
       description: a.intake?.description ?? null,
+      /** the patient asked for this time; the doctor can "Accept Slot" */
+      patientRequestedSlot,
     };
   }
 }

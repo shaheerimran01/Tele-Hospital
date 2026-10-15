@@ -165,13 +165,18 @@ export class AppointmentsService {
       familyMemberId = member.id;
     }
 
+    let releaseFrom: string | null = null;
     if (dto.intakeId) {
       const intake = await this.prisma.consultationIntake.findFirst({
         where: { id: dto.intakeId, userId },
-        select: { id: true, status: true, appointment: { select: { appointmentNum: true } } },
+        select: { id: true, status: true, appointment: { select: { id: true, appointmentNum: true, status: true } } },
       });
       if (!intake) throw new NotFoundException('Consultation details not found');
-      if (intake.appointment) {
+      // A cancelled booking (e.g. declined by the doctor) releases its consultation details,
+      // so the patient can book another doctor with the same symptoms and voice note.
+      if (intake.appointment && intake.appointment.status === AppointmentStatus.CANCELLED) {
+        releaseFrom = intake.appointment.id;
+      } else if (intake.appointment) {
         throw new ConflictException(
           `These consultation details are already booked (appointment ${intake.appointment.appointmentNum}).`,
         );
@@ -197,6 +202,13 @@ export class AppointmentsService {
           throw new ConflictException(
             'Sorry, this time slot is no longer available. Please choose another time.',
           );
+        }
+
+        if (releaseFrom) {
+          await tx.appointment.updateMany({
+            where: { id: releaseFrom, status: AppointmentStatus.CANCELLED },
+            data: { intakeId: null },
+          });
         }
 
         const appointment = await this.createWithUniqueNumber(tx, {
@@ -334,6 +346,56 @@ export class AppointmentsService {
             cancelReason: reason ?? null,
           },
           select: { id: true, appointmentNum: true, appointmentDate: true, startTime: true, endTime: true, status: true },
+        });
+      },
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Patient picks another free time with the same doctor (after declining the doctor's proposal).
+   * The booking moves to that time and stays RESCHEDULED until the doctor accepts it.
+   */
+  async moveForPatient(userId: string, appointmentId: string, date: string, startTime: string, note: string) {
+    this.assertBookableDate(date);
+    const start = toMinutes(startTime);
+    if (start == null) throw new BadRequestException('startTime is not a valid time');
+
+    const current = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, userId },
+      select: { doctorId: true },
+    });
+    if (!current) throw new NotFoundException('Appointment not found');
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`appointment:${current.doctorId}:${date}`}))::text AS locked`;
+
+        const appointment = await tx.appointment.findFirst({
+          where: { id: appointmentId, userId },
+          select: { id: true, status: true, serviceMode: true, clinicId: true, doctorId: true },
+        });
+        if (!appointment || appointment.doctorId !== current.doctorId) throw new NotFoundException('Appointment not found');
+        if (appointment.status !== AppointmentStatus.RESCHEDULED) {
+          throw new BadRequestException('This appointment is no longer waiting for a new time');
+        }
+
+        const doctor = await this.loadDoctor(tx, appointment.doctorId, false);
+        const { windows } = this.resolveService(doctor, appointment.serviceMode, appointment.clinicId ?? undefined);
+        const free = await this.freeSlots(tx, appointment.doctorId, date, windows, appointment.id);
+        const slot = free.find((s) => s.start === start);
+        if (!slot) throw new ConflictException('Sorry, that time is no longer free. Please choose another time.');
+
+        return tx.appointment.update({
+          where: { id: appointment.id },
+          data: {
+            appointmentDate: dateOnly(date),
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            status: AppointmentStatus.RESCHEDULED,
+            cancelReason: note,
+          },
+          select: { id: true, appointmentNum: true, appointmentDate: true, startTime: true, endTime: true, doctorId: true },
         });
       },
       { timeout: 15_000 },

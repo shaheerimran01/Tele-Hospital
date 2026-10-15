@@ -17,12 +17,21 @@ export const DOCTOR_PORTAL_NOTIFICATION_TYPES = {
   APPOINTMENT_DECLINED: 'APPOINTMENT_DECLINED',
   /** Doctor moved a booking (message carries "Reason: ...") */
   APPOINTMENT_RESCHEDULED: 'APPOINTMENT_RESCHEDULED',
+  /** Admin sent the doctor's proposed time to the patient (saved as read) */
+  APPOINTMENT_RESCHEDULE_FORWARDED: 'APPOINTMENT_RESCHEDULE_FORWARDED',
+  /** Patient approved the proposed time or picked another one (saved as read) */
+  APPOINTMENT_PATIENT_RESPONSE: 'APPOINTMENT_PATIENT_RESPONSE',
+  /** Patient declined the proposed time and wants a different doctor (needs admin action) */
+  APPOINTMENT_ALTERNATIVE_REQUESTED: 'APPOINTMENT_ALTERNATIVE_REQUESTED',
+  /** Admin recommended another doctor to the patient (saved as read; carries "(PMDC x)") */
+  APPOINTMENT_ALTERNATIVE_RECOMMENDED: 'APPOINTMENT_ALTERNATIVE_RECOMMENDED',
 } as const;
 
-/** Doctor actions the admin may need to follow up on. */
+/** Doctor and patient actions the admin may need to follow up on. */
 export const DOCTOR_ACTION_NOTIFICATION_TYPES: string[] = [
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED,
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED,
+  DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_ALTERNATIVE_REQUESTED,
 ];
 
 /** The doctor's note inside an admin notification message ("... Reason: <note>") */
@@ -67,7 +76,37 @@ export const PATIENT_NOTIFICATION_TYPES = {
   APPOINTMENT_RESCHEDULED: 'APPOINTMENT_RESCHEDULED',
   APPOINTMENT_REASSIGNED: 'APPOINTMENT_REASSIGNED',
   APPOINTMENT_REFUNDED: 'APPOINTMENT_REFUNDED',
+  /** Admin forwarded the doctor's proposed time; the patient approves or declines it */
+  APPOINTMENT_RESCHEDULE_PROPOSED: 'APPOINTMENT_RESCHEDULE_PROPOSED',
+  /** Admin recommended another doctor; the patient can book with them */
+  APPOINTMENT_ALTERNATIVE_DOCTOR: 'APPOINTMENT_ALTERNATIVE_DOCTOR',
 } as const;
+
+/** Notifications shown on the doctor's own dashboard (DoctorNotification.type). */
+export const DOCTOR_NOTIFICATION_TYPES = {
+  /** Patient approved the doctor's proposed time */
+  RESCHEDULE_APPROVED: 'RESCHEDULE_APPROVED',
+  /** Patient asked for a different time; the doctor accepts it */
+  NEW_SLOT_REQUESTED: 'NEW_SLOT_REQUESTED',
+  /** Patient declined the proposed time and asked for another doctor */
+  RESCHEDULE_DECLINED: 'RESCHEDULE_DECLINED',
+} as const;
+
+interface DoctorNotificationWriter {
+  doctorNotification: { create(args: { data: Prisma.DoctorNotificationUncheckedCreateInput }): Promise<unknown> };
+}
+
+/** Saves a notification for the doctor's dashboard. Never throws. */
+export async function recordDoctorNotification(
+  db: DoctorNotificationWriter,
+  input: { doctorId: string; appointmentId?: string | null; type: string; title: string; message: string },
+): Promise<void> {
+  try {
+    await db.doctorNotification.create({ data: input });
+  } catch (error) {
+    logger.warn(`Could not save doctor "${input.type}" notification: ${(error as Error)?.message ?? error}`);
+  }
+}
 
 /** "Ayesha Rahman" -> "Dr. Ayesha Rahman"; keeps an existing "Dr." / "Prof." */
 export function doctorName(fullName: string) {
@@ -105,7 +144,7 @@ export async function recordPatientNotification(
  */
 export async function recordDoctorPortalNotification(
   db: NotificationWriter,
-  input: { type: DoctorPortalNotificationType; title: string; message: string },
+  input: { type: DoctorPortalNotificationType; title: string; message: string; isRead?: boolean },
 ): Promise<void> {
   try {
     await db.notification.create({ data: input });

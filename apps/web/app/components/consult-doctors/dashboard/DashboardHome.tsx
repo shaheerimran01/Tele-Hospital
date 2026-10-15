@@ -3,7 +3,12 @@
 import {
   ArrowRight,
   Banknote,
+  BellRing,
+  CalendarCheck,
+  CalendarClock,
   CalendarDays,
+  CalendarX2,
+  Check,
   CircleAlert,
   Clock,
   Hourglass,
@@ -14,6 +19,7 @@ import {
 } from 'lucide-react';
 import AppointmentTable, { type AppointmentAction } from './AppointmentTable';
 import { plural, pkr, type DashboardAppointment, type DoctorDashboardData } from './dashboard-data';
+import type { DoctorNotificationItem } from '@/app/lib/api/doctor-dashboard';
 import type { DashboardView } from './Sidebar';
 
 /** How many requests the dashboard lists before "See all" */
@@ -143,6 +149,91 @@ function MetricCard({
   );
 }
 
+const UPDATE_ICON: Record<string, { Icon: typeof Clock; tone: string }> = {
+  RESCHEDULE_APPROVED: { Icon: CalendarCheck, tone: 'bg-[#eaf6ee] text-[#2f6b45]' },
+  NEW_SLOT_REQUESTED: { Icon: CalendarClock, tone: 'bg-[#fdf4e3] text-[#8a6416]' },
+  RESCHEDULE_DECLINED: { Icon: CalendarX2, tone: 'bg-[#fdf0f0] text-[#9a3030]' },
+};
+
+function timeAgo(iso: string) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+/** Replies from patients (accepted times, requested times, declined proposals) */
+function PatientUpdates({
+  items,
+  unread,
+  onMarkRead,
+  onMarkAll,
+  onReview,
+}: {
+  items: DoctorNotificationItem[];
+  unread: number;
+  onMarkRead: (id: string) => void;
+  onMarkAll: () => void;
+  onReview: () => void;
+}) {
+  const shown = items.slice(0, 5);
+  return (
+    <SectionCard
+      id="patient-updates"
+      title="Updates from patients"
+      subtitle={unread > 0 ? `${plural(unread, 'new update', 'new updates')}` : 'Replies to your rescheduled appointments'}
+      action={
+        unread > 0 ? (
+          <button
+            type="button"
+            onClick={onMarkAll}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#d9d3c6] bg-white px-3 py-1.5 text-xs font-semibold text-[#141b34] hover:border-[#141b34]"
+          >
+            <Check className="h-3.5 w-3.5" /> Mark all as read
+          </button>
+        ) : undefined
+      }
+    >
+      <ul className="divide-y divide-[#f1eee7]">
+        {shown.map((n) => {
+          const ui = UPDATE_ICON[n.type] ?? { Icon: BellRing, tone: 'bg-[#eef0f6] text-[#3a4366]' };
+          const isRequest = n.type === 'NEW_SLOT_REQUESTED' && !n.isRead;
+          return (
+            <li key={n.id} className={`flex gap-3 px-4 py-4 sm:px-6 ${n.isRead ? '' : 'bg-[#fffaf0]'}`}>
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${ui.tone}`}>
+                <ui.Icon className="h-[18px] w-[18px]" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 text-sm font-semibold text-[#141b34]">
+                  {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#b38a3a]" aria-label="New" />}
+                  {n.title}
+                </p>
+                <p className="mt-0.5 text-sm text-[#3a3f52]">{n.message.replace(/ Click to Accept\./, '')}</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  <span className="text-[#8a8d99]">{timeAgo(n.createdAt)}</span>
+                  {isRequest ? (
+                    <button type="button" onClick={onReview} className="font-semibold text-[#9a7630] hover:text-[#141b34]">
+                      Review request <ArrowRight className="inline h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    !n.isRead && (
+                      <button type="button" onClick={() => onMarkRead(n.id)} className="font-semibold text-[#6b6f80] hover:text-[#141b34]">
+                        Mark as read
+                      </button>
+                    )
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </SectionCard>
+  );
+}
+
 const outlineBtn =
   'inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/60 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-white/25 disabled:hover:bg-white/5';
 
@@ -158,6 +249,8 @@ interface DashboardHomeProps {
   onAction: (action: AppointmentAction, a: DashboardAppointment) => void;
   busy: Record<string, AppointmentAction | undefined>;
   onNavigate: (view: DashboardView) => void;
+  onMarkNotificationRead: (id: string) => void;
+  onMarkAllNotificationsRead: () => void;
 }
 
 export default function DashboardHome({
@@ -171,6 +264,8 @@ export default function DashboardHome({
   onAction,
   busy,
   onNavigate,
+  onMarkNotificationRead,
+  onMarkAllNotificationsRead,
 }: DashboardHomeProps) {
   const loading = !data && !error;
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -266,6 +361,17 @@ export default function DashboardHome({
           locked={locked}
         />
       </div>
+
+      {/* Replies from patients */}
+      {!locked && data?.notifications && data.notifications.items.length > 0 && (
+        <PatientUpdates
+          items={data.notifications.items}
+          unread={data.notifications.unread}
+          onMarkRead={onMarkNotificationRead}
+          onMarkAll={onMarkAllNotificationsRead}
+          onReview={() => scrollTo('pending-requests')}
+        />
+      )}
 
       {/* Today's schedule */}
       <SectionCard

@@ -32,6 +32,20 @@ export interface DoctorAppointment {
   symptoms: string[];
   symptomDuration: string | null;
   description: string | null;
+  /** the patient asked for this time; the doctor can "Accept Slot" */
+  patientRequestedSlot?: boolean;
+}
+
+/** An update from a patient, shown on the doctor's dashboard */
+export interface DoctorNotificationItem {
+  id: string;
+  /** RESCHEDULE_APPROVED | NEW_SLOT_REQUESTED | RESCHEDULE_DECLINED | ... */
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  appointmentId: string | null;
 }
 
 export interface DoctorDashboardData {
@@ -47,6 +61,7 @@ export interface DoctorDashboardData {
   requests: DoctorAppointment[];
   upcoming: DoctorAppointment[];
   completed: DoctorAppointment[];
+  notifications?: { items: DoctorNotificationItem[]; unread: number };
   earnings: { serviceMode: ServiceMode; paymentStatus: PaymentStatus; count: number; total: number }[];
   patients: {
     userId: string;
@@ -112,3 +127,17 @@ export const rescheduleDoctorAppointmentApi = (token: string, id: string, date: 
     { method: 'PATCH', body: JSON.stringify({ date, startTime, reason }) },
     'Could not reschedule the appointment.',
   );
+
+export const acceptPatientSlotApi = (token: string, id: string) =>
+  call<DoctorAppointment>(
+    token,
+    `/appointments/${encodeURIComponent(id)}/accept-slot`,
+    { method: 'PATCH' },
+    'Could not accept the requested time.',
+  );
+
+export const markDoctorNotificationReadApi = (token: string, id: string) =>
+  call<{ id: string; isRead: boolean }>(token, `/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' });
+
+export const markAllDoctorNotificationsReadApi = (token: string) =>
+  call<{ updated: number }>(token, '/notifications/read-all', { method: 'PATCH' });

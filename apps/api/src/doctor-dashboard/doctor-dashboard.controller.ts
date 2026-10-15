@@ -65,6 +65,27 @@ export class DoctorDashboardController {
     return this.dashboard.updateStatus(doctor.id, id, dto.status, dto.reason);
   }
 
+  // PATCH /doctors/me/appointments/:id/accept-slot  (confirm the time the patient asked for)
+  @Patch('appointments/:id/accept-slot')
+  async acceptSlot(@CurrentDoctor() auth: DoctorTokenPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    const doctor = await this.approvedDoctor(auth);
+    return this.dashboard.acceptSlot(doctor.id, id);
+  }
+
+  // PATCH /doctors/me/notifications/read-all
+  @Patch('notifications/read-all')
+  async markAllNotificationsRead(@CurrentDoctor() auth: DoctorTokenPayload) {
+    const doctor = await this.doctors.resolveDoctorForAuth(auth);
+    return this.dashboard.markAllNotificationsRead(doctor.id);
+  }
+
+  // PATCH /doctors/me/notifications/:id/read
+  @Patch('notifications/:id/read')
+  async markNotificationRead(@CurrentDoctor() auth: DoctorTokenPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    const doctor = await this.doctors.resolveDoctorForAuth(auth);
+    return this.dashboard.markNotificationRead(doctor.id, id);
+  }
+
   // GET /doctors/me/appointments/:id/slots?date=YYYY-MM-DD  (free times for rescheduling)
   @Get('appointments/:id/slots')
   async slots(

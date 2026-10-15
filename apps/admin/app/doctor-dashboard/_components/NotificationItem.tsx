@@ -1,7 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { BadgeCheck, CalendarCheck, CalendarClock, CalendarX2, Check, Quote, ShieldAlert, Stethoscope } from 'lucide-react';
+import {
+  BadgeCheck,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX2,
+  Check,
+  MessageSquareReply,
+  Quote,
+  Send,
+  ShieldAlert,
+  Stethoscope,
+  UserRoundSearch,
+} from 'lucide-react';
 import type { PortalNotification } from '@/lib/api/doctorPortal';
 import { timeAgo } from './ui';
 
@@ -12,6 +24,10 @@ const TYPE_UI: Record<string, { label: string; Icon: typeof Check; tone: string 
   APPOINTMENT_STATUS_UPDATED: { label: 'Appointment update', Icon: CalendarClock, tone: 'bg-amber-50 text-amber-600' },
   APPOINTMENT_DECLINED: { label: 'Declined by doctor', Icon: CalendarX2, tone: 'bg-rose-50 text-rose-600' },
   APPOINTMENT_RESCHEDULED: { label: 'Rescheduled by doctor', Icon: CalendarClock, tone: 'bg-violet-50 text-violet-600' },
+  APPOINTMENT_RESCHEDULE_FORWARDED: { label: 'Sent to patient', Icon: Send, tone: 'bg-slate-100 text-slate-600' },
+  APPOINTMENT_PATIENT_RESPONSE: { label: 'Patient reply', Icon: MessageSquareReply, tone: 'bg-sky-50 text-sky-600' },
+  APPOINTMENT_ALTERNATIVE_REQUESTED: { label: 'Patient wants another doctor', Icon: UserRoundSearch, tone: 'bg-rose-50 text-rose-600' },
+  APPOINTMENT_ALTERNATIVE_RECOMMENDED: { label: 'Doctor recommended', Icon: Stethoscope, tone: 'bg-teal-50 text-teal-600' },
 };
 
 export function notificationTypeUi(type: string) {
@@ -34,10 +50,13 @@ export default function NotificationItem({
   n,
   onMarkRead,
   busy,
+  actions,
 }: {
   n: PortalNotification;
   onMarkRead?: (n: PortalNotification) => void;
   busy?: boolean;
+  /** follow-up buttons (notify patient / recommend a doctor) */
+  actions?: React.ReactNode;
 }) {
   const ui = notificationTypeUi(n.type);
   const href = notificationHref(n);
@@ -77,7 +96,9 @@ export default function NotificationItem({
             <blockquote className="mt-3 flex gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
               <Quote className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
               <span>
-                <span className="font-semibold text-slate-900">Doctor&apos;s reason: </span>
+                <span className="font-semibold text-slate-900">
+                  {n.type === 'APPOINTMENT_ALTERNATIVE_REQUESTED' ? 'Patient' : 'Doctor'}&apos;s reason:{' '}
+                </span>
                 {n.reason}
               </span>
             </blockquote>
@@ -88,6 +109,7 @@ export default function NotificationItem({
         ) : (
           <p className="mt-1 text-sm text-slate-600">{n.message}</p>
         )}
+        {actions && <div className="mt-3">{actions}</div>}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <time dateTime={n.createdAt} className="text-slate-400" title={new Date(n.createdAt).toLocaleString('en-GB')}>
             {timeAgo(n.createdAt)}
