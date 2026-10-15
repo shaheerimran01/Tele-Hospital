@@ -559,7 +559,7 @@ model Doctor {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   appointments Appointment[]
-
+  notifications DoctorNotification[]
   @@map("doctors")
 }
 
@@ -698,11 +698,35 @@ model Appointment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
+  doctorNotifications DoctorNotification[]
   @@index([userId])
   @@index([doctorId])
   @@index([clinicId])
   @@index([appointmentDate])
   @@index([status])
   @@map("appointments")
+}
+
+// ------------------------------------------------------
+// DOCTOR NOTIFICATIONS MODEL
+// ------------------------------------------------------
+
+model DoctorNotification {
+  id            String       @id @default(uuid())
+  doctorId      String
+  doctor        Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  title         String
+  message       String
+  type          String       // e.g. 'RESCHEDULE_APPROVED', 'NEW_SLOT_REQUESTED', 'APPOINTMENT_ASSIGNED'
+  isRead        Boolean      @default(false)
+  
+  createdAt     DateTime     @default(now())
+
+  @@index([doctorId])
+  @@index([isRead])
+  @@map("doctor_notifications")
 }

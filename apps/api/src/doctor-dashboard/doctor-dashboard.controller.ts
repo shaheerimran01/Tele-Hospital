@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   ParseUUIDPipe,
@@ -33,6 +34,19 @@ export class DoctorDashboardController {
     private readonly dashboard: DoctorDashboardService,
   ) {}
 
+  /** Appointment actions are only for doctors whose profile the admin has approved. */
+  private async approvedDoctor(auth: DoctorTokenPayload) {
+    const doctor = await this.doctors.resolveDoctorForAuth(auth);
+    if (doctor.status !== 'APPROVED') {
+      throw new ForbiddenException(
+        doctor.status === 'REJECTED'
+          ? 'Your account application was rejected. Please contact Tabibistan Support to update your PMDC credentials.'
+          : 'Your account is still being verified. You can manage appointments once the Tabibistan Admin team approves it.',
+      );
+    }
+    return doctor;
+  }
+
   // GET /doctors/me/dashboard
   @Get('dashboard')
   async getDashboard(@CurrentDoctor() auth: DoctorTokenPayload) {
@@ -47,7 +61,7 @@ export class DoctorDashboardController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: DoctorAppointmentStatusDto,
   ) {
-    const doctor = await this.doctors.resolveDoctorForAuth(auth);
+    const doctor = await this.approvedDoctor(auth);
     return this.dashboard.updateStatus(doctor.id, id, dto.status, dto.reason);
   }
 
@@ -58,7 +72,7 @@ export class DoctorDashboardController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query() query: DoctorSlotsQueryDto,
   ) {
-    const doctor = await this.doctors.resolveDoctorForAuth(auth);
+    const doctor = await this.approvedDoctor(auth);
     return this.dashboard.slots(doctor.id, id, query.date);
   }
 
@@ -69,7 +83,7 @@ export class DoctorDashboardController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: DoctorRescheduleDto,
   ) {
-    const doctor = await this.doctors.resolveDoctorForAuth(auth);
+    const doctor = await this.approvedDoctor(auth);
     return this.dashboard.reschedule(doctor.id, id, dto.date, dto.startTime, dto.reason);
   }
 }

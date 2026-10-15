@@ -5,6 +5,7 @@ import {
   Clock,
   Hospital,
   LayoutDashboard,
+  Lock,
   LogOut,
   Stethoscope,
   UserRound,
@@ -25,6 +26,15 @@ export type DashboardView =
   | 'online';
 
 type NavItem = { id: DashboardView; label: string; Icon: typeof Clock };
+
+/** Views that stay locked until the admin approves the doctor's account. */
+export const LOCKED_VIEWS: ReadonlySet<DashboardView> = new Set<DashboardView>([
+  'patients',
+  'appointments',
+  'availability',
+  'earnings',
+  'online',
+]);
 
 const SECTIONS: { title: string; items: NavItem[] }[] = [
   {
@@ -58,6 +68,8 @@ interface SidebarProps {
   /** mobile drawer */
   open: boolean;
   onClose: () => void;
+  /** account not approved yet: restricted links are disabled */
+  locked?: boolean;
 }
 
 function SidebarBody({
@@ -69,6 +81,7 @@ function SidebarBody({
   onSignOut,
   onClose,
   showClose,
+  locked = false,
 }: Omit<SidebarProps, 'open'> & { showClose: boolean }) {
   return (
     <div className="flex h-full flex-col bg-[#141b34] text-white">
@@ -104,6 +117,24 @@ function SidebarBody({
             <ul className="space-y-1">
               {section.items.map(({ id, label, Icon }) => {
                 const isActive = id === active;
+                const isLocked = locked && LOCKED_VIEWS.has(id);
+                if (isLocked) {
+                  return (
+                    <li key={id} className="cursor-not-allowed" title="Available after your account is verified">
+                      <button
+                        type="button"
+                        disabled
+                        aria-disabled="true"
+                        tabIndex={-1}
+                        className="pointer-events-none flex w-full cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-white/70 opacity-50"
+                      >
+                        <Icon className="h-[18px] w-[18px]" />
+                        <span className="flex-1">{label}</span>
+                        <Lock className="h-3.5 w-3.5" aria-label="Locked" />
+                      </button>
+                    </li>
+                  );
+                }
                 return (
                   <li key={id}>
                     <button

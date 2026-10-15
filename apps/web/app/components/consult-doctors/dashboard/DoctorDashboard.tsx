@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LoaderCircle, Menu, RefreshCw, Stethoscope, X } from 'lucide-react';
+import { CircleX, Hourglass, LoaderCircle, Menu, RefreshCw, Stethoscope, X } from 'lucide-react';
 import { ApiError, getDoctorMeApi, type DoctorProfile } from '@/app/lib/api/doctors';
 import {
   getDoctorDashboardApi,
@@ -11,7 +11,7 @@ import {
   type DoctorDashboardData,
 } from '@/app/lib/api/doctor-dashboard';
 import { DOCTOR_ROUTES, useDoctorAuth } from '@/app/consult-doctors/context/DoctorAuthContext';
-import Sidebar, { type DashboardView } from './Sidebar';
+import Sidebar, { LOCKED_VIEWS, type DashboardView } from './Sidebar';
 import DashboardHome from './DashboardHome';
 import {
   AppointmentsView,
@@ -43,6 +43,40 @@ const VIEW_TITLES: Record<DashboardView, string> = {
   clinics: 'Clinics Info',
   online: 'Online Consultations',
 };
+
+/** Shown on every page of the dashboard while the account is not approved */
+function AccountStatusBanner({ status }: { status: string }) {
+  const rejected = status === 'REJECTED';
+  return (
+    <div
+      role="status"
+      className={`mb-6 flex items-start gap-3 rounded-2xl border px-5 py-4 ${
+        rejected ? 'border-[#f2cccc] bg-[#fdf2f2] text-[#8f2d2d]' : 'border-[#efe1bf] bg-[#fdf6e7] text-[#7a5d1a]'
+      }`}
+    >
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+          rejected ? 'bg-[#f8dede] text-[#8f2d2d]' : 'bg-[#f8e9c6] text-[#8a6416]'
+        }`}
+      >
+        {rejected ? <CircleX className="h-5 w-5" /> : <Hourglass className="h-5 w-5" />}
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">
+          {rejected ? 'Account Application Rejected' : 'Account Verification Pending'}
+        </p>
+        <p className="mt-1 text-sm leading-relaxed opacity-90">
+          {rejected
+            ? 'Please contact Tabibistan Support to update your PMDC credentials. Dashboard controls and consultation features remain locked.'
+            : 'Your medical profile and PMDC credentials are currently being reviewed by the Tabibistan Admin team. All dashboard controls and consultation features are temporarily locked until verification is complete.'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** How often a locked dashboard re-checks whether the admin has approved the account */
+const STATUS_RECHECK_MS = 60_000;
 
 export default function DoctorDashboard() {
   const router = useRouter();
@@ -108,8 +142,10 @@ export default function DoctorDashboard() {
     }
   }, [token, handleAuthError]);
 
+  const locked = !!profile && profile.status !== 'APPROVED';
+
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || locked) return;
     loadData();
     // New bookings show up when the doctor comes back to the tab, and every 2 minutes
     const onFocus = () => document.visibilityState === 'visible' && loadData();
@@ -119,7 +155,19 @@ export default function DoctorDashboard() {
       document.removeEventListener('visibilitychange', onFocus);
       window.clearInterval(t);
     };
-  }, [profile, loadData]);
+  }, [profile, locked, loadData]);
+
+  // While locked, keep checking the account status so the dashboard unlocks on its own once approved
+  useEffect(() => {
+    if (!locked) return;
+    const onFocus = () => document.visibilityState === 'visible' && loadProfile();
+    document.addEventListener('visibilitychange', onFocus);
+    const t = window.setInterval(loadProfile, STATUS_RECHECK_MS);
+    return () => {
+      document.removeEventListener('visibilitychange', onFocus);
+      window.clearInterval(t);
+    };
+  }, [locked, loadProfile]);
 
   // --- Clock (greeting) ---
   const [now, setNow] = useState(() => new Date());
@@ -150,6 +198,16 @@ export default function DoctorDashboard() {
     [],
   );
 
+  // Tell the doctor when the account has just been approved
+  const previousStatus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!profile) return;
+    if (previousStatus.current && previousStatus.current !== 'APPROVED' && profile.status === 'APPROVED') {
+      showToast('Your account has been verified. All dashboard features are now unlocked.');
+    }
+    previousStatus.current = profile.status;
+  }, [profile, showToast]);
+
   const navigate = useCallback((next: DashboardView) => {
     setView(next);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -172,6 +230,8 @@ export default function DoctorDashboard() {
         await loadData();
       } catch (err) {
         if (handleAuthError(err)) return;
+        // 403: the account is no longer approved; re-check so the dashboard locks
+        if (err instanceof ApiError && err.status === 403) loadProfile();
         if (toastErrors) showToast(err instanceof ApiError ? err.messages[0] : 'Something went wrong. Please try again.', 'error');
         // The appointment may have changed elsewhere; show its real state
         loadData();
@@ -184,12 +244,12 @@ export default function DoctorDashboard() {
         });
       }
     },
-    [loadData, showToast, handleAuthError],
+    [loadData, loadProfile, showToast, handleAuthError],
   );
 
   const handleAction = useCallback(
     (action: AppointmentAction, a: DashboardAppointment) => {
-      if (!token) return;
+      if (!token || locked) return;
       const first = a.patientName.split(' ')[0];
       const when = `${formatDay(a.appointmentDate)}, ${displayTime(a.startTime)}`;
       if (action === 'approve') {
@@ -209,7 +269,7 @@ export default function DoctorDashboard() {
         setRescheduling(a);
       }
     },
-    [token, runAction],
+    [token, locked, runAction],
   );
 
   const signOut = () => {
@@ -247,8 +307,11 @@ export default function DoctorDashboard() {
   const subtitle = profile.specialisations[0] ?? profile.title;
   const dataProps = { data, error: data ? null : dataError, onRetry: loadData };
 
+  // A locked account can only open the dashboard home and its profile pages
+  const currentView: DashboardView = locked && LOCKED_VIEWS.has(view) ? 'dashboard' : view;
+
   let content: React.ReactNode;
-  switch (view) {
+  switch (currentView) {
     case 'appointments':
       content = <AppointmentsView {...dataProps} onAction={handleAction} busy={busy} />;
       break;
@@ -276,7 +339,7 @@ export default function DoctorDashboard() {
           now={now}
           greeting={greetingFor(now)}
           doctorName={displayName}
-          profileStatus={profile.status}
+          locked={locked}
           {...dataProps}
           onAction={handleAction}
           busy={busy}
@@ -288,9 +351,10 @@ export default function DoctorDashboard() {
   return (
     <div className="flex min-h-screen bg-[#f6f4ef] text-[#141b34]">
       <Sidebar
-        active={view}
+        active={currentView}
         onNavigate={navigate}
-        pendingCount={data?.metrics.pendingRequests ?? 0}
+        locked={locked}
+        pendingCount={locked ? 0 : data?.metrics.pendingRequests ?? 0}
         doctorName={displayName}
         doctorSubtitle={subtitle}
         onSignOut={signOut}
@@ -313,22 +377,46 @@ export default function DoctorDashboard() {
               <Stethoscope className="h-4 w-4" />
             </span>
           </span>
-          <p className="text-sm font-semibold text-[#141b34]">{VIEW_TITLES[view]}</p>
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={refreshing}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#d9d3c6] bg-white px-3 py-1.5 text-xs font-semibold text-[#141b34] transition hover:border-[#141b34] disabled:opacity-60"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
-          </button>
+          <p className="text-sm font-semibold text-[#141b34]">{VIEW_TITLES[currentView]}</p>
+          {locked && (
+            <span
+              className={`hidden rounded-full px-2.5 py-0.5 text-[11px] font-semibold sm:inline-flex ${
+                profile.status === 'REJECTED' ? 'bg-[#fdf2f2] text-[#8f2d2d]' : 'bg-[#fdf6e7] text-[#8a6416]'
+              }`}
+            >
+              {profile.status === 'REJECTED' ? 'Application rejected' : 'Verification pending'}
+            </span>
+          )}
+          {locked ? (
+            <button
+              type="button"
+              onClick={loadProfile}
+              disabled={profileLoading}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#d9d3c6] bg-white px-3 py-1.5 text-xs font-semibold text-[#141b34] transition hover:border-[#141b34] disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${profileLoading ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{profileLoading ? 'Checking…' : 'Check status'}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={loadData}
+              disabled={refreshing}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#d9d3c6] bg-white px-3 py-1.5 text-xs font-semibold text-[#141b34] transition hover:border-[#141b34] disabled:opacity-60"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
+            </button>
+          )}
         </header>
 
-        <main className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{content}</main>
+        <main className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {locked && <AccountStatusBanner status={profile.status} />}
+          {content}
+        </main>
       </div>
 
-      {rescheduling && data && (
+      {rescheduling && data && !locked && (
         <RescheduleModal
           token={token}
           appointment={rescheduling}
@@ -348,7 +436,7 @@ export default function DoctorDashboard() {
         />
       )}
 
-      {declining && (
+      {declining && !locked && (
         <DeclineModal
           appointment={declining}
           onClose={() => setDeclining(null)}
