@@ -226,7 +226,17 @@ export interface PendingAppointmentAction {
 export type RescheduleResponse =
   | { action: 'ACCEPT'; note?: string }
   | { action: 'PROPOSE_SLOT'; date: string; startTime: string; note?: string }
-  | { action: 'REQUEST_NEW_DOCTOR'; note?: string };
+  | { action: 'REQUEST_NEW_DOCTOR'; note?: string }
+  | { action: 'CHOOSE_OWN_DOCTOR'; note?: string };
+
+/** Where the patient continues after "Choose Doctor by Yourself" */
+export interface BrowseDoctorsTarget {
+  intakeId: string | null;
+  specialityId: string | null;
+  specialityName: string | null;
+  serviceMode: ServiceMode;
+  appointmentNum: string;
+}
 
 export async function getPendingAppointmentActionsApi(userId: string): Promise<PendingAppointmentAction[]> {
   const response = await fetch(`${API_BASE}/appointments/pending-actions?${withUser(userId)}`, { cache: 'no-store' });
@@ -238,7 +248,7 @@ export async function respondToRescheduleApi(
   userId: string,
   appointmentId: string,
   body: RescheduleResponse,
-): Promise<{ stage: PendingStage | null; status: AppointmentStatus; message: string }> {
+): Promise<{ stage: PendingStage | null; status: AppointmentStatus; message: string; browse?: BrowseDoctorsTarget }> {
   const response = await fetch(
     `${API_BASE}/appointments/${encodeURIComponent(appointmentId)}/patient-reschedule-response?${withUser(userId)}`,
     {
@@ -249,6 +259,17 @@ export async function respondToRescheduleApi(
   );
   if (!response.ok) throw await readError(response, 'Could not send your reply. Please try again.');
   return response.json();
+}
+
+/**
+ * Doctor list with the same speciality (taken from the consultation details) and
+ * consultation type pre-selected. Without consultation details the patient starts
+ * from the health-details form.
+ */
+export function browseDoctorsHref(b: BrowseDoctorsTarget) {
+  if (!b.intakeId) return '/consult-doctors/intake';
+  const q = new URLSearchParams({ intakeId: b.intakeId, mode: b.serviceMode, from: b.appointmentNum });
+  return `/consult-doctors/doctors-list?${q}`;
 }
 
 /** Booking page link for a recommended doctor (keeps the symptoms and voice note). */

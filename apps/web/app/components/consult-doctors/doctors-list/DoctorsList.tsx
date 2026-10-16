@@ -23,7 +23,12 @@ const selectClass =
 
 export default function DoctorsList() {
   const router = useRouter();
-  const intakeId = useSearchParams().get('intakeId');
+  const params = useSearchParams();
+  const intakeId = params.get('intakeId');
+  /** consultation type pre-selected by a link (e.g. "Choose Doctor by Yourself" after declining a new time) */
+  const presetMode = params.get('mode');
+  /** the appointment the patient is replacing */
+  const replacing = params.get('from');
 
   const [user, setUser] = useState<PatientSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -33,7 +38,9 @@ export default function DoctorsList() {
   const [allSpecialities, setAllSpecialities] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [mode, setMode] = useState<ModeFilter>('ALL');
+  const [mode, setMode] = useState<ModeFilter>(
+    presetMode === 'IN_CLINIC' || presetMode === 'VIDEO' || presetMode === 'TEXT' ? presetMode : 'ALL',
+  );
   const [price, setPrice] = useState<PriceRange>('any');
   const [sort, setSort] = useState<SortKey>('distance');
   const [profile, setProfile] = useState<NearbyDoctor | null>(null);
@@ -130,6 +137,14 @@ export default function DoctorsList() {
         <ChevronRight className="h-3.5 w-3.5" />
         <span className="font-medium text-gray-800">Choose a doctor</span>
       </nav>
+
+      {replacing && (
+        <div className="mb-5 rounded-xl border border-[#ffd9d4] bg-[#fff7f6] px-4 py-3 text-sm text-gray-700" role="status">
+          <span className="font-semibold text-gray-900">Choosing a new doctor for {replacing}.</span> The same speciality
+          {mode !== 'ALL' ? ` and ${MODE_TABS.find((t) => t.value === mode)?.label.toLowerCase()}` : ''} are already selected. Pick
+          any doctor to book your new consultation; your symptoms and voice note are kept.
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">

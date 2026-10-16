@@ -571,6 +571,31 @@ export class AppointmentsService {
   // Helpers
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Admin: another doctor's free times (alternative-doctor finder)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Free times of one doctor on `date` for a consultation type (every clinic
+   * for in-clinic visits). Empty when the doctor doesn't offer that type.
+   */
+  async freeTimesForDoctor(doctorId: string, mode: ConsultationServiceMode, date: string) {
+    const doctor = await this.loadDoctor(this.prisma, doctorId, false);
+    const sources: { clinicId: string | null; windows: { dayOfWeek: string; startTime: string; endTime: string }[] }[] =
+      mode === ConsultationServiceMode.IN_CLINIC
+        ? doctor.clinics.map((c) => ({ clinicId: c.id, windows: c.schedules }))
+        : (mode === ConsultationServiceMode.VIDEO ? doctor.isVideoCallEnabled : doctor.isTextConsultEnabled)
+          ? [{ clinicId: null, windows: doctor.onlineAvailabilities }]
+          : [];
+    const out: { clinicId: string | null; startTime: string; endTime: string }[] = [];
+    for (const source of sources) {
+      for (const slot of await this.freeSlots(this.prisma, doctor.id, date, source.windows)) {
+        out.push({ clinicId: source.clinicId, startTime: slot.startTime, endTime: slot.endTime });
+      }
+    }
+    return out;
+  }
+
   private assertBookableDate(date: string) {
     if (Number.isNaN(dateOnly(date).getTime()) || !dateOnly(date).toISOString().startsWith(date)) {
       throw new BadRequestException('That date does not exist');

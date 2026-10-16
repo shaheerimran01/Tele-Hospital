@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  CalendarCheck2,
   CalendarClock,
   Check,
   Hourglass,
@@ -12,6 +13,7 @@ import {
   Quote,
   Search,
   Send,
+  SlidersHorizontal,
   Stethoscope,
   UserRoundSearch,
   X,
@@ -329,12 +331,58 @@ function NotifyPatientModal({ appointmentId, onClose, onDone }: { appointmentId:
 // Find / Recommend Alternative Doctor
 // ---------------------------------------------------------------------------
 
+type TimeWindow = 'any' | 'original' | 'free' | 'morning' | 'afternoon' | 'evening';
+
+const TIME_WINDOWS: { value: TimeWindow; label: string }[] = [
+  { value: 'any', label: 'Any availability' },
+  { value: 'original', label: 'Free at the original time' },
+  { value: 'free', label: 'Any free time that day' },
+  { value: 'morning', label: 'Morning (before 12 PM)' },
+  { value: 'afternoon', label: 'Afternoon (12 PM – 5 PM)' },
+  { value: 'evening', label: 'Evening (after 5 PM)' },
+];
+
+const EXPERIENCE_OPTIONS = [0, 3, 5, 10, 15];
+
+/** "03:30 PM" -> minutes since midnight */
+function minutesOf(t: string) {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(t.trim());
+  if (!m) return -1;
+  const h = (Number(m[1]) % 12) + (m[3].toUpperCase() === 'PM' ? 12 : 0);
+  return h * 60 + Number(m[2]);
+}
+
+function inWindow(slot: string, w: TimeWindow) {
+  const min = minutesOf(slot);
+  if (w === 'morning') return min >= 0 && min < 12 * 60;
+  if (w === 'afternoon') return min >= 12 * 60 && min < 17 * 60;
+  if (w === 'evening') return min >= 17 * 60;
+  return true;
+}
+
+const dayLabel = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+const fieldLabel = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500';
+const fieldInput =
+  'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20';
+
 function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentId: string; onClose: () => void; onDone: (m: string) => void }) {
   const [data, setData] = useState<AlternativeDoctorsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Filters (date and consultation type are answered by the API, the rest here)
+  const [date, setDate] = useState<string | null>(null);
+  const [sameMode, setSameMode] = useState(true);
   const [sameSpeciality, setSameSpeciality] = useState(true);
-  const [inFeeRange, setInFeeRange] = useState(true);
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('any');
+  const [feeMin, setFeeMin] = useState('');
+  const [feeMax, setFeeMax] = useState('');
+  const [minExperience, setMinExperience] = useState(0);
   const [search, setSearch] = useState('');
+  const [initialised, setInitialised] = useState(false);
+
   const [choice, setChoice] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -342,32 +390,53 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
 
   useEffect(() => {
     let cancelled = false;
-    fetchAlternativeDoctors(appointmentId)
+    setLoading(true);
+    setLoadError(null);
+    fetchAlternativeDoctors(appointmentId, { date: date ?? undefined, modes: sameMode ? 'same' : 'all' })
       .then((d) => {
         if (cancelled) return;
         setData(d);
-        // Nothing matches both filters: start with the wider list
-        if (!d.doctors.some((x) => x.matchesSpeciality && x.withinFeeRange)) {
-          setSameSpeciality(d.doctors.some((x) => x.matchesSpeciality));
-          setInFeeRange(false);
+        if (!initialised) {
+          // First load: the fee range starts at the original fee ±20%
+          setInitialised(true);
+          setDate(d.date);
+          setFeeMin(String(d.feeRange.min));
+          setFeeMax(String(d.feeRange.max));
+          // Nothing of the same speciality: start with every speciality
+          if (!d.doctors.some((x) => x.matchesSpeciality)) setSameSpeciality(false);
         }
       })
-      .catch((e) => !cancelled && setLoadError(e instanceof Error ? e.message : 'Could not load doctors.'));
+      .catch((e) => !cancelled && setLoadError(e instanceof Error ? e.message : 'Could not load doctors.'))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [appointmentId]);
+    // `initialised` only guards the first load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointmentId, date, sameMode]);
 
   const list = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    return data.doctors.filter(
-      (d) =>
-        (!sameSpeciality || d.matchesSpeciality) &&
-        (!inFeeRange || d.withinFeeRange) &&
-        (!q || d.fullName.toLowerCase().includes(q) || d.specialisations.some((s) => s.toLowerCase().includes(q))),
-    );
-  }, [data, sameSpeciality, inFeeRange, search]);
+    const min = feeMin.trim() === '' ? null : Number(feeMin);
+    const max = feeMax.trim() === '' ? null : Number(feeMax);
+    return data.doctors.filter((d) => {
+      if (sameMode && !d.offersSameMode) return false;
+      if (sameSpeciality && !d.matchesSpeciality) return false;
+      if (d.experienceYears < minExperience) return false;
+      if ((min != null && Number.isFinite(min)) || (max != null && Number.isFinite(max))) {
+        const ok = d.fees.some((f) => (min == null || f.fee >= min) && (max == null || f.fee <= max));
+        if (!ok) return false;
+      }
+      if (timeWindow === 'original' && !d.freeSlots.includes(data.originalTime)) return false;
+      if (timeWindow === 'free' && d.freeSlots.length === 0) return false;
+      if ((timeWindow === 'morning' || timeWindow === 'afternoon' || timeWindow === 'evening') && !d.freeSlots.some((t) => inWindow(t, timeWindow))) {
+        return false;
+      }
+      if (q && !d.fullName.toLowerCase().includes(q) && !d.pmdcNumber.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [data, sameMode, sameSpeciality, minExperience, feeMin, feeMax, timeWindow, search]);
 
   // Keep the choice only while it is visible
   useEffect(() => {
@@ -376,26 +445,40 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
 
   const a = data?.appointment;
   const patientAsked = !!a?.alternativeRequestedAt;
-  const submitLabel = patientAsked ? 'Recommend Alternative Doctor' : 'Send Recommendation to Patient';
+  const chosen = data?.doctors.find((x) => x.doctorId === choice) ?? null;
+
+  const resetFilters = () => {
+    if (!data) return;
+    setSameSpeciality(true);
+    setTimeWindow('any');
+    setFeeMin(String(data.feeRange.min));
+    setFeeMax(String(data.feeRange.max));
+    setMinExperience(0);
+    setSearch('');
+  };
 
   const submit = async () => {
-    if (!choice) return;
+    if (!chosen || !data) return;
     setBusy(true);
     setError(null);
     try {
-      await recommendAlternativeDoctor(appointmentId, choice, note.trim() || undefined);
-      const d = data?.doctors.find((x) => x.doctorId === choice);
-      onDone(`${d?.fullName ?? 'The doctor'} was recommended to ${a?.patientName ?? 'the patient'}. They can now book directly.`);
+      await recommendAlternativeDoctor(
+        appointmentId,
+        chosen.doctorId,
+        note.trim() || undefined,
+        chosen.serviceMode !== data.serviceMode ? chosen.serviceMode : undefined,
+      );
+      onDone(`${chosen.fullName} was recommended to ${a?.patientName ?? 'the patient'}. They can now book directly.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not send the recommendation.');
       setBusy(false);
     }
   };
 
-  const toggle = (checked: boolean, set: (v: boolean) => void, label: string, hint: string) => (
-    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700">
+  const checkbox = (checked: boolean, set: (v: boolean) => void, label: string, hint?: string) => (
+    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
       <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300" />
-      {label} <span className="text-slate-400">{hint}</span>
+      {label} {hint && <span className="text-slate-400">{hint}</span>}
     </label>
   );
 
@@ -407,9 +490,18 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
       onClose={onClose}
       busy={busy}
       wide
-      footer={<Footer onClose={onClose} busy={busy} error={error} disabled={!choice} onSubmit={submit} label={submitLabel} />}
+      footer={
+        <Footer
+          onClose={onClose}
+          busy={busy}
+          error={error}
+          disabled={!choice}
+          onSubmit={submit}
+          label={patientAsked ? 'Recommend Doctor to Patient' : 'Send Recommendation to Patient'}
+        />
+      }
     >
-      {loadError ? (
+      {loadError && !data ? (
         <p className="text-sm text-rose-700">{loadError}</p>
       ) : !data || !a ? (
         <p className="flex items-center gap-2 py-6 text-sm text-slate-500">
@@ -427,35 +519,126 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
             </blockquote>
           )}
 
-          <div className="flex flex-wrap items-center gap-2">
-            {toggle(sameSpeciality, setSameSpeciality, 'Same speciality', data.speciality.length ? `(${data.speciality.slice(0, 2).join(', ')})` : '')}
-            {toggle(inFeeRange, setInFeeRange, 'Similar fee', `(${pkr(data.feeRange.min)} – ${pkr(data.feeRange.max)})`)}
-            <div className="relative min-w-[160px] flex-1">
+          {/* Filters */}
+          <section aria-label="Filters" className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+              </p>
+              <button type="button" onClick={resetFilters} className="text-xs font-semibold text-blue-700 hover:underline">
+                Reset filters
+              </button>
+            </div>
+
+            <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name or speciality"
-                aria-label="Search doctors"
-                className="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-2 text-xs outline-none focus:border-blue-500"
+                placeholder="Search by doctor name or PMDC number"
+                aria-label="Search by doctor name or PMDC number"
+                className={`${fieldInput} pl-8`}
               />
             </div>
-          </div>
-          <p className="text-xs text-slate-500">
-            {MODE_LABELS[data.serviceMode]} · original fee {pkr(data.originalFee)} · {list.length} of {data.doctors.length} approved doctors shown
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label htmlFor="alt-date" className={fieldLabel}>
+                  Availability date
+                </label>
+                <input
+                  id="alt-date"
+                  type="date"
+                  value={date ?? data.date}
+                  min={data.today}
+                  max={data.maxDate}
+                  onChange={(e) => e.target.value && setDate(e.target.value)}
+                  className={fieldInput}
+                />
+              </div>
+              <div>
+                <label htmlFor="alt-time" className={fieldLabel}>
+                  Available time slot
+                </label>
+                <select id="alt-time" value={timeWindow} onChange={(e) => setTimeWindow(e.target.value as TimeWindow)} className={fieldInput}>
+                  {TIME_WINDOWS.map((w) => (
+                    <option key={w.value} value={w.value}>
+                      {w.value === 'original' ? `Free at the original time (${displayTime(data.originalTime)})` : w.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span className={fieldLabel}>Fee range (PKR)</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={feeMin}
+                    onChange={(e) => setFeeMin(e.target.value)}
+                    placeholder="Min"
+                    aria-label="Minimum fee"
+                    className={fieldInput}
+                  />
+                  <span className="text-slate-400">–</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    value={feeMax}
+                    onChange={(e) => setFeeMax(e.target.value)}
+                    placeholder="Max"
+                    aria-label="Maximum fee"
+                    className={fieldInput}
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="alt-exp" className={fieldLabel}>
+                  Experience
+                </label>
+                <select id="alt-exp" value={minExperience} onChange={(e) => setMinExperience(Number(e.target.value))} className={fieldInput}>
+                  {EXPERIENCE_OPTIONS.map((y) => (
+                    <option key={y} value={y}>
+                      {y === 0 ? 'Any experience' : `${y}+ years`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {checkbox(sameMode, setSameMode, 'Same consultation type only', `(${MODE_LABELS[data.serviceMode]})`)}
+              {checkbox(sameSpeciality, setSameSpeciality, 'Same speciality', data.speciality.length ? `(${data.speciality.slice(0, 2).join(', ')})` : undefined)}
+              <span className="text-[11px] text-slate-500">
+                Original: {pkr(data.originalFee)} · {dayLabel(data.originalDate)}, {displayTime(data.originalTime)} · suggested fee {pkr(data.feeRange.min)} –{' '}
+                {pkr(data.feeRange.max)} (±20%)
+              </span>
+            </div>
+          </section>
+
+          <p className="flex items-center gap-2 text-xs text-slate-500" aria-live="polite">
+            {loading && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
+            {list.length} of {data.doctors.length} approved doctors shown · free times for {dayLabel(data.date)}
           </p>
 
           {list.length === 0 ? (
             <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-600">
               {data.doctors.length === 0
-                ? 'No other approved doctor offers this consultation type.'
-                : 'No doctor matches these filters. Untick a filter to see more doctors.'}
+                ? sameMode
+                  ? 'No other approved doctor offers this consultation type. Untick "Same consultation type only" to see other doctors.'
+                  : 'No other approved doctor is available.'
+                : 'No doctor matches these filters. Widen the fee range, lower the experience or choose another time to see more doctors.'}
             </p>
           ) : (
-            <ul className="space-y-2" role="radiogroup" aria-label="Doctors">
+            <ul className={`space-y-2 ${loading ? 'opacity-60' : ''}`} role="radiogroup" aria-label="Doctors">
               {list.map((d) => {
                 const active = choice === d.doctorId;
+                const shown = timeWindow === 'morning' || timeWindow === 'afternoon' || timeWindow === 'evening'
+                  ? d.freeSlots.filter((t) => inWindow(t, timeWindow))
+                  : d.freeSlots;
                 return (
                   <li key={d.doctorId}>
                     <button
@@ -477,15 +660,35 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
                           {d.withinFeeRange && (
                             <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">Similar fee</span>
                           )}
+                          {!d.offersSameMode && (
+                            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                              {MODE_LABELS[d.serviceMode]}
+                            </span>
+                          )}
                         </span>
                         <span className="block text-xs text-slate-500">
-                          {d.specialisations.slice(0, 2).join(', ') || d.title} · {d.experienceYears} yrs experience
+                          {d.specialisations.slice(0, 2).join(', ') || d.title} · {d.experienceYears} yrs experience · PMDC {d.pmdcNumber}
                         </span>
                         {d.fees.length > 1 && (
                           <span className="block truncate text-xs text-slate-500">
                             {d.fees.map((f) => `${f.clinicName}: ${pkr(f.fee)}`).join(' · ')}
                           </span>
                         )}
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                          {d.availableAtOriginalTime ? (
+                            <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-700">
+                              <CalendarCheck2 className="h-3 w-3" /> Free at {displayTime(data.originalTime)}
+                            </span>
+                          ) : null}
+                          {shown.length > 0 ? (
+                            <span className="text-slate-500">
+                              {shown.length} free time{shown.length === 1 ? '' : 's'} on {dayLabel(data.date)}: {shown.slice(0, 4).map(displayTime).join(', ')}
+                              {shown.length > 4 ? '…' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">No free times on {dayLabel(data.date)}</span>
+                          )}
+                        </span>
                       </span>
                       <span className="shrink-0 text-right text-sm font-semibold text-slate-900">
                         {d.fees.length > 1 && <span className="block text-[10px] font-medium text-slate-400">from</span>}
@@ -503,10 +706,11 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
             label="Message to the patient"
             value={note}
             onChange={setNote}
-            placeholder="e.g. Dr. Sara is highly rated for this condition and has slots this week."
+            placeholder="e.g. Dr. Sara has free times this week and treats this condition often."
           />
           <p className="text-xs text-slate-500">
             The patient gets the doctor&apos;s name, speciality and fee with a button to book directly. Their symptoms and voice note carry over to the new booking.
+            {chosen && !chosen.offersSameMode && ` ${chosen.fullName} does not offer ${MODE_LABELS[data.serviceMode]}, so the patient will book a ${MODE_LABELS[chosen.serviceMode]} instead.`}
           </p>
         </div>
       )}

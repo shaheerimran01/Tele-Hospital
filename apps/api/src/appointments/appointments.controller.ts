@@ -17,7 +17,9 @@ import { AppointmentsService } from './appointments.service.js';
 import { AppointmentResolutionService } from './appointment-resolution.service.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { GetSlotsDto } from './dto/get-slots.dto.js';
+import type { ConsultationServiceMode } from '../generated/prisma/enums.js';
 import {
+  AlternativeDoctorsQueryDto,
   ForwardRescheduleDto,
   PatientRescheduleResponseDto,
   RecommendAlternativeDto,
@@ -87,14 +89,14 @@ export class AppointmentsController {
 
   // GET /appointments/:id/alternative-doctors  (admin: doctors matching speciality and fee)
   @Get(':id/alternative-doctors')
-  alternativeDoctors(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.resolution.alternativeDoctors(id);
+  alternativeDoctors(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: AlternativeDoctorsQueryDto) {
+    return this.resolution.alternativeDoctors(id, { date: query.date, modes: query.modes });
   }
 
   // POST /appointments/:id/recommend-alternative  { doctorId, note? }  (admin -> patient)
   @Post(':id/recommend-alternative')
   recommendAlternative(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RecommendAlternativeDto) {
-    return this.resolution.recommendAlternative(id, dto.doctorId, dto.note);
+    return this.resolution.recommendAlternative(id, dto.doctorId, dto.note, dto.serviceMode as ConsultationServiceMode | undefined);
   }
 
   // GET /appointments/:id/resolution  (admin: where the follow-up stands)

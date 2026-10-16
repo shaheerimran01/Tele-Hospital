@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,6 +13,8 @@ import {
   CalendarClock,
   CalendarSearch,
   CircleCheck,
+  Headset,
+  ListFilter,
   Hourglass,
   LoaderCircle,
   Stethoscope,
@@ -19,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  browseDoctorsHref,
   getAvailableSlotsApi,
   recommendedBookingHref,
   respondToRescheduleApi,
@@ -61,6 +65,7 @@ export default function AppointmentActionCard({
   /** reload the list after the patient replied */
   onChanged: () => void;
 }) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>('main');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +79,12 @@ export default function AppointmentActionCard({
     setError(null);
     try {
       const res = await respondToRescheduleApi(userId, action.appointmentId, body);
+      // "Choose Doctor by Yourself": straight to the doctor list with the same speciality and consultation type
+      if (res.browse) {
+        setDone(`${res.message} Opening the doctor list…`);
+        router.push(browseDoctorsHref(res.browse));
+        return;
+      }
       setDone(res.message);
       setStep('main');
       onChanged();
@@ -186,7 +197,7 @@ export default function AppointmentActionCard({
         </>
       )}
 
-      {step === 'choose' && (
+      {(step === 'choose' || step === 'other-doctor') && (
         <>
           <p className="text-xs font-bold text-gray-900">What would you like to do instead?</p>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -209,7 +220,7 @@ export default function AppointmentActionCard({
               <UserRoundSearch className="mt-0.5 h-5 w-5 shrink-0 text-[#ff6f61]" />
               <span>
                 <span className="block text-xs font-bold text-gray-900">Request Different Doctor</span>
-                <span className="block text-[11px] text-gray-500">Our team will recommend a doctor with the same speciality.</span>
+                <span className="block text-[11px] text-gray-500">Let our team choose, or pick another doctor yourself.</span>
               </span>
             </button>
           </div>
@@ -229,14 +240,22 @@ export default function AppointmentActionCard({
       )}
 
       {step === 'other-doctor' && (
-        <OtherDoctorStep
+        <DifferentDoctorModal
           busy={busy}
-          onBack={() => setStep('choose')}
-          onSubmit={(note) => reply({ action: 'REQUEST_NEW_DOCTOR', note: note || undefined })}
+          error={error}
+          doctor={dr}
+          appointmentNum={action.appointmentNum}
+          modeLabel={MODE_LABEL[action.serviceMode] ?? 'consultation'}
+          onClose={() => {
+            setError(null);
+            setStep('choose');
+          }}
+          onAdminChoose={(note) => reply({ action: 'REQUEST_NEW_DOCTOR', note: note || undefined })}
+          onChooseMyself={() => reply({ action: 'CHOOSE_OWN_DOCTOR' })}
         />
       )}
 
-      {error && (
+      {error && step !== 'other-doctor' && (
         <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
           {error}
         </p>
@@ -382,23 +401,149 @@ function SlotPickerStep({
   );
 }
 
-function OtherDoctorStep({ busy, onBack, onSubmit }: { busy: boolean; onBack: () => void; onSubmit: (note: string) => void }) {
+/**
+ * "Request Different Doctor": the patient chooses who picks the new doctor.
+ * - Let Admin Choose the Doctor: optional note, then the Tabibistan team recommends one
+ * - Choose Doctor by Yourself: the booking is cancelled and the doctor list opens with
+ *   the same speciality and consultation type
+ */
+function DifferentDoctorModal({
+  busy,
+  error,
+  doctor,
+  appointmentNum,
+  modeLabel,
+  onClose,
+  onAdminChoose,
+  onChooseMyself,
+}: {
+  busy: boolean;
+  error: string | null;
+  doctor: string;
+  appointmentNum: string;
+  modeLabel: string;
+  onClose: () => void;
+  onAdminChoose: (note: string) => void;
+  onChooseMyself: () => void;
+}) {
+  const [view, setView] = useState<'choose' | 'admin' | 'self'>('choose');
   const [note, setNote] = useState('');
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !busy && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [busy, onClose]);
+
+  const title =
+    view === 'admin' ? 'Let Admin Choose the Doctor' : view === 'self' ? 'Choose Doctor by Yourself' : 'Request a Different Doctor';
+  const back = () => (view === 'choose' ? onClose() : setView('choose'));
+
   return (
-    <>
-      <p className="text-xs font-bold text-gray-900">Request a different doctor</p>
-      <p className="mt-1 text-xs text-gray-600">
-        This appointment will be cancelled and our team will recommend another doctor with the same speciality and a similar fee. Your symptoms and voice note will be kept.
-      </p>
-      <NoteBox id="other-doctor-note" value={note} onChange={setNote} placeholder="e.g. I need someone available this week." />
-      <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
-        <button type="button" onClick={onBack} disabled={busy} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back
-        </button>
-        <button type="button" disabled={busy} onClick={() => onSubmit(note.trim())} className={`${primaryBtn} sm:ml-auto`}>
-          {busy && <LoaderCircle className="h-4 w-4 animate-spin" />} Request Different Doctor
-        </button>
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`different-doctor-${appointmentNum}`}
+      onClick={() => !busy && onClose()}
+    >
+      <div className="w-full max-w-lg rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id={`different-doctor-${appointmentNum}`} className="text-base font-bold text-gray-900">
+              {title}
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Instead of {doctor} · <span className="font-mono">{appointmentNum}</span>
+            </p>
+          </div>
+          <button type="button" onClick={onClose} disabled={busy} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {view === 'choose' && (
+          <>
+            <p className="mt-4 text-xs text-gray-600">How would you like to find your new doctor?</p>
+            <div className="mt-3 grid gap-3">
+              <button
+                type="button"
+                onClick={() => setView('admin')}
+                className="flex items-start gap-3 rounded-xl border border-gray-200 p-4 text-left transition hover:border-[#ff6f61] hover:bg-[#fff7f6]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+                  <Headset className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold text-gray-900">Let Admin Choose the Doctor</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    Our team picks a doctor with the same speciality and a similar fee, and sends you the recommendation here.
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('self')}
+                className="flex items-start gap-3 rounded-xl border border-gray-200 p-4 text-left transition hover:border-[#ff6f61] hover:bg-[#fff7f6]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#fff1ef] text-[#ff6f61]">
+                  <ListFilter className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold text-gray-900">Choose Doctor by Yourself</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    Browse doctors yourself. The list opens with the same speciality and {modeLabel.toLowerCase()} already selected.
+                  </span>
+                </span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {view === 'admin' && (
+          <>
+            <p className="mt-4 text-xs text-gray-600">
+              This appointment will be cancelled and our team will recommend another doctor with the same speciality and a similar fee. Your symptoms
+              and voice note will be kept.
+            </p>
+            <NoteBox
+              id={`admin-choose-note-${appointmentNum}`}
+              value={note}
+              onChange={setNote}
+              placeholder="Any preferences? e.g. a female doctor, someone available this week, or a lower fee."
+            />
+          </>
+        )}
+
+        {view === 'self' && (
+          <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800 ring-1 ring-amber-200">
+            This appointment will be cancelled and the doctor list will open with the same speciality and {modeLabel.toLowerCase()} selected. Your
+            symptoms and voice note will be kept for the new booking.
+          </p>
+        )}
+
+        {error && (
+          <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+            {error}
+          </p>
+        )}
+
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          <button type="button" onClick={back} disabled={busy} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800">
+            <ArrowLeft className="h-3.5 w-3.5" /> Back
+          </button>
+          {view === 'admin' && (
+            <button type="button" disabled={busy} onClick={() => onAdminChoose(note.trim())} className={`${primaryBtn} sm:ml-auto`}>
+              {busy && <LoaderCircle className="h-4 w-4 animate-spin" />} Send Request to Tabibistan Team
+            </button>
+          )}
+          {view === 'self' && (
+            <button type="button" disabled={busy} onClick={onChooseMyself} className={`${primaryBtn} sm:ml-auto`}>
+              {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />} Cancel Appointment & Browse Doctors
+            </button>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 }

@@ -405,7 +405,18 @@ export interface AlternativeDoctorsResponse {
   speciality: string[];
   serviceMode: ServiceMode;
   originalFee: number;
+  /** "03:00 PM" */
+  originalTime: string;
+  /** "YYYY-MM-DD" */
+  originalDate: string;
+  /** the day the doctors' free times are for */
+  date: string;
+  today: string;
+  maxDate: string;
+  /** suggested fee filter: original fee ±20% */
   feeRange: { min: number; max: number };
+  /** "same": only doctors offering the original consultation type */
+  modes: 'same' | 'all';
   doctors: {
     doctorId: string;
     fullName: string;
@@ -414,11 +425,19 @@ export interface AlternativeDoctorsResponse {
     specialisations: string[];
     experienceYears: number;
     profilePhotoUrl: string | null;
+    /** consultation type the fee and free times are for */
+    serviceMode: ServiceMode;
+    offersSameMode: boolean;
+    /** every consultation type the doctor offers, with its lowest fee */
+    modes: { mode: ServiceMode; fee: number }[];
     fees: { clinicId: string | null; clinicName: string | null; fee: number }[];
     /** lowest fee for this consultation type */
     fee: number;
     matchesSpeciality: boolean;
     withinFeeRange: boolean;
+    /** free start times on `date` ("10:30 AM") */
+    freeSlots: string[];
+    availableAtOriginalTime: boolean;
   }[];
 }
 
@@ -431,11 +450,16 @@ export const forwardRescheduleToPatient = (id: string, note?: string) =>
     body: JSON.stringify(note ? { note } : {}),
   });
 
-export const fetchAlternativeDoctors = (id: string) =>
-  requestAppointments<AlternativeDoctorsResponse>(`/${encodeURIComponent(id)}/alternative-doctors`);
+export const fetchAlternativeDoctors = (id: string, opts: { date?: string; modes?: 'same' | 'all' } = {}) => {
+  const q = new URLSearchParams();
+  if (opts.date) q.set('date', opts.date);
+  if (opts.modes) q.set('modes', opts.modes);
+  const qs = q.toString();
+  return requestAppointments<AlternativeDoctorsResponse>(`/${encodeURIComponent(id)}/alternative-doctors${qs ? `?${qs}` : ''}`);
+};
 
-export const recommendAlternativeDoctor = (id: string, doctorId: string, note?: string) =>
+export const recommendAlternativeDoctor = (id: string, doctorId: string, note?: string, serviceMode?: ServiceMode) =>
   requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/recommend-alternative`, {
     method: 'POST',
-    body: JSON.stringify({ doctorId, ...(note ? { note } : {}) }),
+    body: JSON.stringify({ doctorId, ...(note ? { note } : {}), ...(serviceMode ? { serviceMode } : {}) }),
   });

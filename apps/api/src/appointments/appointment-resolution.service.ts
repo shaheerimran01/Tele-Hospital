@@ -3,7 +3,9 @@
 //   Doctor reschedules -> admin "Notify Patient of Proposed Slot" -> patient:
 //       approve        -> CONFIRMED, doctor told
 //       pick a time    -> booking moves to that time, doctor clicks "Accept Slot"
-//       other doctor   -> CANCELLED, admin recommends a doctor -> patient books them
+//       other doctor   -> CANCELLED, then either
+//                         the admin recommends a doctor -> patient books them, or
+//                         the patient browses doctors and books one themselves
 //   Doctor declines   -> admin "Find Alternative Doctor" -> patient books them
 //
 // No new columns: each step is recorded as an admin Notification that mentions
@@ -27,6 +29,7 @@ import {
   recordDoctorPortalNotification,
   recordPatientNotification,
 } from '../doctor-admin/doctor-portal-notifications.js';
+import { nowInAppZone } from './slot-utils.js';
 import { AppointmentsService } from './appointments.service.js';
 import type { PatientRescheduleResponseDto } from './dto/resolution.dto.js';
 
@@ -42,8 +45,27 @@ const TRAIL_TYPES: string[] = [
   T.APPOINTMENT_ALTERNATIVE_RECOMMENDED,
 ];
 
-/** Alternative doctors' fee must be within this share of the original fee to count as "matching" */
-export const FEE_RANGE = 0.5;
+/** Suggested fee range for alternative doctors: the original fee ±20% */
+export const FEE_RANGE = 0.2;
+
+/** How far ahead the admin can check other doctors' free times */
+const MAX_AVAILABILITY_DAYS_AHEAD = 60;
+
+/** Recommended consultation type, written into the admin's trail notification */
+const RECOMMENDED_MODE_REGEX = /Consultation type: (IN_CLINIC|VIDEO|TEXT)\b/;
+
+/** "2026-10-16" + 3 days -> "2026-10-19" */
+function addDays(iso: string, days: number) {
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const ALL_MODES: ConsultationServiceMode[] = [
+  ConsultationServiceMode.IN_CLINIC,
+  ConsultationServiceMode.VIDEO,
+  ConsultationServiceMode.TEXT,
+];
 
 /** How far back the patient's pending actions are looked up */
 const PENDING_WINDOW_DAYS = 90;
@@ -71,6 +93,8 @@ export interface ResolutionState {
   alternativeRequestedAt: Date | null;
   recommendedAt: Date | null;
   recommendedPmdc: string | null;
+  /** consultation type of the recommendation (when it differs from the original) */
+  recommendedMode: ConsultationServiceMode | null;
 }
 
 type TrailRow = { type: string; message: string; createdAt: Date };
@@ -153,7 +177,7 @@ const RESOLUTION_APPOINTMENT_SELECT = {
   familyMember: { select: { fullName: true } },
   doctor: { select: { id: true, fullName: true, specialisations: true } },
   clinic: { select: { id: true, name: true } },
-  intake: { select: { speciality: { select: { name: true } } } },
+  intake: { select: { id: true, speciality: { select: { id: true, name: true } } } },
 } satisfies Prisma.AppointmentSelect;
 
 type ResolutionAppointment = Prisma.AppointmentGetPayload<{ select: typeof RESOLUTION_APPOINTMENT_SELECT }>;
@@ -229,6 +253,7 @@ export class AppointmentResolutionService {
         alternativeRequestedAt: requested?.createdAt ?? null,
         recommendedAt: recommended?.createdAt ?? null,
         recommendedPmdc: recommended?.message.match(PMDC_REFERENCE_REGEX)?.[1] ?? null,
+        recommendedMode: (recommended?.message.match(RECOMMENDED_MODE_REGEX)?.[1] as ConsultationServiceMode | undefined) ?? null,
       });
     }
     return result;
@@ -348,7 +373,9 @@ export class AppointmentResolutionService {
       };
     }
 
-    // REQUEST_NEW_DOCTOR
+    if (dto.action === 'CHOOSE_OWN_DOCTOR') return this.chooseOwnDoctor(a, note);
+
+    // REQUEST_NEW_DOCTOR: the Tabibistan team chooses the doctor
     const { count } = await this.prisma.appointment.updateMany({
       where: { id: a.id, status: AppointmentStatus.RESCHEDULED },
       data: {
@@ -370,7 +397,7 @@ export class AppointmentResolutionService {
       type: T.APPOINTMENT_ALTERNATIVE_REQUESTED,
       title: 'Patient Requested a Different Doctor',
       message:
-        `Patient declined reschedule for ${a.appointmentNum} and requested an alternative doctor. ` +
+        `Patient declined reschedule for ${a.appointmentNum} and requested Admin to assign an alternative doctor. ` +
         `Original doctor: ${dr}. Patient: ${patient}.` +
         (note ? ` Reason: ${note}` : ''),
     });
@@ -381,16 +408,76 @@ export class AppointmentResolutionService {
     };
   }
 
+  /**
+   * CHOOSE_OWN_DOCTOR: the booking is cancelled and the patient picks another doctor
+   * on the doctor list, which opens with the same speciality (from the consultation
+   * details) and consultation type. Nothing is left for the admin to do.
+   */
+  private async chooseOwnDoctor(a: ResolutionAppointment, note?: string) {
+    const { count } = await this.prisma.appointment.updateMany({
+      where: { id: a.id, status: AppointmentStatus.RESCHEDULED },
+      data: {
+        status: AppointmentStatus.CANCELLED,
+        cancelReason: `The patient declined the proposed time and chose to book another doctor themselves.${note ? ` Note: ${note}` : ''}`,
+      },
+    });
+    if (count === 0) throw new BadRequestException('This appointment has already been updated');
+
+    const dr = doctorName(a.doctor.fullName);
+    await recordDoctorNotification(this.prisma, {
+      doctorId: a.doctorId,
+      appointmentId: a.id,
+      type: DOCTOR_NOTIFICATION_TYPES.RESCHEDULE_DECLINED,
+      title: 'Reschedule Declined',
+      message: `Patient declined your proposed time for ${a.appointmentNum} and chose to see another doctor. The appointment has been cancelled.`,
+    });
+    await this.closeCase(a.appointmentNum);
+    await recordDoctorPortalNotification(this.prisma, {
+      type: T.APPOINTMENT_PATIENT_RESPONSE,
+      title: 'Patient chose another doctor themselves',
+      message:
+        `Patient ${patientLabel(a)} declined ${dr}'s proposed time for ${a.appointmentNum} and chose to book another doctor themselves. ` +
+        `The appointment has been cancelled; no action is needed.` +
+        (note ? ` Note: ${note}` : ''),
+      isRead: true,
+    });
+    return {
+      stage: null,
+      status: AppointmentStatus.CANCELLED,
+      message: 'Your appointment has been cancelled. Choose another doctor to book a new consultation.',
+      /** where the patient continues: the doctor list with the same speciality and consultation type */
+      browse: {
+        intakeId: a.intakeId,
+        specialityId: a.intake?.speciality?.id ?? null,
+        specialityName: a.intake?.speciality?.name ?? a.doctor.specialisations[0] ?? null,
+        serviceMode: a.serviceMode,
+        appointmentNum: a.appointmentNum,
+      },
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Admin: matching doctors and recommendation
   // ---------------------------------------------------------------------------
 
-  /** Approved doctors offering the same consultation type, flagged by speciality and fee match. */
-  async alternativeDoctors(appointmentId: string) {
+  /**
+   * Approved doctors for the admin's "Find Alternative Doctor" search, with what the
+   * filters need: speciality and fee match, experience, consultation types offered,
+   * and free times on `date` (the original day by default).
+   */
+  async alternativeDoctors(appointmentId: string, opts: { date?: string; modes?: 'same' | 'all' } = {}) {
     const a = await this.load(appointmentId);
     const targets = a.intake?.speciality?.name ? [a.intake.speciality.name] : a.doctor.specialisations;
     const min = Math.round(a.fee * (1 - FEE_RANGE));
     const max = Math.round(a.fee * (1 + FEE_RANGE));
+    const allModes = opts.modes === 'all';
+
+    const today = nowInAppZone().date;
+    const originalDay = a.appointmentDate.toISOString().slice(0, 10);
+    const date = opts.date ?? (originalDay >= today ? originalDay : today);
+    if (date < today || date > addDays(today, MAX_AVAILABILITY_DAYS_AHEAD)) {
+      throw new BadRequestException(`Choose a date between today and ${MAX_AVAILABILITY_DAYS_AHEAD} days ahead`);
+    }
 
     const doctors = await this.prisma.doctor.findMany({
       where: { status: DoctorStatus.APPROVED, isActive: true, id: { not: a.doctorId } },
@@ -399,11 +486,14 @@ export class AppointmentResolutionService {
       take: 300,
     });
 
-    const rows = doctors
+    const candidates = doctors
       .map((d) => {
-        const fees = feesFor(d, a.serviceMode);
-        if (fees.length === 0) return null; // doesn't offer this consultation type
-        const lowest = Math.min(...fees.map((f) => f.fee));
+        const offered = ALL_MODES.map((mode) => ({ mode, fees: feesFor(d, mode) })).filter((m) => m.fees.length > 0);
+        const same = offered.find((m) => m.mode === a.serviceMode);
+        if (!same && (!allModes || offered.length === 0)) return null;
+        // The original consultation type when offered, otherwise the doctor's first one
+        const chosen = same ?? offered[0];
+        const lowest = Math.min(...chosen.fees.map((f) => f.fee));
         return {
           doctorId: d.id,
           fullName: d.fullName,
@@ -412,33 +502,60 @@ export class AppointmentResolutionService {
           specialisations: d.specialisations,
           experienceYears: d.experienceYears,
           profilePhotoUrl: d.profilePhotoUrl,
-          fees,
+          /** consultation type the fee and free times below are for */
+          serviceMode: chosen.mode,
+          offersSameMode: !!same,
+          modes: offered.map((m) => ({ mode: m.mode, fee: Math.min(...m.fees.map((f) => f.fee)) })),
+          fees: chosen.fees,
           fee: lowest,
           matchesSpeciality: matchesSpeciality(d.specialisations, targets),
-          withinFeeRange: fees.some((f) => f.fee >= min && f.fee <= max),
+          withinFeeRange: chosen.fees.some((f) => f.fee >= min && f.fee <= max),
         };
       })
-      .filter((r): r is NonNullable<typeof r> => r !== null)
-      .sort(
-        (x, y) =>
-          Number(y.matchesSpeciality && y.withinFeeRange) - Number(x.matchesSpeciality && x.withinFeeRange) ||
-          Number(y.matchesSpeciality) - Number(x.matchesSpeciality) ||
-          Number(y.withinFeeRange) - Number(x.withinFeeRange) ||
-          Math.abs(x.fee - a.fee) - Math.abs(y.fee - a.fee) ||
-          x.fullName.localeCompare(y.fullName),
-      );
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+
+    // Free times on the chosen day (one doctor at a time keeps the database load low)
+    const rows = [];
+    for (const r of candidates) {
+      const free = await this.appointments.freeTimesForDoctor(r.doctorId, r.serviceMode, date).catch(() => []);
+      const times = [...new Set(free.map((f) => f.startTime))];
+      rows.push({
+        ...r,
+        freeSlots: times,
+        availableAtOriginalTime: times.includes(a.startTime),
+      });
+    }
+
+    rows.sort(
+      (x, y) =>
+        Number(y.offersSameMode) - Number(x.offersSameMode) ||
+        Number(y.matchesSpeciality && y.withinFeeRange) - Number(x.matchesSpeciality && x.withinFeeRange) ||
+        Number(y.matchesSpeciality) - Number(x.matchesSpeciality) ||
+        Number(y.availableAtOriginalTime) - Number(x.availableAtOriginalTime) ||
+        Number(y.withinFeeRange) - Number(x.withinFeeRange) ||
+        Math.abs(x.fee - a.fee) - Math.abs(y.fee - a.fee) ||
+        x.fullName.localeCompare(y.fullName),
+    );
 
     return {
       appointment: await this.adminSummary(a.id),
       speciality: targets,
       serviceMode: a.serviceMode,
       originalFee: a.fee,
+      originalTime: a.startTime,
+      originalDate: originalDay,
+      /** the day the free times are for */
+      date,
+      today,
+      maxDate: addDays(today, MAX_AVAILABILITY_DAYS_AHEAD),
+      /** suggested fee filter: original fee ±20% */
       feeRange: { min, max },
+      modes: allModes ? 'all' : 'same',
       doctors: rows,
     };
   }
 
-  async recommendAlternative(appointmentId: string, doctorId: string, note?: string) {
+  async recommendAlternative(appointmentId: string, doctorId: string, note?: string, serviceMode?: ConsultationServiceMode) {
     const a = await this.load(appointmentId);
     if (a.status !== AppointmentStatus.CANCELLED) {
       throw new BadRequestException('A doctor can be recommended once the original appointment is cancelled');
@@ -452,10 +569,12 @@ export class AppointmentResolutionService {
     if (!d || d.status !== DoctorStatus.APPROVED || !d.isActive) {
       throw new BadRequestException('This doctor is not accepting appointments right now');
     }
-    const fees = feesFor(d, a.serviceMode);
+    const mode = serviceMode ?? a.serviceMode;
+    const fees = feesFor(d, mode);
     if (fees.length === 0) {
-      throw new BadRequestException(`This doctor does not offer a ${MODE_LABEL[a.serviceMode] ?? 'consultation'}`);
+      throw new BadRequestException(`This doctor does not offer a ${MODE_LABEL[mode] ?? 'consultation'}`);
     }
+    const otherMode = mode !== a.serviceMode;
     const fee = Math.min(...fees.map((f) => f.fee));
     const feeText = fees.length > 1 ? `from ${pkr(fee)}` : pkr(fee);
     const speciality = d.specialisations[0] ?? d.title;
@@ -467,14 +586,16 @@ export class AppointmentResolutionService {
       type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_ALTERNATIVE_DOCTOR,
       title: 'Recommended Doctor for Your Consultation',
       message:
-        `${from} is unavailable for your appointment ${a.appointmentNum}. We recommend ${to} (${speciality}, ${feeText}).` +
+        `${from} is unavailable for your appointment ${a.appointmentNum}. We recommend ${to} (${speciality}, ${otherMode ? `${MODE_LABEL[mode]}, ` : ''}${feeText}).` +
         (note ? ` Message from Tabibistan: ${note}` : ''),
     });
     await this.closeCase(a.appointmentNum);
     await recordDoctorPortalNotification(this.prisma, {
       type: T.APPOINTMENT_ALTERNATIVE_RECOMMENDED,
       title: 'Alternative doctor recommended',
-      message: `Recommended ${to} (PMDC ${d.pmdcNumber}) to patient ${patientLabel(a)} for ${a.appointmentNum}, instead of ${from}. Fee: ${feeText}.`,
+      message:
+        `Recommended ${to} (PMDC ${d.pmdcNumber}) to patient ${patientLabel(a)} for ${a.appointmentNum}, instead of ${from}. Fee: ${feeText}.` +
+        (otherMode ? ` Consultation type: ${mode}.` : ''),
       isRead: true,
     });
     return this.adminSummary(a.id);
@@ -519,7 +640,8 @@ export class AppointmentResolutionService {
       if (s.stage === 'ALTERNATIVE_RECOMMENDED' && s.recommendedPmdc) {
         const d = byPmdc.get(s.recommendedPmdc);
         if (d) {
-          const fees = feesFor(d, a.serviceMode);
+          const mode = s.recommendedMode ?? a.serviceMode;
+          const fees = feesFor(d, mode);
           const booked = await this.prisma.appointment.findFirst({
             where: { userId, doctorId: d.id, createdAt: { gte: s.recommendedAt ?? a.updatedAt } },
             select: { id: true, appointmentNum: true },
@@ -537,9 +659,9 @@ export class AppointmentResolutionService {
             fee: fees.length ? Math.min(...fees.map((f) => f.fee)) : null,
             feeVaries: fees.length > 1,
             available: d.status === DoctorStatus.APPROVED && d.isActive && fees.length > 0,
-            serviceMode: a.serviceMode,
+            serviceMode: mode,
             /** pre-fills the booking page */
-            booking: { doctorId: d.id, mode: a.serviceMode, intakeId: a.intakeId },
+            booking: { doctorId: d.id, mode, intakeId: a.intakeId },
             bookedAppointment: booked,
           };
         }
