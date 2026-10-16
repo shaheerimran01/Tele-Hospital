@@ -20,6 +20,15 @@ const portals = [
     color: 'blue',
   },
   {
+    emoji: '🏥',
+    eyebrow: 'HOSPITALS DIRECTORY',
+    title: 'Hospitals',
+    description: 'Add, edit and remove the hospitals patients see under "Browse Hospitals Near You", with emergency status and map location.',
+    href: '/hospitals',
+    action: 'Manage Hospitals',
+    color: 'rose',
+  },
+  {
     emoji: '🧪',
     eyebrow: 'LAB & DIAGNOSTICS PORTAL',
     title: 'Lab & Diagnostics',
@@ -34,6 +43,7 @@ const styles = {
   emerald: { icon: 'bg-emerald-50', border: 'group-hover:border-emerald-200', button: 'bg-emerald-700 hover:bg-emerald-800' },
   blue: { icon: 'bg-blue-50', border: 'group-hover:border-blue-200', button: 'bg-blue-700 hover:bg-blue-800' },
   violet: { icon: 'bg-violet-50', border: 'group-hover:border-violet-200', button: 'bg-violet-700 hover:bg-violet-800' },
+  rose: { icon: 'bg-rose-50', border: 'group-hover:border-rose-200', button: 'bg-rose-700 hover:bg-rose-800' },
 } as const;
 
 export default function Home() {

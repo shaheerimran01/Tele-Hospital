@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   ArrowLeft,
   Bell,
+  Building2,
   CalendarDays,
   ChevronRight,
   LayoutDashboard,
@@ -23,6 +24,7 @@ const NAV = [
   { href: '/doctor-dashboard/patients', label: 'Patients', Icon: Users },
   { href: '/doctor-dashboard/appointments', label: 'Appointments', Icon: CalendarDays, badge: 'appointments' as const },
   { href: '/doctor-dashboard/doctors', label: 'Doctors', Icon: Stethoscope, badge: 'doctors' as const },
+  { href: '/hospitals', label: 'Hospitals', Icon: Building2 },
 ];
 
 const SECTION_LABELS: Record<string, string> = {
@@ -33,6 +35,18 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 function Breadcrumb({ pathname }: { pathname: string }) {
+  // The hospitals directory lives at /hospitals but shares this portal's shell
+  if (pathname === '/hospitals' || pathname.startsWith('/hospitals/')) {
+    return (
+      <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm">
+        <Link href="/doctor-dashboard" className="truncate text-slate-500 hover:text-slate-900">
+          Doctor Admin
+        </Link>
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <span className="truncate font-semibold text-slate-900">Hospitals</span>
+      </nav>
+    );
+  }
   const parts = pathname.replace(/^\/doctor-dashboard\/?/, '').split('/').filter(Boolean);
   const crumbs = [{ href: '/doctor-dashboard', label: 'Doctor Admin' }];
   if (parts[0]) crumbs.push({ href: `/doctor-dashboard/${parts[0]}`, label: SECTION_LABELS[parts[0]] ?? parts[0] });

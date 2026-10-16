@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BadgeCheck,
   ChevronRight,
+  Hospital,
   LoaderCircle,
   Lock,
   MapPin,
@@ -104,6 +105,7 @@ export default function ConsultOptions() {
       : 'Family member';
   const location = intakeLocationLabel(intake);
   const listHref = `/consult-doctors/doctors-list?intakeId=${encodeURIComponent(intake.id)}`;
+  const hospitalsHref = `/hospitals?intakeId=${encodeURIComponent(intake.id)}`;
 
   return (
     <div className="mx-auto w-full max-w-[1000px] px-4 py-6 sm:px-6 lg:py-10">
@@ -142,12 +144,12 @@ export default function ConsultOptions() {
           icon={MapPin}
           label="Location"
           value={location ?? 'No saved address'}
-          meta={location ? 'Used to find doctors near you' : 'Doctors will be listed without distance'}
+          meta={location ? 'Used to find doctors and hospitals near you' : 'Doctors and hospitals will be listed without distance'}
         />
       </div>
 
       {/* Options */}
-      <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
         {/* Instant consultation: switched off for now */}
         <section
           aria-disabled="true"
@@ -199,6 +201,33 @@ export default function ConsultOptions() {
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#ff6f61] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#e8453b]"
             >
               View Nearby Doctors <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
+
+        {/* Browse hospitals */}
+        <section className="relative flex flex-col rounded-2xl border border-gray-200 bg-white p-6 transition hover:border-[#ff6f61]/60 hover:shadow-[0_8px_24px_-16px_rgba(255,111,97,0.45)]">
+          <span className="absolute right-4 top-4 rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700">
+            Emergency info
+          </span>
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#fff0ed] text-[#ff574d]">
+            <Hospital className="h-5 w-5" />
+          </span>
+          <h2 className="mt-4 pr-28 text-lg font-bold text-gray-900">Browse Hospitals Near You</h2>
+          <p className="mt-1.5 text-sm text-gray-600">
+            Hospitals sorted by distance, with emergency services and directions.
+          </p>
+          <ul className="mt-4 space-y-1.5 text-xs text-gray-600">
+            <li>• 24/7 emergency availability</li>
+            <li>• Book Tabibistan doctors who practise there</li>
+            <li>• One-tap directions on the map</li>
+          </ul>
+          <div className="mt-auto pt-6">
+            <Link
+              href={hospitalsHref}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#ff6f61] bg-white px-4 py-2.5 text-sm font-bold text-[#e8453b] transition hover:bg-[#fff7f6]"
+            >
+              View Nearby Hospitals <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
         </section>
