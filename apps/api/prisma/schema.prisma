@@ -810,3 +810,23 @@ model ConsultationPrescription {
   @@index([userId])
   @@map("consultation_prescriptions")
 }
+
+model Hospital {
+  id        String   @id @default(uuid())
+  name      String   // Hospital Name
+  city      String?  // City / Area
+  type      String?  // Type (Public/Private/Mission)
+  address   String   @db.Text
+  contact   String?
+  latitude  Float?
+  longitude Float?
+  emergency String?  @default("24/7") // String for "24/7", "Available", "Daytime"
+  notes     String?  @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([type])
+  @@map("hospitals")
+}

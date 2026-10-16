@@ -28,6 +28,7 @@ import {
   type PrescriptionMedicine,
 } from '@/app/lib/api/prescriptions-doctor';
 import { DOCTOR_ROUTES, useDoctorAuth } from '@/app/consult-doctors/context/DoctorAuthContext';
+import AdviceDictation from './AdviceDictation';
 
 const BACK_HREF = '/consult-doctors/doctor-dashboard?view=appointments&tab=completed';
 const MAX_MEDICINES = 30;
@@ -470,18 +471,8 @@ export default function PrescriptionBuilder() {
             <LabTestInput tests={labTests} onChange={setLabTests} />
           </Card>
 
-          <Card title="General advice" hint="Diet, rest, precautions and follow-up.">
-            <label htmlFor="rx-advice" className="sr-only">
-              General advice
-            </label>
-            <textarea
-              id="rx-advice"
-              value={advice}
-              onChange={(e) => setAdvice(e.target.value.slice(0, 4000))}
-              rows={4}
-              placeholder="e.g. Drink plenty of fluids, rest for 2 days. Follow up after one week if symptoms continue."
-              className={`${input} resize-y`}
-            />
+          <Card title="General advice & precautions" hint="Diet, rest, precautions and follow-up. Type it, or use Dictate Advice to speak it.">
+            <AdviceDictation value={advice} onChange={setAdvice} max={4000} disabled={!draft.canPrescribe} />
           </Card>
 
           {formError && (

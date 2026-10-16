@@ -109,9 +109,14 @@ interface DataProps {
 // Appointments
 // ---------------------------------------------------------------------------
 
-export type AppointmentsTab = 'confirmed' | 'completed' | 'cancelled';
+export type AppointmentsTab = 'today' | 'upcoming' | 'requests' | 'confirmed' | 'completed' | 'cancelled';
+
+export const APPOINTMENT_TAB_IDS: AppointmentsTab[] = ['today', 'upcoming', 'requests', 'confirmed', 'completed', 'cancelled'];
 
 const APPOINTMENT_TABS: { id: AppointmentsTab; label: string }[] = [
+  { id: 'today', label: "Today's Appointments" },
+  { id: 'upcoming', label: 'Upcoming Appointments' },
+  { id: 'requests', label: 'Requests Waiting for Approval' },
   { id: 'confirmed', label: 'Confirmed' },
   { id: 'completed', label: 'Completed' },
   { id: 'cancelled', label: 'Declined / Cancelled' },
@@ -124,7 +129,7 @@ export function AppointmentsView({
   onAction,
   busy,
   token,
-  initialTab = 'confirmed',
+  initialTab = 'today',
 }: DataProps & {
   onAction: (action: AppointmentAction, a: DashboardAppointment) => void;
   busy: Record<string, AppointmentAction | undefined>;
@@ -136,6 +141,10 @@ export function AppointmentsView({
   const [chatFor, setChatFor] = useState<DashboardAppointment | null>(null);
   const lists = data
     ? {
+        // Confirmed appointments for today / after today; requests include times the patient asked for
+        today: data.todaySchedule.filter((a) => a.status === 'CONFIRMED'),
+        upcoming: data.upcoming.filter((a) => a.status === 'CONFIRMED'),
+        requests: data.requests,
         confirmed: data.confirmed ?? [...data.todaySchedule.filter((a) => a.status !== 'PENDING'), ...data.upcoming],
         completed: data.completed,
         cancelled: data.cancelled ?? [],
@@ -144,8 +153,8 @@ export function AppointmentsView({
 
   return (
     <>
-      <ViewHeader title="Appointments" text="Your confirmed consultations, finished consultations with their prescriptions, and declined requests." />
-      <div role="tablist" aria-label="Appointment status" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-[#e7e2d8] bg-white p-1">
+      <ViewHeader title="Appointments" text="Today's and upcoming consultations, requests waiting for you, finished consultations with their prescriptions, and declined requests." />
+      <div role="tablist" aria-label="Appointment status" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-[#e7e2d8] bg-white p-1 xl:flex-wrap xl:overflow-visible">
         {APPOINTMENT_TABS.map((t) => {
           const active = t.id === tab;
           const count = lists?.[t.id].length;
@@ -171,6 +180,43 @@ export function AppointmentsView({
       <DataGate data={data} error={error} onRetry={onRetry}>
         {(d) => (
           <div role="tabpanel">
+            {tab === 'today' && (
+              <SectionCard title="Today's Appointments" subtitle="Confirmed consultations scheduled for today · join online rooms or mark them completed">
+                <AppointmentTable
+                  rows={lists!.today}
+                  today={d.today}
+                  onAction={onAction}
+                  busy={busy}
+                  empty={{ title: 'No confirmed consultations today', text: 'Confirmed bookings for today will appear here.' }}
+                />
+              </SectionCard>
+            )}
+            {tab === 'upcoming' && (
+              <SectionCard title="Upcoming Appointments" subtitle="Confirmed consultations after today">
+                <AppointmentTable
+                  rows={lists!.upcoming}
+                  today={d.today}
+                  onAction={onAction}
+                  busy={busy}
+                  empty={{ title: 'No upcoming consultations', text: 'Requests you approve for later dates will appear here.' }}
+                />
+              </SectionCard>
+            )}
+            {tab === 'requests' && (
+              <SectionCard
+                title="Requests Waiting for Approval"
+                subtitle={`${lists!.requests.length} pending · approve, decline or propose another time · patients see your reply in My Appointments`}
+              >
+                <AppointmentTable
+                  rows={lists!.requests}
+                  today={d.today}
+                  onAction={onAction}
+                  busy={busy}
+                  shortMode
+                  empty={{ title: "You're all caught up", text: 'New consultation requests will appear here.' }}
+                />
+              </SectionCard>
+            )}
             {tab === 'confirmed' && (
               <SectionCard title="Confirmed" subtitle="Active and upcoming consultations · join online rooms or mark them completed">
                 <AppointmentTable

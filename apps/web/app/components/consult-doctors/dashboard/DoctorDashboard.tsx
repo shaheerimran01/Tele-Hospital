@@ -18,6 +18,7 @@ import Sidebar, { LOCKED_VIEWS, type DashboardView } from './Sidebar';
 import PrescriptionsView from './PrescriptionsView';
 import DashboardHome from './DashboardHome';
 import {
+  APPOINTMENT_TAB_IDS,
   AppointmentsView,
   type AppointmentsTab,
   AvailabilityView,
@@ -184,7 +185,7 @@ export default function DoctorDashboard() {
 
   // --- UI state ---
   const [view, setView] = useState<DashboardView>('dashboard');
-  const [appointmentsTab, setAppointmentsTab] = useState<AppointmentsTab>('confirmed');
+  const [appointmentsTab, setAppointmentsTab] = useState<AppointmentsTab>('today');
 
   // Deep links from other doctor pages, e.g. ?view=appointments&tab=completed after saving a prescription
   useEffect(() => {
@@ -192,7 +193,7 @@ export default function DoctorDashboard() {
     const v = params.get('view');
     const t = params.get('tab');
     if (v && v in VIEW_TITLES) setView(v as DashboardView);
-    if (t === 'confirmed' || t === 'completed' || t === 'cancelled') setAppointmentsTab(t);
+    if (t && (APPOINTMENT_TAB_IDS as string[]).includes(t)) setAppointmentsTab(t as AppointmentsTab);
     if (v || t) window.history.replaceState(null, '', window.location.pathname + window.location.hash);
   }, []);
   const [drawerOpen, setDrawerOpen] = useState(false);
