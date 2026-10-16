@@ -13,6 +13,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const APPOINTMENT_NUMBER = /\bAPT-\d{6}-\d{4,6}\b/;
 /** Notifications that can carry the patient's choices for an appointment */
 const ACTIONABLE_TYPES = new Set(['APPOINTMENT_RESCHEDULE_PROPOSED', 'APPOINTMENT_ALTERNATIVE_DOCTOR']);
+/** "Dr. X is Waiting for You!": the Join button shows while the doctor may still be waiting */
+const DOCTOR_WAITING_TYPE = 'DOCTOR_WAITING_ALERT';
+const DOCTOR_WAITING_JOIN_MS = 15 * 60 * 1000;
 
 interface UserNotification {
   id: string;
@@ -170,6 +173,15 @@ export default function UserNotificationsPage() {
                     </div>
                   )}
                 </div>
+
+                {item.type === DOCTOR_WAITING_TYPE && Date.now() - new Date(item.createdAt).getTime() < DOCTOR_WAITING_JOIN_MS && (
+                  <Link
+                    href="/consult-doctors/my-appointments"
+                    className="shrink-0 px-3 py-1.5 bg-[#ff6f61] text-white text-xs font-bold rounded-lg hover:bg-[#e85b4d] transition shadow-2xs"
+                  >
+                    Join Consultation
+                  </Link>
+                )}
 
                 {item.orderId && (
                   <Link

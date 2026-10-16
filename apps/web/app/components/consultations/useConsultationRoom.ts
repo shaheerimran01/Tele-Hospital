@@ -12,6 +12,7 @@ import {
   type MessageType,
   type ParticipantRole,
   type Viewer,
+  type WaitingState,
 } from '@/app/lib/api/consultations';
 
 /** Extra fields for media messages (text consultation room) */
@@ -41,6 +42,12 @@ export interface RoomNotice {
 }
 
 type Presence = Record<ParticipantRole, boolean>;
+
+/** How the session ended: the doctor completed it, or marked the patient as a no-show */
+export type SessionOutcome = 'COMPLETED' | 'NO_SHOW';
+
+/** Waiting state as received, with the local time it arrived (to correct for clock differences) */
+export type ReceivedWaitingState = WaitingState & { receivedAt: number };
 
 const OTHER_TYPING_TIMEOUT_MS = 6000;
 const NOTICE_MS = 5000;
@@ -73,7 +80,8 @@ export function useConsultationRoom({
   const [otherTyping, setOtherTyping] = useState(false);
   const [otherMedia, setOtherMedia] = useState({ audio: true, video: true });
   const [notices, setNotices] = useState<RoomNotice[]>([]);
-  const [ended, setEnded] = useState<{ endedBy: string } | null>(null);
+  const [ended, setEnded] = useState<{ endedBy: string; outcome: SessionOutcome } | null>(null);
+  const [waiting, setWaiting] = useState<ReceivedWaitingState | null>(null);
 
   const notify = useCallback((text: string, tone: RoomNotice['tone']) => {
     const id = ++noticeSeq;
@@ -158,8 +166,11 @@ export function useConsultationRoom({
       if (e.role !== role) setOtherMedia({ audio: e.audio, video: e.video });
     });
     socket.on('rtc:signal', (s: RtcSignal) => signalHandlers.current.forEach((h) => h(s)));
-    socket.on('session:ended', (e: { endedBy: string }) => {
-      setEnded({ endedBy: e?.endedBy || 'The doctor' });
+    socket.on('waiting:state', (w: WaitingState) => {
+      if (w && typeof w.serverTime === 'string') setWaiting({ ...w, receivedAt: Date.now() });
+    });
+    socket.on('session:ended', (e: { endedBy?: string; outcome?: SessionOutcome }) => {
+      setEnded({ endedBy: e?.endedBy || 'The doctor', outcome: e?.outcome === 'NO_SHOW' ? 'NO_SHOW' : 'COMPLETED' });
       setStatus('closed');
     });
 
@@ -258,6 +269,21 @@ export function useConsultationRoom({
     };
   }, []);
 
+  /** Doctor: "Notify Patient I'm Waiting" (the server allows one per minute) */
+  const notifyPatientWaiting = useCallback(async (): Promise<{ ok: true; retryAfter: number } | { ok: false; error: string; retryAfter?: number }> => {
+    try {
+      const res = await emitWithAck<{ ok: boolean; error?: string; retryAfter?: number }>('waiting:notify', {});
+      if (res?.ok) return { ok: true, retryAfter: res.retryAfter ?? 60 };
+      return { ok: false, error: res?.error || 'The notification was not sent. Please try again.', retryAfter: res?.retryAfter };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '';
+      return {
+        ok: false,
+        error: message.startsWith('You are offline') ? 'You are offline. Reconnect, then try again.' : message || 'The notification was not sent. Please try again.',
+      };
+    }
+  }, [emitWithAck]);
+
   const sendMediaState = useCallback((audio: boolean, video: boolean) => {
     socketRef.current?.emit('media:state', { audio, video });
   }, []);
@@ -275,6 +301,8 @@ export function useConsultationRoom({
     otherMedia,
     notices,
     ended,
+    waiting,
+    notifyPatientWaiting,
     unreadFromOther,
     sendMessage,
     retryMessage,

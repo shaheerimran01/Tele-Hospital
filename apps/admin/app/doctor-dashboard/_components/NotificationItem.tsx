@@ -13,6 +13,8 @@ import {
   ShieldAlert,
   Stethoscope,
   UserRoundSearch,
+  UserX,
+  Timer,
 } from 'lucide-react';
 import type { PortalNotification } from '@/lib/api/doctorPortal';
 import { timeAgo } from './ui';
@@ -28,6 +30,8 @@ const TYPE_UI: Record<string, { label: string; Icon: typeof Check; tone: string 
   APPOINTMENT_PATIENT_RESPONSE: { label: 'Patient reply', Icon: MessageSquareReply, tone: 'bg-sky-50 text-sky-600' },
   APPOINTMENT_ALTERNATIVE_REQUESTED: { label: 'Patient wants another doctor', Icon: UserRoundSearch, tone: 'bg-rose-50 text-rose-600' },
   APPOINTMENT_ALTERNATIVE_RECOMMENDED: { label: 'Doctor recommended', Icon: Stethoscope, tone: 'bg-teal-50 text-teal-600' },
+  PATIENT_NOT_JOINED_ALERT: { label: 'Patient not joined', Icon: Timer, tone: 'bg-amber-50 text-amber-600' },
+  APPOINTMENT_NO_SHOW: { label: 'Patient no-show', Icon: UserX, tone: 'bg-rose-50 text-rose-600' },
 };
 
 export function notificationTypeUi(type: string) {

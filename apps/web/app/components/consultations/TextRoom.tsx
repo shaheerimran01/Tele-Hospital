@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, CircleCheck, Clock, LogOut, PhoneOff, WifiOff } from 'lucide-react';
 import type { Viewer } from '@/app/lib/api/consultations';
 import TextChatPanel from '@/app/consultations/[appointmentId]/text/components/TextChatPanel';
+import { NO_SHOW_EXIT_HREF, NoShowCard, NotifyPatientButton, useDoctorWaiting, WaitingBanner } from './DoctorWaiting';
 import EndConsultationModal from './EndConsultationModal';
 import type { JoinedAccess } from './RoomGuard';
 import { clock, displayTime, initials, roomHref } from './room-utils';
@@ -37,14 +38,14 @@ export function ConnectionBar({ status, error }: { status: string; error: string
   return null;
 }
 
-export function EndedBanner({ endedBy, onView }: { endedBy: string; onView: () => void }) {
+export function EndedBanner({ endedBy, onView, noShow = false }: { endedBy: string; onView: () => void; noShow?: boolean }) {
   return (
     <div className="fixed inset-x-0 bottom-6 z-[70] flex justify-center px-4">
       <div className="flex max-w-md items-center gap-3 rounded-xl bg-[#141b34] px-4 py-3 text-sm text-white shadow-2xl" role="status">
         <CircleCheck className="h-5 w-5 shrink-0 text-emerald-400" />
-        <span className="flex-1">{endedBy} ended the consultation.</span>
+        <span className="flex-1">{noShow ? `${endedBy} marked this consultation as a no-show.` : `${endedBy} ended the consultation.`}</span>
         <button type="button" onClick={onView} className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/20">
-          View Summary
+          {noShow ? 'Continue' : 'View Summary'}
         </button>
       </div>
     </div>
@@ -55,6 +56,7 @@ export default function TextRoom({ appointmentId, access, viewer }: { appointmen
   const router = useRouter();
   const room = useConsultationRoom({ appointmentId, ticket: access.rtcToken, viewer });
   const [confirming, setConfirming] = useState(false);
+  const waiting = useDoctorWaiting({ room, access, viewer });
   const now = useNow();
   const a = access.appointment;
   const other = access.other.name;
@@ -102,6 +104,7 @@ export default function TextRoom({ appointmentId, access, viewer }: { appointmen
           {displayTime(a.startTime)} – {displayTime(a.endTime)}
           {endsIn > 0 && endsIn < 3600 && <span className="tabular-nums text-slate-400">· {clock(endsIn)} left</span>}
         </span>
+        <NotifyPatientButton waiting={waiting} tone="light" compact />
         <button
           type="button"
           onClick={() => setConfirming(true)}
@@ -112,6 +115,19 @@ export default function TextRoom({ appointmentId, access, viewer }: { appointmen
         </button>
       </header>
       <ConnectionBar status={room.status} error={room.error} />
+      <WaitingBanner waiting={waiting} tone="light" patientName={other} />
+      {waiting.expired && (
+        <div className="flex justify-center px-4 pt-3">
+          <NoShowCard
+            waiting={waiting}
+            tone="light"
+            appointmentId={appointmentId}
+            viewer={viewer}
+            appointmentNum={a.appointmentNum}
+            onExit={() => router.replace(NO_SHOW_EXIT_HREF)}
+          />
+        </div>
+      )}
 
       {/* Joined / left notices */}
       <div className="pointer-events-none fixed inset-x-0 top-20 z-40 flex flex-col items-center gap-2 px-4" aria-live="polite">
@@ -132,7 +148,7 @@ export default function TextRoom({ appointmentId, access, viewer }: { appointmen
         />
       </div>
 
-      {room.ended && <EndedBanner endedBy={room.ended.endedBy} onView={summary} />}
+      {room.ended && <EndedBanner endedBy={room.ended.endedBy} onView={summary} noShow={room.ended.outcome === 'NO_SHOW'} />}
       {confirming && (
         <EndConsultationModal
           role={viewer.role}

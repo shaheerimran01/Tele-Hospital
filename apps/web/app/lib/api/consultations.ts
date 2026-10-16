@@ -159,6 +159,30 @@ export const endConsultationApi = (appointmentId: string, token: string, notes?:
     'Could not end the consultation.',
   );
 
+/** Doctor waiting for the patient (sent by the room's real-time connection to the doctor) */
+export interface WaitingState {
+  /** server clock when this was sent (for the countdowns) */
+  serverTime: string;
+  /** when the doctor first entered the room */
+  doctorSince: string | null;
+  /** the patient has been in the room at some point */
+  patientJoined: boolean;
+  /** the patient is in the room now */
+  patientPresent: boolean;
+  /** last "I'm waiting" notification */
+  lastAlertAt: string | null;
+  cooldownSeconds: number;
+  waitMinutes: number;
+}
+
+/** Doctor: the patient did not join within the waiting time */
+export const markNoShowApi = (appointmentId: string, token: string) =>
+  call<{ appointment: RoomAppointment; waitedMinutes: number }>(
+    `${API_BASE}/consultations/${encodeURIComponent(appointmentId)}/no-show?as=doctor`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+    'Could not mark the patient as a no-show.',
+  );
+
 // ---------------------------------------------------------------------------
 // Media messages (text consultation room)
 // ---------------------------------------------------------------------------

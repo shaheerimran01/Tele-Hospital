@@ -174,6 +174,19 @@ export class ConsultationsController {
     return result;
   }
 
+  // POST /consultations/:appointmentId/no-show  (doctor only, after waiting 10 minutes for the patient)
+  @Post(':appointmentId/no-show')
+  async noShow(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Query('as') as: string | undefined,
+    @Headers('authorization') authorization: string | undefined,
+  ) {
+    const waiting = await this.gateway.waitingSnapshot(appointmentId);
+    const result = await this.consultations.markNoShow(appointmentId, this.requester(authorization, undefined, as ?? 'doctor'), waiting);
+    this.gateway.notifyEnded(appointmentId, result.appointment.doctor.name, 'NO_SHOW');
+    return result;
+  }
+
   private requester(authorization: string | undefined, userId: string | undefined, as: string | undefined): Requester {
     const token = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : null;
     return { doctorToken: token, userId: userId?.trim() || null, as: as ?? null };

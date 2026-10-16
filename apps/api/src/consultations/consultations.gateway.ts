@@ -10,9 +10,12 @@
 //   typing         { isTyping: boolean }
 //   rtc:signal     { type: 'ready' | 'offer' | 'answer' | 'candidate' | 'hangup', payload? }   WebRTC signaling relay
 //   media:state    { audio: boolean, video: boolean }
+//   waiting:notify {}         doctor: "Notify Patient I'm Waiting" (ack: { ok, retryAfter } | { ok: false, error, retryAfter? })
+//   waiting:state  {}         doctor: current waiting state (ack: WaitingState)
 // Server -> client events
 //   room:joined, room:error, presence, participant:joined, participant:left,
-//   message:new, message:read, typing, rtc:signal, media:state, session:ended
+//   message:new, message:read, typing, rtc:signal, media:state, session:ended,
+//   waiting:state (to the doctor only)
 
 import { Logger } from '@nestjs/common';
 import {
@@ -27,6 +30,12 @@ import {
 import type { Namespace, Socket } from 'socket.io';
 import { ConsultationsService } from './consultations.service.js';
 import { verifyRoomTicket, type RoomTicket } from './room-ticket.js';
+import {
+  PATIENT_WAIT_MINUTES,
+  WAITING_ALERT_COOLDOWN_SECONDS,
+  WaitingRoomTracker,
+  type WaitingSnapshot,
+} from './doctor-waiting.js';
 
 const RTC_SIGNAL_TYPES = ['ready', 'offer', 'answer', 'candidate', 'hangup'] as const;
 type RtcSignalType = (typeof RTC_SIGNAL_TYPES)[number];
@@ -62,6 +71,8 @@ type RoomSocket = Pick<Socket, 'id' | 'data' | 'emit' | 'to' | 'join' | 'disconn
 })
 export class ConsultationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(ConsultationsGateway.name);
+  /** Who is waiting for whom in each room (doctor waiting for the patient) */
+  private readonly waiting = new WaitingRoomTracker();
 
   @WebSocketServer()
   server!: Namespace;
@@ -82,11 +93,18 @@ export class ConsultationsGateway implements OnGatewayConnection, OnGatewayDisco
     }
 
     client.data.ticket = ticket;
+    if (ticket.role === 'USER') {
+      this.waiting.patientJoined(ticket.aid);
+    } else if (this.waiting.doctorJoined(ticket.aid)) {
+      // First time in this room since the API started: has the patient already taken part?
+      if (await this.consultations.patientHasParticipated(ticket.aid).catch(() => false)) this.waiting.patientJoined(ticket.aid);
+    }
     await client.join(roomOf(ticket.aid));
     const presence = await this.presence(ticket.aid);
     client.emit('room:joined', { me: { role: ticket.role, name: ticket.name }, presence });
     client.to(roomOf(ticket.aid)).emit('participant:joined', { role: ticket.role, name: ticket.name });
     this.server.to(roomOf(ticket.aid)).emit('presence', presence);
+    await this.broadcastWaiting(ticket.aid, presence);
   }
 
   async handleDisconnect(client: RoomSocket) {
@@ -98,6 +116,41 @@ export class ConsultationsGateway implements OnGatewayConnection, OnGatewayDisco
       this.server.to(roomOf(ticket.aid)).emit('participant:left', { role: ticket.role, name: ticket.name });
     }
     this.server.to(roomOf(ticket.aid)).emit('presence', presence);
+    await this.broadcastWaiting(ticket.aid, presence);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Doctor waiting for the patient
+  // ---------------------------------------------------------------------------
+
+  @SubscribeMessage('waiting:state')
+  async onWaitingState(@ConnectedSocket() client: RoomSocket) {
+    const ticket = this.ticketOf(client);
+    if (!ticket || ticket.role !== 'DOCTOR') return { ok: false };
+    return { ok: true, ...this.waitingState(ticket.aid, await this.presence(ticket.aid)) };
+  }
+
+  @SubscribeMessage('waiting:notify')
+  async onWaitingNotify(@ConnectedSocket() client: RoomSocket) {
+    const ticket = this.ticketOf(client);
+    if (!ticket) return { ok: false, error: 'Your access to this consultation room has expired. Please reopen the room.' };
+    if (ticket.role !== 'DOCTOR') return { ok: false, error: 'Only the doctor can send this notification.' };
+    const presence = await this.presence(ticket.aid);
+    if (presence.USER) return { ok: false, error: 'The patient is already in the consultation room.' };
+    const retryAfter = this.waiting.cooldownLeft(ticket.aid);
+    if (retryAfter > 0) return { ok: false, error: `You can notify the patient again in ${retryAfter} seconds.`, retryAfter };
+
+    // Hold the slot first so a double click can't send two alerts
+    const previous = this.waiting.recordAlert(ticket.aid);
+    try {
+      const snapshot = this.waiting.snapshot(ticket.aid, presence.USER);
+      await this.consultations.sendDoctorWaitingAlert(ticket, { patientLeft: snapshot.patientJoined });
+    } catch (e) {
+      this.waiting.undoAlert(ticket.aid, previous);
+      return { ok: false, error: (e as Error).message };
+    }
+    await this.broadcastWaiting(ticket.aid, presence);
+    return { ok: true, retryAfter: WAITING_ALERT_COOLDOWN_SECONDS };
   }
 
   // ---------------------------------------------------------------------------
@@ -164,9 +217,42 @@ export class ConsultationsGateway implements OnGatewayConnection, OnGatewayDisco
 
   // ---------------------------------------------------------------------------
 
-  /** Called after the doctor ends the consultation (POST /consultations/:id/end). */
-  notifyEnded(appointmentId: string, endedBy: string) {
-    this.server?.to(roomOf(appointmentId)).emit('session:ended', { endedBy });
+  /** Called after the doctor ends the consultation (POST /consultations/:id/end) or marks a no-show. */
+  notifyEnded(appointmentId: string, endedBy: string, outcome: 'COMPLETED' | 'NO_SHOW' = 'COMPLETED') {
+    this.waiting.clear(appointmentId);
+    this.server?.to(roomOf(appointmentId)).emit('session:ended', { endedBy, outcome });
+  }
+
+  /** Waiting state of a room, for POST /consultations/:id/no-show */
+  async waitingSnapshot(appointmentId: string): Promise<WaitingSnapshot> {
+    const presence = await this.presence(appointmentId);
+    return this.waiting.snapshot(appointmentId, presence.USER);
+  }
+
+  private waitingState(appointmentId: string, presence: Record<'USER' | 'DOCTOR', boolean>) {
+    const w = this.waiting.snapshot(appointmentId, presence.USER);
+    const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
+    return {
+      serverTime: new Date().toISOString(),
+      doctorSince: iso(w.doctorSince),
+      patientJoined: w.patientJoined,
+      patientPresent: w.patientPresent,
+      lastAlertAt: iso(w.lastAlertAt),
+      cooldownSeconds: WAITING_ALERT_COOLDOWN_SECONDS,
+      waitMinutes: PATIENT_WAIT_MINUTES,
+    };
+  }
+
+  /** Sends the waiting state to the doctor's sockets in the room (the patient doesn't need it). */
+  private async broadcastWaiting(appointmentId: string, presence: Record<'USER' | 'DOCTOR', boolean>) {
+    if (!presence.DOCTOR) return;
+    try {
+      const state = this.waitingState(appointmentId, presence);
+      const sockets = await this.server.in(roomOf(appointmentId)).fetchSockets();
+      for (const s of sockets) if ((s.data?.ticket as RoomTicket | undefined)?.role === 'DOCTOR') s.emit('waiting:state', state);
+    } catch (e) {
+      this.logger.warn(`Could not send the waiting state: ${(e as Error).message}`);
+    }
   }
 
   /** Which roles currently have at least one socket in the room. */

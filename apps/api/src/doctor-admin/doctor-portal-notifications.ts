@@ -25,7 +25,14 @@ export const DOCTOR_PORTAL_NOTIFICATION_TYPES = {
   APPOINTMENT_ALTERNATIVE_REQUESTED: 'APPOINTMENT_ALTERNATIVE_REQUESTED',
   /** Admin recommended another doctor to the patient (saved as read; carries "(PMDC x)") */
   APPOINTMENT_ALTERNATIVE_RECOMMENDED: 'APPOINTMENT_ALTERNATIVE_RECOMMENDED',
+  /** Doctor marked an online consultation as a no-show (patient did not join within 10 minutes) */
+  APPOINTMENT_NO_SHOW: 'APPOINTMENT_NO_SHOW',
+  /** Doctor is waiting in the consultation room and the patient has not joined */
+  PATIENT_NOT_JOINED_ALERT: 'PATIENT_NOT_JOINED_ALERT',
 } as const;
+
+/** Appointment alerts whose type does not start with "APPOINTMENT_" */
+export const APPOINTMENT_ALERT_TYPES: string[] = [DOCTOR_PORTAL_NOTIFICATION_TYPES.PATIENT_NOT_JOINED_ALERT];
 
 /** Doctor and patient actions the admin may need to follow up on. */
 export const DOCTOR_ACTION_NOTIFICATION_TYPES: string[] = [
@@ -48,7 +55,13 @@ export const DOCTOR_PORTAL_NOTIFICATION_WHERE: Prisma.NotificationWhereInput = {
   OR: [
     { type: { startsWith: DOCTOR_TYPE_PREFIX } },
     { type: { startsWith: APPOINTMENT_TYPE_PREFIX } },
+    { type: { in: APPOINTMENT_ALERT_TYPES } },
   ],
+};
+
+/** The "Appointments" category of the Doctor Portal feed */
+export const APPOINTMENT_NOTIFICATION_WHERE: Prisma.NotificationWhereInput = {
+  OR: [{ type: { startsWith: APPOINTMENT_TYPE_PREFIX } }, { type: { in: APPOINTMENT_ALERT_TYPES } }],
 };
 
 /** Everything else (used to keep the pharmacy/order feed unchanged). */
@@ -80,6 +93,10 @@ export const PATIENT_NOTIFICATION_TYPES = {
   APPOINTMENT_RESCHEDULE_PROPOSED: 'APPOINTMENT_RESCHEDULE_PROPOSED',
   /** Admin recommended another doctor; the patient can book with them */
   APPOINTMENT_ALTERNATIVE_DOCTOR: 'APPOINTMENT_ALTERNATIVE_DOCTOR',
+  /** The doctor is in the online consultation room and waiting for the patient */
+  DOCTOR_WAITING_ALERT: 'DOCTOR_WAITING_ALERT',
+  /** The patient did not join the online consultation; the doctor marked it as missed */
+  APPOINTMENT_NO_SHOW: 'APPOINTMENT_NO_SHOW',
 } as const;
 
 /** Notifications shown on the doctor's own dashboard (DoctorNotification.type). */

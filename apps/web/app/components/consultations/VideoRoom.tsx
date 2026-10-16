@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { Viewer } from '@/app/lib/api/consultations';
 import ChatPanel from './ChatPanel';
+import { NO_SHOW_EXIT_HREF, NoShowCard, NotifyPatientButton, useDoctorWaiting, WaitingBanner } from './DoctorWaiting';
 import EndConsultationModal from './EndConsultationModal';
 import type { JoinedAccess } from './RoomGuard';
 import { clock, initials, roomHref } from './room-utils';
@@ -118,6 +119,7 @@ export default function VideoRoom({ appointmentId, access, viewer }: { appointme
   const [confirming, setConfirming] = useState(false);
   const [soundBlocked, setSoundBlocked] = useState(false);
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
+  const waiting = useDoctorWaiting({ room, access, viewer });
   const now = useNow();
   const onSoundBlocked = useCallback(() => setSoundBlocked(true), []);
 
@@ -192,6 +194,14 @@ export default function VideoRoom({ appointmentId, access, viewer }: { appointme
                 {doctorView ? 'The patient can join from their My Appointments page.' : 'Your doctor will join at the scheduled time. Please keep this page open.'}
               </p>
             )}
+            <NoShowCard
+              waiting={waiting}
+              tone="dark"
+              appointmentId={appointmentId}
+              viewer={viewer}
+              appointmentNum={a.appointmentNum}
+              onExit={() => stopAndGo(NO_SHOW_EXIT_HREF)}
+            />
           </div>
         )}
 
@@ -219,8 +229,15 @@ export default function VideoRoom({ appointmentId, access, viewer }: { appointme
           </div>
         </div>
 
+        {/* Waiting for the patient (doctor) */}
+        {(waiting.timerActive || waiting.patientLeft) && (
+          <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-20 flex justify-center px-4">
+            <WaitingBanner waiting={waiting} tone="dark" patientName={other} />
+          </div>
+        )}
+
         {/* Joined / left notices */}
-        <div className="pointer-events-none absolute inset-x-0 top-20 z-20 flex flex-col items-center gap-2 px-4" aria-live="polite">
+        <div className={`pointer-events-none absolute inset-x-0 z-20 ${waiting.timerActive || waiting.patientLeft ? 'top-36' : 'top-20'} flex flex-col items-center gap-2 px-4`} aria-live="polite">
           {room.notices.map((n) => (
             <span key={n.id} className={`rounded-full px-4 py-1.5 text-xs font-semibold shadow-lg ${n.tone === 'leave' ? 'bg-slate-700' : 'bg-emerald-600'}`}>
               {n.text}
@@ -281,6 +298,8 @@ export default function VideoRoom({ appointmentId, access, viewer }: { appointme
 
         {/* Call controls */}
         <div className={`absolute inset-x-0 bottom-0 z-20 flex justify-center bg-gradient-to-t from-black/70 to-transparent pb-5 pt-10 ${chatOpen ? 'sm:right-96' : ''}`}>
+          <div className="flex flex-col items-center gap-3">
+          <NotifyPatientButton waiting={waiting} tone="dark" />
           <div className="flex items-center gap-3 rounded-full bg-black/40 px-4 py-2.5 backdrop-blur sm:gap-4">
             <ControlButton onClick={media.toggleAudio} active={media.audioOn} disabled={!media.hasAudio} label={media.audioOn ? 'Mute microphone' : 'Unmute microphone'}>
               {media.audioOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
@@ -295,6 +314,7 @@ export default function VideoRoom({ appointmentId, access, viewer }: { appointme
               <PhoneOff className="h-5 w-5" />
             </ControlButton>
           </div>
+          </div>
         </div>
 
         <p className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 hidden -translate-x-1/2 items-center gap-1 text-[10px] text-white/40 sm:inline-flex">
@@ -302,7 +322,7 @@ export default function VideoRoom({ appointmentId, access, viewer }: { appointme
         </p>
       </div>
 
-      {room.ended && <EndedBanner endedBy={room.ended.endedBy} onView={summary} />}
+      {room.ended && <EndedBanner endedBy={room.ended.endedBy} onView={summary} noShow={room.ended.outcome === 'NO_SHOW'} />}
       {confirming && (
         <EndConsultationModal
           role={viewer.role}

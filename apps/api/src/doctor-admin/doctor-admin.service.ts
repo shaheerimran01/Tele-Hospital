@@ -7,7 +7,7 @@ import { AppointmentsService } from '../appointments/appointments.service.js';
 import { AppointmentResolutionService } from '../appointments/appointment-resolution.service.js';
 import {
   APPOINTMENT_NUMBER_REGEX,
-  APPOINTMENT_TYPE_PREFIX,
+  APPOINTMENT_NOTIFICATION_WHERE,
   appointmentWhen,
   DOCTOR_ACTION_NOTIFICATION_TYPES,
   DOCTOR_NOTIFICATION_TYPES,
@@ -438,7 +438,7 @@ export class DoctorAdminService {
     if (filter === 'UNREAD') and.push({ isRead: false });
     if (filter === 'READ') and.push({ isRead: true });
     if (filter === 'DOCTORS') and.push({ type: { startsWith: DOCTOR_TYPE_PREFIX } });
-    if (filter === 'APPOINTMENTS') and.push({ type: { startsWith: APPOINTMENT_TYPE_PREFIX } });
+    if (filter === 'APPOINTMENTS') and.push(APPOINTMENT_NOTIFICATION_WHERE);
     if (filter === 'DECLINED') and.push({ type: { in: DECLINED_TAB_TYPES } });
     if (filter === 'RESCHEDULED') and.push({ type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED });
 
@@ -446,7 +446,7 @@ export class DoctorAdminService {
       this.prisma.notification.findMany({ where: { AND: and }, orderBy: { createdAt: 'desc' }, take: LIST_LIMIT }),
       this.prisma.notification.count({ where: { AND: [DOCTOR_PORTAL_NOTIFICATION_WHERE, { isRead: false }] } }),
       this.prisma.notification.count({ where: { type: { startsWith: DOCTOR_TYPE_PREFIX } } }),
-      this.prisma.notification.count({ where: { type: { startsWith: APPOINTMENT_TYPE_PREFIX } } }),
+      this.prisma.notification.count({ where: APPOINTMENT_NOTIFICATION_WHERE }),
       this.prisma.notification.count({ where: DOCTOR_PORTAL_NOTIFICATION_WHERE }),
       this.prisma.notification.count({ where: { type: { in: DECLINED_TAB_TYPES } } }),
       this.prisma.notification.count({ where: { type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED } }),

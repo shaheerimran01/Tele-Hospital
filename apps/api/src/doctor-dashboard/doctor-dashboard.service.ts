@@ -110,9 +110,9 @@ export class DoctorDashboardService {
         orderBy: [{ appointmentDate: 'asc' }],
         take: 200,
       }),
-      // Appointments page, "Declined / Cancelled" tab
+      // Appointments page, "Declined / Cancelled" tab (also online consultations the patient missed)
       this.prisma.appointment.findMany({
-        where: { ...mine, status: AppointmentStatus.CANCELLED },
+        where: { ...mine, status: { in: [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW] } },
         include: ROW_INCLUDE,
         orderBy: [{ updatedAt: 'desc' }],
         take: 100,

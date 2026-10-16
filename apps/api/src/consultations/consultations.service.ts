@@ -23,8 +23,11 @@ import {
   appointmentWhen,
   DOCTOR_PORTAL_NOTIFICATION_TYPES,
   doctorName,
+  PATIENT_NOTIFICATION_TYPES,
   recordDoctorPortalNotification,
+  recordPatientNotification,
 } from '../doctor-admin/doctor-portal-notifications.js';
+import { minutesSeconds, PATIENT_WAIT_MINUTES, waitingWindow, type WaitingSnapshot } from './doctor-waiting.js';
 import { signRoomTicket, type ParticipantRole, type RoomTicket } from './room-ticket.js';
 import {
   CHAT_UPLOAD_PREFIX,
@@ -433,6 +436,122 @@ export class ConsultationsService {
 
     const updated = await this.prisma.appointment.findUniqueOrThrow({ where: { id: a.id }, select: APPOINTMENT_SELECT });
     return { appointment: this.brief(updated) };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Doctor waiting for the patient
+  // ---------------------------------------------------------------------------
+
+  /** The patient has taken part in this consultation (sent anything in the room) */
+  async patientHasParticipated(appointmentId: string) {
+    const count = await this.prisma.consultationMessage.count({ where: { appointmentId, senderType: SenderType.USER } });
+    return count > 0;
+  }
+
+  /**
+   * "Notify Patient I'm Waiting": a notification for the patient and an alert for
+   * the admin. The gateway checks the doctor's ticket, the patient's absence and
+   * the one-minute limit before calling this.
+   */
+  async sendDoctorWaitingAlert(ticket: RoomTicket, opts: { patientLeft: boolean }) {
+    if (ticket.role !== 'DOCTOR') throw new ForbiddenException('Only the doctor can send this notification.');
+    const a = await this.prisma.appointment.findUnique({ where: { id: ticket.aid }, select: APPOINTMENT_SELECT });
+    if (!a) throw new NotFoundException('Appointment not found');
+    if (a.status !== AppointmentStatus.CONFIRMED) throw new BadRequestException('This consultation is no longer active.');
+
+    const doctor = doctorName(a.doctor.fullName);
+    const patient = patientName(a);
+    await Promise.all([
+      recordPatientNotification(this.prisma, {
+        userId: a.userId,
+        type: PATIENT_NOTIFICATION_TYPES.DOCTOR_WAITING_ALERT,
+        title: `${doctor} is Waiting for You!`,
+        message: `${doctor} has joined your consultation room and is waiting. Please join the call now (Doctor will wait for ${PATIENT_WAIT_MINUTES} minutes).`,
+      }),
+      recordDoctorPortalNotification(this.prisma, {
+        type: DOCTOR_PORTAL_NOTIFICATION_TYPES.PATIENT_NOT_JOINED_ALERT,
+        title: `Patient Delay Alert - Appointment ${a.appointmentNum}`,
+        message: opts.patientLeft
+          ? `${doctor} is waiting in the consultation room for appointment ${a.appointmentNum}, but patient ${patient} has left the room and has not come back yet.`
+          : `${doctor} is waiting in the consultation room for appointment ${a.appointmentNum}, but patient ${patient} has not joined yet.`,
+      }),
+    ]);
+    return { appointmentNum: a.appointmentNum, patientName: patient };
+  }
+
+  /**
+   * POST /consultations/:id/no-show (doctor): the patient did not join within the
+   * 10-minute window. Marks the appointment NO_SHOW and tells the admin and the patient.
+   */
+  async markNoShow(appointmentId: string, req: Requester, w: WaitingSnapshot, now = new Date()) {
+    const { appointment: a, role } = await this.participant(appointmentId, req);
+    if (role !== 'DOCTOR') throw new ForbiddenException('Only the doctor can mark a patient as a no-show.');
+    if (a.serviceMode === ConsultationServiceMode.IN_CLINIC) throw new BadRequestException('This is not an online consultation.');
+    if (a.status !== AppointmentStatus.CONFIRMED) {
+      throw new BadRequestException(
+        a.status === AppointmentStatus.NO_SHOW
+          ? 'This appointment is already marked as a no-show.'
+          : a.status === AppointmentStatus.COMPLETED
+            ? 'This consultation has already ended.'
+            : 'This consultation is not active.',
+      );
+    }
+    if (w.patientPresent) throw new BadRequestException('The patient is in the consultation room now.');
+    if (w.patientJoined || (await this.patientHasParticipated(a.id))) {
+      throw new BadRequestException('The patient joined this consultation, so it cannot be marked as a no-show. Use End Consultation instead.');
+    }
+    if (w.doctorSince === null) {
+      throw new BadRequestException(`Please wait in the consultation room first. The ${PATIENT_WAIT_MINUTES}-minute waiting time starts when you are in the room.`);
+    }
+    const { start, deadline } = waitingWindow(w.doctorSince, this.timeWindow(a, now).startsAt.getTime());
+    if (now.getTime() < deadline) {
+      throw new BadRequestException(
+        `The patient still has ${minutesSeconds(deadline - now.getTime())} to join. You can mark a no-show after waiting ${PATIENT_WAIT_MINUTES} minutes.`,
+      );
+    }
+
+    const doctor = doctorName(a.doctor.fullName);
+    const patient = patientName(a);
+    const waited = Math.max(PATIENT_WAIT_MINUTES, Math.floor((now.getTime() - start) / 60_000));
+    const mode = a.serviceMode === ConsultationServiceMode.VIDEO ? 'video' : 'text';
+
+    const { count } = await this.prisma.appointment.updateMany({
+      where: { id: a.id, status: AppointmentStatus.CONFIRMED },
+      data: {
+        status: AppointmentStatus.NO_SHOW,
+        cancelReason: `Patient did not join the ${mode} consultation. ${doctor} waited ${waited} minutes in the room.`,
+      },
+    });
+    if (count === 0) throw new BadRequestException('This consultation is no longer active.');
+
+    await this.prisma.consultationMessage
+      .create({
+        data: {
+          appointmentId: a.id,
+          senderId: a.doctorId,
+          senderType: SenderType.SYSTEM,
+          message: `${doctor} marked this consultation as missed: the patient did not join within ${PATIENT_WAIT_MINUTES} minutes.`,
+          attachments: [],
+          isRead: true,
+        },
+      })
+      .catch(() => undefined);
+    await Promise.all([
+      recordDoctorPortalNotification(this.prisma, {
+        type: DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_NO_SHOW,
+        title: `Patient No-Show - Appointment ${a.appointmentNum}`,
+        message: `${doctor} waited ${waited} minutes in the ${mode} consultation room for appointment ${a.appointmentNum}, but patient ${patient} did not join. The appointment was marked as a no-show.`,
+      }),
+      recordPatientNotification(this.prisma, {
+        userId: a.userId,
+        type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_NO_SHOW,
+        title: 'Consultation Missed',
+        message: `You did not join your ${mode} consultation with ${doctor} (${appointmentWhen(a.appointmentDate, a.startTime)}), so it was marked as missed. Please contact Tabibistan Support if you would like to book again.`,
+      }),
+    ]);
+
+    const updated = await this.prisma.appointment.findUniqueOrThrow({ where: { id: a.id }, select: APPOINTMENT_SELECT });
+    return { appointment: this.brief(updated), waitedMinutes: waited };
   }
 
   // ---------------------------------------------------------------------------
