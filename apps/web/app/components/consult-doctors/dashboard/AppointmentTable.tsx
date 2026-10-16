@@ -96,7 +96,7 @@ export function ModeBadge({
 // Cells
 // ---------------------------------------------------------------------------
 
-function PatientCell({ a }: { a: DashboardAppointment }) {
+export function PatientCell({ a }: { a: DashboardAppointment }) {
   const fm = a.familyMember;
   return (
     <div className="flex min-w-0 items-center gap-3">
@@ -166,7 +166,7 @@ function ReasonCell({ a }: { a: DashboardAppointment }) {
   );
 }
 
-const btnBase =
+export const btnBase =
   'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b38a3a] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50';
 
 function Actions({

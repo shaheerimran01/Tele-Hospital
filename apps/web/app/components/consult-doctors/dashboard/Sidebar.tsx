@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   Clock,
+  FileText,
   Hospital,
   LayoutDashboard,
   Lock,
@@ -19,6 +20,7 @@ export type DashboardView =
   | 'dashboard'
   | 'patients'
   | 'appointments'
+  | 'prescriptions'
   | 'availability'
   | 'earnings'
   | 'personal'
@@ -31,6 +33,7 @@ type NavItem = { id: DashboardView; label: string; Icon: typeof Clock };
 export const LOCKED_VIEWS: ReadonlySet<DashboardView> = new Set<DashboardView>([
   'patients',
   'appointments',
+  'prescriptions',
   'availability',
   'earnings',
   'online',
@@ -43,6 +46,7 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
       { id: 'patients', label: 'Patients', Icon: Users },
       { id: 'appointments', label: 'Appointments', Icon: CalendarDays },
+      { id: 'prescriptions', label: 'Prescriptions', Icon: FileText },
       { id: 'availability', label: 'Availability', Icon: Clock },
       { id: 'earnings', label: 'Earnings', Icon: Wallet },
     ],

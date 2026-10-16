@@ -88,6 +88,8 @@ export interface Appointment {
   paymentMethod?: PaymentMethod | null;
   status: AppointmentStatus;
   cancelReason?: string | null;
+  /** PDF of the doctor's digital prescription, once written ("/uploads/...") */
+  prescriptionUrl?: string | null;
   createdAt: string;
   doctor: PublicDoctor;
   clinic: PublicClinic | null;

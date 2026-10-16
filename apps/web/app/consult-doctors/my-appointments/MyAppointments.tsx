@@ -9,6 +9,7 @@ import {
   CheckCheck,
   ChevronRight,
   CircleAlert,
+  FileText,
   Hourglass,
   LoaderCircle,
   Lock,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import { openPatientLogin, readPatientSession, type PatientSession } from '@/app/lib/patient-session';
 import { getMyAppointmentsApi, type Appointment, type AppointmentStatus } from '@/app/lib/api/appointments';
+import { fileUrl } from '@/app/lib/api/consultations';
 import {
   displayDate,
   displayTime,
@@ -36,12 +38,31 @@ const STATUS_UI: Record<AppointmentStatus, { label: string; className: string; I
   NO_SHOW: { label: 'Missed', className: 'bg-red-50 text-red-700', Icon: CalendarX2 },
 };
 
+type Filter = 'ALL' | 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+
+const FILTERS: { id: Filter; label: string; statuses: AppointmentStatus[] | null }[] = [
+  { id: 'ALL', label: 'All', statuses: null },
+  { id: 'PENDING', label: 'Pending', statuses: ['PENDING', 'RESCHEDULED'] },
+  { id: 'CONFIRMED', label: 'Confirmed', statuses: ['CONFIRMED'] },
+  { id: 'COMPLETED', label: 'Completed', statuses: ['COMPLETED'] },
+  { id: 'CANCELLED', label: 'Cancelled', statuses: ['CANCELLED', 'NO_SHOW'] },
+];
+
+const FILTER_EMPTY: Record<Filter, string> = {
+  ALL: 'No appointments yet.',
+  PENDING: 'No appointments are waiting for the doctor.',
+  CONFIRMED: 'No confirmed appointments.',
+  COMPLETED: 'No completed consultations yet.',
+  CANCELLED: 'No cancelled appointments.',
+};
+
 export default function MyAppointments() {
   const [user, setUser] = useState<PatientSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [items, setItems] = useState<Appointment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [filter, setFilter] = useState<Filter>('ALL');
 
   useEffect(() => {
     const sync = () => {
@@ -91,6 +112,17 @@ export default function MyAppointments() {
     .filter((a) => a.appointmentDate.slice(0, 10) >= today && ['PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(a.status))
     .sort((a, b) => (a.appointmentDate + a.startTime).localeCompare(b.appointmentDate + b.startTime));
   const past = (items ?? []).filter((a) => !upcoming.includes(a));
+  const countFor = (f: (typeof FILTERS)[number]) => (f.statuses ? (items ?? []).filter((a) => f.statuses!.includes(a.status)).length : (items ?? []).length);
+  const activeFilter = FILTERS.find((f) => f.id === filter)!;
+  const filtered = activeFilter.statuses
+    ? (items ?? [])
+        .filter((a) => activeFilter.statuses!.includes(a.status))
+        .sort((a, b) =>
+          filter === 'PENDING' || filter === 'CONFIRMED'
+            ? (a.appointmentDate + a.startTime).localeCompare(b.appointmentDate + b.startTime)
+            : (b.appointmentDate + b.startTime).localeCompare(a.appointmentDate + a.startTime),
+        )
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-[880px] px-4 py-6 sm:px-6 lg:py-10">
@@ -128,10 +160,36 @@ export default function MyAppointments() {
           <p className="mt-1 text-sm text-gray-500">Appointments you book will appear here.</p>
         </div>
       ) : (
-        <div className="space-y-8">
-          <Group title="Upcoming" items={upcoming} empty="No upcoming appointments." />
-          {past.length > 0 && <Group title="Past and cancelled" items={past} />}
-        </div>
+        <>
+          <div role="tablist" aria-label="Filter by status" className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-1">
+            {FILTERS.map((f) => {
+              const active = f.id === filter;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setFilter(f.id)}
+                  className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-semibold transition ${
+                    active ? 'bg-[#ff6f61] text-white' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  {f.label}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[11px] tabular-nums ${active ? 'bg-white/20' : 'bg-gray-100 text-gray-600'}`}>{countFor(f)}</span>
+                </button>
+              );
+            })}
+          </div>
+          {filter === 'ALL' ? (
+            <div className="space-y-8">
+              <Group title="Upcoming" items={upcoming} empty="No upcoming appointments." />
+              {past.length > 0 && <Group title="Past and cancelled" items={past} />}
+            </div>
+          ) : (
+            <Group title={activeFilter.label} items={filtered} empty={FILTER_EMPTY[filter]} />
+          )}
+        </>
       )}
     </div>
   );
@@ -159,8 +217,7 @@ function AppointmentCard({ a }: { a: Appointment }) {
   const ModeIcon = a.serviceMode === 'VIDEO' ? Video : a.serviceMode === 'TEXT' ? MessageSquareText : MapPin;
   // Online consultations always show the room button; before approval it opens a screen explaining why the room is locked
   const online =
-    (a.serviceMode === 'VIDEO' || a.serviceMode === 'TEXT') &&
-    ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'COMPLETED'].includes(a.status);
+    (a.serviceMode === 'VIDEO' || a.serviceMode === 'TEXT') && ['PENDING', 'CONFIRMED', 'RESCHEDULED'].includes(a.status);
   const waiting = a.status === 'PENDING' || a.status === 'RESCHEDULED';
   const patient =
     a.patientType === 'FAMILY_MEMBER' && a.familyMember
@@ -196,27 +253,59 @@ function AppointmentCard({ a }: { a: Appointment }) {
           {formatPkr(a.fee)} <span className="font-normal text-gray-500">· {a.paymentStatus === 'PAID' ? 'Paid' : 'Not paid yet'}</span>
         </span>
       </div>
-      {online && (
+      {a.status === 'COMPLETED' ? (
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-gray-500">
-            {a.status === 'COMPLETED'
-              ? 'See the doctor\u2019s notes and your conversation.'
-              : waiting
-                ? 'The room unlocks once the doctor confirms your appointment.'
-                : 'The room opens 10 minutes before your appointment.'}
+            {a.prescriptionUrl
+              ? 'Your prescription is ready to view or download.'
+              : 'The doctor has not issued a prescription yet. You will be notified when it is ready.'}
           </p>
-          <Link
-            href={`/consultations/${encodeURIComponent(a.id)}`}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition ${
-              a.status === 'COMPLETED' || waiting
-                ? 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-                : 'bg-[#ff6f61] text-white hover:bg-[#e85b4d]'
-            }`}
-          >
-            <ModeIcon className="h-4 w-4" />
-            {a.status === 'COMPLETED' ? 'View Summary' : a.serviceMode === 'VIDEO' ? 'Join Video Call' : 'Open Chat Room'}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {a.prescriptionUrl && (
+              <a
+                href={fileUrl(a.prescriptionUrl)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#ff6f61] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#e85b4d]"
+              >
+                <FileText className="h-4 w-4" /> View Prescription
+              </a>
+            )}
+            {a.serviceMode === 'TEXT' && (
+              <Link
+                href={`/consultations/${encodeURIComponent(a.id)}`}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50"
+              >
+                <MessageSquareText className="h-4 w-4" /> View Chat Summary
+              </Link>
+            )}
+            {a.serviceMode === 'VIDEO' && (
+              <Link
+                href={`/consultations/${encodeURIComponent(a.id)}`}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-4 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50"
+              >
+                <Video className="h-4 w-4" /> View Summary
+              </Link>
+            )}
+          </div>
         </div>
+      ) : (
+        online && (
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-gray-500">
+              {waiting ? 'The room unlocks once the doctor confirms your appointment.' : 'The room opens 10 minutes before your appointment.'}
+            </p>
+            <Link
+              href={`/consultations/${encodeURIComponent(a.id)}`}
+              className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition ${
+                waiting ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-[#ff6f61] text-white hover:bg-[#e85b4d]'
+              }`}
+            >
+              <ModeIcon className="h-4 w-4" />
+              {a.serviceMode === 'VIDEO' ? 'Join Video Call' : 'Open Chat Room'}
+            </Link>
+          </div>
+        )
       )}
     </li>
   );

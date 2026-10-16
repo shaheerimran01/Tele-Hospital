@@ -34,6 +34,9 @@ export interface DoctorAppointment {
   description: string | null;
   /** the patient asked for this time; the doctor can "Accept Slot" */
   patientRequestedSlot?: boolean;
+  /** the digital prescription, once written */
+  prescription?: { id: string; pdfUrl: string | null; createdAt: string; updatedAt: string } | null;
+  prescriptionUrl?: string | null;
 }
 
 /** An update from a patient, shown on the doctor's dashboard */
@@ -61,6 +64,9 @@ export interface DoctorDashboardData {
   requests: DoctorAppointment[];
   upcoming: DoctorAppointment[];
   completed: DoctorAppointment[];
+  /** Appointments page tabs */
+  confirmed?: DoctorAppointment[];
+  cancelled?: DoctorAppointment[];
   notifications?: { items: DoctorNotificationItem[]; unread: number };
   earnings: { serviceMode: ServiceMode; paymentStatus: PaymentStatus; count: number; total: number }[];
   patients: {
@@ -141,3 +147,6 @@ export const markDoctorNotificationReadApi = (token: string, id: string) =>
 
 export const markAllDoctorNotificationsReadApi = (token: string) =>
   call<{ updated: number }>(token, '/notifications/read-all', { method: 'PATCH' });
+
+/** Shared request helper for other /doctors/me/* clients (prescriptions) */
+export { call as doctorMeCall };

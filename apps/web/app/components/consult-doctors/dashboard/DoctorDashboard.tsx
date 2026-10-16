@@ -15,9 +15,11 @@ import {
 } from '@/app/lib/api/doctor-dashboard';
 import { DOCTOR_ROUTES, useDoctorAuth } from '@/app/consult-doctors/context/DoctorAuthContext';
 import Sidebar, { LOCKED_VIEWS, type DashboardView } from './Sidebar';
+import PrescriptionsView from './PrescriptionsView';
 import DashboardHome from './DashboardHome';
 import {
   AppointmentsView,
+  type AppointmentsTab,
   AvailabilityView,
   ClinicsInfoView,
   EarningsView,
@@ -40,6 +42,7 @@ const VIEW_TITLES: Record<DashboardView, string> = {
   dashboard: 'Dashboard',
   patients: 'Patients',
   appointments: 'Appointments',
+  prescriptions: 'Prescriptions',
   availability: 'Availability',
   earnings: 'Earnings',
   personal: 'Personal Info',
@@ -181,6 +184,17 @@ export default function DoctorDashboard() {
 
   // --- UI state ---
   const [view, setView] = useState<DashboardView>('dashboard');
+  const [appointmentsTab, setAppointmentsTab] = useState<AppointmentsTab>('confirmed');
+
+  // Deep links from other doctor pages, e.g. ?view=appointments&tab=completed after saving a prescription
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('view');
+    const t = params.get('tab');
+    if (v && v in VIEW_TITLES) setView(v as DashboardView);
+    if (t === 'confirmed' || t === 'completed' || t === 'cancelled') setAppointmentsTab(t);
+    if (v || t) window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+  }, []);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [rescheduling, setRescheduling] = useState<DashboardAppointment | null>(null);
   const [declining, setDeclining] = useState<DashboardAppointment | null>(null);
@@ -357,7 +371,19 @@ export default function DoctorDashboard() {
   let content: React.ReactNode;
   switch (currentView) {
     case 'appointments':
-      content = <AppointmentsView {...dataProps} onAction={handleAction} busy={busy} />;
+      content = (
+        <AppointmentsView
+          key={appointmentsTab}
+          {...dataProps}
+          onAction={handleAction}
+          busy={busy}
+          token={token}
+          initialTab={appointmentsTab}
+        />
+      );
+      break;
+    case 'prescriptions':
+      content = <PrescriptionsView token={token} data={data} onAuthError={handleAuthError} />;
       break;
     case 'patients':
       content = <PatientsView {...dataProps} />;

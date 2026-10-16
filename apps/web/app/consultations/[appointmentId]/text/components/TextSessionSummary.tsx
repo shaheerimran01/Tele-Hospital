@@ -49,7 +49,16 @@ function Section({
   );
 }
 
-export default function TextSessionSummary({ appointmentId, viewer }: { appointmentId: string; viewer: Viewer }) {
+export default function TextSessionSummary({
+  appointmentId,
+  viewer,
+  defaultConversationOpen = false,
+}: {
+  appointmentId: string;
+  viewer: Viewer;
+  /** show the chat expanded (e.g. in the doctor's Chat Summary modal) */
+  defaultConversationOpen?: boolean;
+}) {
   const [data, setData] = useState<ConsultationSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<number | null>(null);
@@ -100,6 +109,7 @@ export default function TextSessionSummary({ appointmentId, viewer }: { appointm
         viewer={viewer}
         doctorName={data.appointment.doctor.name}
         patientName={data.appointment.patientName}
+        defaultOpen={defaultConversationOpen}
       />
 
       <Section icon={Mic} title="Voice notes" count={data.voiceNotes.length} defaultOpen={data.voiceNotes.length > 0}>

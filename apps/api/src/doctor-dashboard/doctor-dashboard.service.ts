@@ -20,6 +20,7 @@ const ROW_INCLUDE = {
   familyMember: { select: { fullName: true, relation: true, gender: true, age: true } },
   clinic: { select: { name: true, address: true } },
   intake: { select: { symptoms: true, symptomDuration: true, description: true } },
+  consultationPrescription: { select: { id: true, pdfUrl: true, createdAt: true, updatedAt: true } },
 } satisfies Prisma.AppointmentInclude;
 
 type Row = Prisma.AppointmentGetPayload<{ include: typeof ROW_INCLUDE }>;
@@ -62,6 +63,8 @@ export class DoctorDashboardService {
       requests,
       upcoming,
       completed,
+      confirmed,
+      cancelled,
       todayCount,
       pendingCount,
       earned,
@@ -98,6 +101,20 @@ export class DoctorDashboardService {
         where: { ...mine, status: AppointmentStatus.COMPLETED },
         include: ROW_INCLUDE,
         orderBy: [{ appointmentDate: 'desc' }, { updatedAt: 'desc' }],
+        take: 100,
+      }),
+      // Appointments page, "Confirmed" tab: every confirmed / rescheduled appointment not finished yet
+      this.prisma.appointment.findMany({
+        where: { ...mine, status: { in: UPCOMING_STATUSES } },
+        include: ROW_INCLUDE,
+        orderBy: [{ appointmentDate: 'asc' }],
+        take: 200,
+      }),
+      // Appointments page, "Declined / Cancelled" tab
+      this.prisma.appointment.findMany({
+        where: { ...mine, status: AppointmentStatus.CANCELLED },
+        include: ROW_INCLUDE,
+        orderBy: [{ updatedAt: 'desc' }],
         take: 100,
       }),
       this.prisma.appointment.count({
@@ -165,6 +182,8 @@ export class DoctorDashboardService {
       requests: requests.sort(chronological).map(row),
       upcoming: upcoming.sort(chronological).map(row),
       completed: completed.map(row),
+      confirmed: confirmed.sort(chronological).map(row),
+      cancelled: cancelled.map(row),
       /** updates from patients (accepted / requested times, declined proposals) */
       notifications: { items: notificationItems, unread: unreadNotifications },
       earnings: completedByMode.map((g) => ({
@@ -423,6 +442,9 @@ export class DoctorDashboardService {
       description: a.intake?.description ?? null,
       /** the patient asked for this time; the doctor can "Accept Slot" */
       patientRequestedSlot,
+      /** the digital prescription, once written */
+      prescription: a.consultationPrescription,
+      prescriptionUrl: a.prescriptionUrl,
     };
   }
 }

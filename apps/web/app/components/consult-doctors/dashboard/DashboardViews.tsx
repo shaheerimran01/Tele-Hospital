@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   BadgeCheck,
   CircleAlert,
@@ -15,6 +16,8 @@ import {
 import { apiFileUrl, type DoctorProfile, type TimeSlot } from '@/app/lib/api/doctors';
 import AppointmentTable, { ModeBadge, type AppointmentAction } from './AppointmentTable';
 import { SectionCard, TableSkeleton } from './DashboardHome';
+import { CancelledTable, CompletedTable } from './AppointmentHistoryTables';
+import TextSummaryModal from '@/app/consult-doctors/doctor-dashboard/components/TextSummaryModal';
 import {
   displayTime,
   formatDay,
@@ -106,56 +109,101 @@ interface DataProps {
 // Appointments
 // ---------------------------------------------------------------------------
 
+export type AppointmentsTab = 'confirmed' | 'completed' | 'cancelled';
+
+const APPOINTMENT_TABS: { id: AppointmentsTab; label: string }[] = [
+  { id: 'confirmed', label: 'Confirmed' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'cancelled', label: 'Declined / Cancelled' },
+];
+
 export function AppointmentsView({
   data,
   error,
   onRetry,
   onAction,
   busy,
+  token,
+  initialTab = 'confirmed',
 }: DataProps & {
   onAction: (action: AppointmentAction, a: DashboardAppointment) => void;
   busy: Record<string, AppointmentAction | undefined>;
+  /** doctor login token (chat summary) */
+  token: string;
+  initialTab?: AppointmentsTab;
 }) {
+  const [tab, setTab] = useState<AppointmentsTab>(initialTab);
+  const [chatFor, setChatFor] = useState<DashboardAppointment | null>(null);
+  const lists = data
+    ? {
+        confirmed: data.confirmed ?? [...data.todaySchedule.filter((a) => a.status !== 'PENDING'), ...data.upcoming],
+        completed: data.completed,
+        cancelled: data.cancelled ?? [],
+      }
+    : null;
+
   return (
     <>
-      <ViewHeader title="Appointments" text="Respond to requests and manage your confirmed consultations." />
+      <ViewHeader title="Appointments" text="Your confirmed consultations, finished consultations with their prescriptions, and declined requests." />
+      <div role="tablist" aria-label="Appointment status" className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-[#e7e2d8] bg-white p-1">
+        {APPOINTMENT_TABS.map((t) => {
+          const active = t.id === tab;
+          const count = lists?.[t.id].length;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(t.id)}
+              className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                active ? 'bg-[#141b34] text-white' : 'text-[#5c6072] hover:bg-[#f6f4ef] hover:text-[#141b34]'
+              }`}
+            >
+              {t.label}
+              {count !== undefined && (
+                <span className={`rounded-full px-2 py-0.5 text-[11px] tabular-nums ${active ? 'bg-white/15' : 'bg-[#f1ece1] text-[#7b5d22]'}`}>{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
       <DataGate data={data} error={error} onRetry={onRetry}>
         {(d) => (
-          <div className="space-y-6">
-            <SectionCard
-              title="Requests waiting for you"
-              subtitle={`${d.requests.length} pending · Patients see your reply in their My Appointments page`}
-            >
-              <AppointmentTable
-                rows={d.requests}
-                today={d.today}
-                onAction={onAction}
-                busy={busy}
-                shortMode
-                empty={{ title: "You're all caught up", text: 'New consultation requests will appear here.' }}
-              />
-            </SectionCard>
-            <SectionCard title="Today" subtitle={`${plural(d.todaySchedule.length, 'consultation', 'consultations')} scheduled`}>
-              <AppointmentTable
-                rows={d.todaySchedule}
-                today={d.today}
-                onAction={onAction}
-                busy={busy}
-                empty={{ title: 'No consultations scheduled for today', text: 'Approved and pending bookings for today will appear here.' }}
-              />
-            </SectionCard>
-            <SectionCard title="Upcoming" subtitle="Confirmed and rescheduled consultations after today">
-              <AppointmentTable
-                rows={d.upcoming}
-                today={d.today}
-                onAction={onAction}
-                busy={busy}
-                empty={{ title: 'No upcoming consultations', text: 'Requests you approve for later dates will appear here.' }}
-              />
-            </SectionCard>
+          <div role="tabpanel">
+            {tab === 'confirmed' && (
+              <SectionCard title="Confirmed" subtitle="Active and upcoming consultations · join online rooms or mark them completed">
+                <AppointmentTable
+                  rows={lists!.confirmed}
+                  today={d.today}
+                  onAction={onAction}
+                  busy={busy}
+                  empty={{ title: 'No confirmed consultations', text: 'Requests you approve will appear here.' }}
+                />
+              </SectionCard>
+            )}
+            {tab === 'completed' && (
+              <SectionCard title="Completed" subtitle="Write a prescription, open it, or review the chat of text consultations">
+                <CompletedTable rows={lists!.completed} onViewChat={setChatFor} />
+              </SectionCard>
+            )}
+            {tab === 'cancelled' && (
+              <SectionCard title="Declined / Cancelled" subtitle="Requests you declined and bookings that were cancelled">
+                <CancelledTable rows={lists!.cancelled} />
+              </SectionCard>
+            )}
           </div>
         )}
       </DataGate>
+      {chatFor && (
+        <TextSummaryModal
+          appointmentId={chatFor.id}
+          appointmentNum={chatFor.appointmentNum}
+          patientName={chatFor.patientName}
+          token={token}
+          onClose={() => setChatFor(null)}
+        />
+      )}
     </>
   );
 }
