@@ -125,7 +125,7 @@ export default function AppointmentActionCard({
     return frame(
       <p className="flex items-start gap-2 text-xs text-gray-700">
         <UserRoundSearch className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-        <span>Our team is finding another doctor for you. You will get a recommendation here shortly.</span>
+        <span>Our team is finding another doctor for you. We will notify you as soon as a doctor confirms your appointment.</span>
       </p>,
     );
   }

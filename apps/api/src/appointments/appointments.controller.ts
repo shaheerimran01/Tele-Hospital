@@ -23,6 +23,7 @@ import {
   ForwardRescheduleDto,
   PatientRescheduleResponseDto,
   RecommendAlternativeDto,
+  RequestAlternativeDto,
 } from './dto/resolution.dto.js';
 
 type RequestWithUser = Request & { user?: { id?: string } };
@@ -97,6 +98,26 @@ export class AppointmentsController {
   @Post(':id/recommend-alternative')
   recommendAlternative(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RecommendAlternativeDto) {
     return this.resolution.recommendAlternative(id, dto.doctorId, dto.note, dto.serviceMode as ConsultationServiceMode | undefined);
+  }
+
+  // POST /appointments/:id/request-alternative  { doctorId, date, startTime, serviceMode?, clinicId?, note? }
+  // (admin -> new doctor; the patient is told only after that doctor approves)
+  @Post(':id/request-alternative')
+  requestAlternative(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: RequestAlternativeDto) {
+    return this.resolution.requestAlternative(id, {
+      doctorId: dto.doctorId,
+      date: dto.date,
+      startTime: dto.startTime,
+      serviceMode: dto.serviceMode as ConsultationServiceMode | undefined,
+      clinicId: dto.clinicId,
+      note: dto.note,
+    });
+  }
+
+  // POST /appointments/:id/withdraw-request  (admin: cancel a request the new doctor hasn't answered)
+  @Post(':id/withdraw-request')
+  withdrawRequest(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.resolution.withdrawRequest(id);
   }
 
   // GET /appointments/:id/resolution  (admin: where the follow-up stands)

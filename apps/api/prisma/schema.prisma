@@ -830,3 +830,55 @@ model Hospital {
   @@index([type])
   @@map("hospitals")
 }
+
+// ------------------------------------------------------
+// SINGLE LAB PACKAGES & TESTS MODEL (FLAT STRUCTURE)
+// ------------------------------------------------------
+
+model LabPackage {
+  id                 String   @id @default(uuid())
+  
+  // Basic Info & Categorization
+  title              String   // e.g. "Comprehensive Gold Full Body Checkup" ya "PPBS (Postprandial Blood Sugar)"
+  slug               String   @unique
+  code               String?  // e.g. "PKG-001" ya "TEST-PPBS"
+  itemType           String   @default("PACKAGE") // "PACKAGE" ya "INDIVIDUAL_TEST"
+  category           String?  // e.g. "Full Body Checkup", "Radiology", "Pathology"
+  badgeText          String?  // e.g. "Smart Report", "45% OFF", "Best Seller"
+  
+  // Pricing
+  basePrice          Float    // Original Price (e.g. 4998)
+  discountPrice      Float?   // Discounted Price (e.g. 2499)
+  discountPercent    Int?     // e.g. 50
+  
+  // Included Tests (CSV ya pgAdmin se direct handle karne ke liye)
+  totalTestsCount    Int      @default(1) // e.g. 86
+  testsIncluded      String[] // Array of included test names: ["CBC", "Thyroid Profile", "HbA1c"]
+  
+  // Requirements & Timings
+  reportTime         String?  // e.g. "12-24 hours"
+  sampleRequired     String?  // e.g. "Blood", "Urine", "Blood & Urine"
+  preparation        String?  @db.Text // e.g. "Fasting required for 8-10 hours"
+  targetGender       String?  @default("ALL") // "ALL", "MALE", "FEMALE"
+  
+  // Content & Descriptions
+  aliases            String[] // Alternative names: ["Glucose Postprandial", "Sugar PP"]
+  whyBooked          String?  @db.Text
+  overview           String?  @db.Text // "Understanding PPBS..."
+  whatItMeasures     String?  @db.Text // "What does PPBS measure?"
+  
+  // FAQs (Stored as JSON array for easy dynamic rendering)
+  faqs               Json?    // e.g. [{"q": "Fasting needed?", "a": "Yes 8-10 hrs"}]
+  notes              String?  @db.Text
+  
+  // Status Flags
+  isActive           Boolean  @default(true)
+  isPopular          Boolean  @default(false)
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([category])
+  @@index([itemType])
+  @@map("lab_packages")
+}

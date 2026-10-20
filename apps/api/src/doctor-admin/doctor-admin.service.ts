@@ -4,7 +4,7 @@ import { AppointmentStatus, DoctorStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { DoctorsService } from '../doctors/doctors.service.js';
 import { AppointmentsService } from '../appointments/appointments.service.js';
-import { AppointmentResolutionService } from '../appointments/appointment-resolution.service.js';
+import { AppointmentResolutionService, type ResolutionState } from '../appointments/appointment-resolution.service.js';
 import {
   APPOINTMENT_NUMBER_REGEX,
   APPOINTMENT_NOTIFICATION_WHERE,
@@ -35,6 +35,7 @@ import {
 const DECLINED_TAB_TYPES: string[] = [
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED,
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_ALTERNATIVE_REQUESTED,
+  DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_REASSIGN_DECLINED,
 ];
 
 /** Lists are capped; the admin narrows them with search and filters. */
@@ -352,15 +353,20 @@ export class DoctorAdminService {
     ]);
 
     // Follow-up step for the declined / rescheduled queue
-    const states = query.queue ? await this.resolution.states(appointments) : new Map();
+    const states: Map<string, ResolutionState> = query.queue ? await this.resolution.states(appointments) : new Map();
+    const requestedName = await this.doctorNamesByPmdc([...states.values()].map((x) => x.request?.doctorPmdc));
     return {
-      appointments: appointments.map((a) => ({
-        ...this.toAppointmentRow(a),
-        caseOpen: openCases.has(a.appointmentNum),
-        stage: states.get(a.id)?.stage ?? null,
-        forwardedAt: states.get(a.id)?.forwardedAt ?? null,
-        recommendedAt: states.get(a.id)?.recommendedAt ?? null,
-      })),
+      appointments: appointments.map((a) => {
+        const st = states.get(a.id);
+        return {
+          ...this.toAppointmentRow(a),
+          caseOpen: openCases.has(a.appointmentNum),
+          stage: st?.stage ?? null,
+          forwardedAt: st?.forwardedAt ?? null,
+          recommendedAt: st?.recommendedAt ?? null,
+          ...this.requestFields(st, requestedName),
+        };
+      }),
       total,
       statusCounts: Object.fromEntries(counts.map((c) => [c.status, c._count._all])) as Record<string, number>,
       /** declined / rescheduled cases the admin hasn't resolved yet */
@@ -650,6 +656,7 @@ export class DoctorAdminService {
       ? await this.prisma.doctor.findMany({ where: { pmdcNumber: { in: recommendedPmdcs } }, select: { pmdcNumber: true, fullName: true } })
       : [];
     const recommendedName = new Map(recommendedDoctors.map((d) => [d.pmdcNumber, doctorName(d.fullName)]));
+    const requestedName = await this.doctorNamesByPmdc([...states.values()].map((x) => x.request?.doctorPmdc));
     const aptDetails = new Map(
       appointments.map((a) => {
         const st = states.get(a.id);
@@ -666,6 +673,7 @@ export class DoctorAdminService {
             forwardedAt: st?.forwardedAt ?? null,
             recommendedAt: st?.recommendedAt ?? null,
             recommendedDoctorName: st?.recommendedPmdc ? recommendedName.get(st.recommendedPmdc) ?? null : null,
+            ...this.requestFields(st, requestedName),
           },
         ];
       }),
@@ -691,6 +699,24 @@ export class DoctorAdminService {
         reason: DOCTOR_ACTION_NOTIFICATION_TYPES.includes(r.type) ? r.message.match(REASON_REGEX)?.[1]?.trim() ?? null : null,
       };
     });
+  }
+
+  /** "Dr. ..." for doctors referenced by PMDC number in request notifications */
+  private async doctorNamesByPmdc(pmdcs: (string | null | undefined)[]) {
+    const list = [...new Set(pmdcs.filter(Boolean))] as string[];
+    if (list.length === 0) return new Map<string, string>();
+    const rows = await this.prisma.doctor.findMany({ where: { pmdcNumber: { in: list } }, select: { pmdcNumber: true, fullName: true } });
+    return new Map(rows.map((d) => [d.pmdcNumber, doctorName(d.fullName)]));
+  }
+
+  /** The latest "Request Appointment with Dr. X" of a case, for the admin screens */
+  private requestFields(st: ResolutionState | undefined, names: Map<string, string>) {
+    const r = st?.request;
+    return {
+      requestedAt: r?.at ?? null,
+      requestedAppointmentNum: r?.appointmentNum ?? null,
+      requestedDoctorName: r?.doctorPmdc ? names.get(r.doctorPmdc) ?? null : null,
+    };
   }
 
   /** Specialisation values (stored as free text arrays) that contain the search text. */

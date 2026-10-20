@@ -13,7 +13,14 @@ export type CaseRow = AppointmentRow & {
   stage?: ResolutionStage;
   forwardedAt?: string | null;
   recommendedAt?: string | null;
-};
+} & RequestInfo;
+
+/** The admin's latest "Request Appointment with Dr. X" for a case */
+export interface RequestInfo {
+  requestedAt?: string | null;
+  requestedAppointmentNum?: string | null;
+  requestedDoctorName?: string | null;
+}
 
 export type NotificationFilter = 'ALL' | 'UNREAD' | 'READ' | 'DOCTORS' | 'APPOINTMENTS' | 'DECLINED' | 'RESCHEDULED';
 
@@ -75,7 +82,9 @@ export interface AppointmentRow {
  * Follow-up step after a doctor reschedules or declines:
  * AWAITING_FORWARD (admin sends the new time) -> RESCHEDULE_PROPOSED (patient replies)
  * -> AWAITING_DOCTOR (doctor accepts the patient's time);
- * AWAITING_RECOMMENDATION (admin recommends a doctor) -> ALTERNATIVE_RECOMMENDED (patient books).
+ * AWAITING_RECOMMENDATION (admin chooses a doctor) -> AWAITING_DOCTOR_APPROVAL (that doctor approves
+ * or declines) -> REASSIGNED (approved; the patient was told). ALTERNATIVE_RECOMMENDED: older cases
+ * where a doctor was recommended to the patient to book themselves.
  */
 export type ResolutionStage =
   | 'AWAITING_FORWARD'
@@ -83,6 +92,8 @@ export type ResolutionStage =
   | 'AWAITING_DOCTOR'
   | 'AWAITING_RECOMMENDATION'
   | 'ALTERNATIVE_RECOMMENDED'
+  | 'AWAITING_DOCTOR_APPROVAL'
+  | 'REASSIGNED'
   | null;
 
 export interface PortalNotification {
@@ -105,7 +116,7 @@ export interface PortalNotification {
     forwardedAt: string | null;
     recommendedAt: string | null;
     recommendedDoctorName: string | null;
-  } | null;
+  } & RequestInfo | null;
   /** the doctor's note for declined / rescheduled notifications */
   reason: string | null;
 }
@@ -397,6 +408,16 @@ export interface ResolutionSummary {
   alternativeRequestedAt: string | null;
   recommendedAt: string | null;
   recommendedDoctor: { id: string; name: string } | null;
+  /** the latest "Request Appointment with Dr. X" */
+  request: {
+    at: string;
+    appointmentId: string;
+    appointmentNum: string;
+    status: AppointmentStatus;
+    appointmentDate: string;
+    startTime: string;
+    doctor: { id: string; name: string };
+  } | null;
 }
 
 export interface AlternativeDoctorsResponse {
@@ -437,6 +458,8 @@ export interface AlternativeDoctorsResponse {
     withinFeeRange: boolean;
     /** free start times on `date` ("10:30 AM") */
     freeSlots: string[];
+    /** the same times with the clinic each is at (in-clinic visits) */
+    freeTimes: { startTime: string; clinicId: string | null }[];
     availableAtOriginalTime: boolean;
   }[];
 }
@@ -457,6 +480,20 @@ export const fetchAlternativeDoctors = (id: string, opts: { date?: string; modes
   const qs = q.toString();
   return requestAppointments<AlternativeDoctorsResponse>(`/${encodeURIComponent(id)}/alternative-doctors${qs ? `?${qs}` : ''}`);
 };
+
+/** Admin -> new doctor: a pending appointment the doctor approves or declines (the patient is told after approval). */
+export const requestAlternativeAppointment = (
+  id: string,
+  body: { doctorId: string; date: string; startTime: string; serviceMode?: ServiceMode; clinicId?: string; note?: string },
+) =>
+  requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/request-alternative`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+/** Admin: cancel a request the new doctor hasn't answered yet */
+export const withdrawAlternativeRequest = (id: string) =>
+  requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/withdraw-request`, { method: 'POST' });
 
 export const recommendAlternativeDoctor = (id: string, doctorId: string, note?: string, serviceMode?: ServiceMode) =>
   requestAppointments<ResolutionSummary>(`/${encodeURIComponent(id)}/recommend-alternative`, {

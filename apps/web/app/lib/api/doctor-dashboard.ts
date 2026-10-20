@@ -34,6 +34,8 @@ export interface DoctorAppointment {
   description: string | null;
   /** the patient asked for this time; the doctor can "Accept Slot" */
   patientRequestedSlot?: boolean;
+  /** the Tabibistan admin assigned this patient to you (approve or decline; it can't be rescheduled) */
+  assignedByAdmin?: boolean;
   /** the digital prescription, once written */
   prescription?: { id: string; pdfUrl: string | null; createdAt: string; updatedAt: string } | null;
   prescriptionUrl?: string | null;

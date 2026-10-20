@@ -8,6 +8,10 @@
 //                         the patient browses doctors and books one themselves
 //   Doctor declines   -> admin "Find Alternative Doctor" -> patient books them
 //
+//   Admin "Request Appointment with Dr. X" (instead of recommending): a PENDING
+//   appointment is created for Dr. X. The patient isn't told anything until Dr. X
+//   approves it; if Dr. X declines, the case goes back to the admin.
+//
 // No new columns: each step is recorded as an admin Notification that mentions
 // the appointment number (APT-...), so the current step of every case can be
 // read back from those rows, plus the DoctorNotification for "Accept Slot".
@@ -25,6 +29,7 @@ import {
   doctorName,
   PATIENT_NOTIFICATION_TYPES,
   PMDC_REFERENCE_REGEX,
+  REASSIGN_REQUEST_REGEX,
   recordDoctorNotification,
   recordDoctorPortalNotification,
   recordPatientNotification,
@@ -43,6 +48,29 @@ const TRAIL_TYPES: string[] = [
   T.APPOINTMENT_PATIENT_RESPONSE,
   T.APPOINTMENT_ALTERNATIVE_REQUESTED,
   T.APPOINTMENT_ALTERNATIVE_RECOMMENDED,
+  T.APPOINTMENT_REASSIGN_REQUESTED,
+  T.APPOINTMENT_REASSIGN_APPROVED,
+  T.APPOINTMENT_REASSIGN_DECLINED,
+  T.APPOINTMENT_REASSIGN_WITHDRAWN,
+];
+
+/** Events that move a cancelled case on; the latest one decides its stage */
+const CANCELLED_CASE_EVENTS: string[] = [
+  T.APPOINTMENT_DECLINED,
+  T.APPOINTMENT_ALTERNATIVE_REQUESTED,
+  T.APPOINTMENT_ALTERNATIVE_RECOMMENDED,
+  T.APPOINTMENT_REASSIGN_REQUESTED,
+  T.APPOINTMENT_REASSIGN_APPROVED,
+  T.APPOINTMENT_REASSIGN_DECLINED,
+  T.APPOINTMENT_REASSIGN_WITHDRAWN,
+];
+
+/** Request statuses that mean the new doctor took the patient */
+const ACCEPTED_REQUEST_STATUSES: string[] = [
+  AppointmentStatus.CONFIRMED,
+  AppointmentStatus.COMPLETED,
+  AppointmentStatus.RESCHEDULED,
+  AppointmentStatus.NO_SHOW,
 ];
 
 /** Suggested fee range for alternative doctors: the original fee ±20% */
@@ -75,8 +103,10 @@ const PENDING_WINDOW_DAYS = 90;
  * - AWAITING_FORWARD: doctor proposed a new time, admin hasn't sent it to the patient yet
  * - RESCHEDULE_PROPOSED: patient must approve or decline the doctor's new time
  * - AWAITING_DOCTOR: patient picked another time, the doctor must accept it
- * - AWAITING_RECOMMENDATION: booking cancelled, admin should recommend another doctor
+ * - AWAITING_RECOMMENDATION: booking cancelled, admin should recommend / request another doctor
  * - ALTERNATIVE_RECOMMENDED: patient can book the recommended doctor
+ * - AWAITING_DOCTOR_APPROVAL: admin asked another doctor; waiting for that doctor (patient not told yet)
+ * - REASSIGNED: the new doctor approved; the patient has a confirmed appointment with them
  */
 export type ResolutionStage =
   | 'AWAITING_FORWARD'
@@ -84,7 +114,18 @@ export type ResolutionStage =
   | 'AWAITING_DOCTOR'
   | 'AWAITING_RECOMMENDATION'
   | 'ALTERNATIVE_RECOMMENDED'
+  | 'AWAITING_DOCTOR_APPROVAL'
+  | 'REASSIGNED'
   | null;
+
+/** The admin's latest request to another doctor */
+export interface ReassignRequest {
+  at: Date;
+  appointmentNum: string;
+  doctorPmdc: string | null;
+  /** status of the requested appointment (null if it was removed) */
+  status: AppointmentStatus | null;
+}
 
 export interface ResolutionState {
   stage: ResolutionStage;
@@ -95,9 +136,22 @@ export interface ResolutionState {
   recommendedPmdc: string | null;
   /** consultation type of the recommendation (when it differs from the original) */
   recommendedMode: ConsultationServiceMode | null;
+  /** the latest "Request Appointment with Dr. X" */
+  request: ReassignRequest | null;
 }
 
 type TrailRow = { type: string; message: string; createdAt: Date };
+
+/** An appointment the admin requested with a doctor, as the doctor answers it */
+export interface AssignedRequestInfo {
+  appointmentId: string;
+  appointmentNum: string;
+  userId: string;
+  appointmentDate: Date;
+  startTime: string;
+  doctorFullName: string;
+  patientName: string;
+}
 
 const DOCTOR_CARD_SELECT = {
   id: true,
@@ -171,6 +225,8 @@ const RESOLUTION_APPOINTMENT_SELECT = {
   fee: true,
   cancelReason: true,
   patientType: true,
+  familyMemberId: true,
+  paymentMethod: true,
   createdAt: true,
   updatedAt: true,
   user: { select: { firstName: true, lastName: true, phone: true } },
@@ -227,6 +283,15 @@ export class AppointmentResolutionService {
     }
     const waitingForDoctor = new Set(pendingSlots.map((p) => p.appointmentId));
 
+    // Requested appointments (admin -> another doctor): their current status
+    const requestNums = [
+      ...new Set(trail.filter((r) => r.type === T.APPOINTMENT_REASSIGN_REQUESTED).map((r) => r.message.match(REASSIGN_REQUEST_REGEX)?.[1]).filter(Boolean)),
+    ] as string[];
+    const requestedRows = requestNums.length
+      ? await this.prisma.appointment.findMany({ where: { appointmentNum: { in: requestNums } }, select: { appointmentNum: true, status: true } })
+      : [];
+    const requestStatus = new Map(requestedRows.map((r) => [r.appointmentNum, r.status]));
+
     for (const a of appointments) {
       const rows = byNum.get(a.appointmentNum) ?? [];
       const last = (type: string) => [...rows].reverse().find((r) => r.type === type) ?? null;
@@ -242,9 +307,44 @@ export class AppointmentResolutionService {
         if (waitingForDoctor.has(a.id)) stage = 'AWAITING_DOCTOR';
         else if (forwardedCurrent) stage = 'RESCHEDULE_PROPOSED';
         else if (rescheduled) stage = 'AWAITING_FORWARD';
-      } else if (a.status === AppointmentStatus.CANCELLED) {
-        if (recommended && (!requested || recommended.createdAt >= requested.createdAt)) stage = 'ALTERNATIVE_RECOMMENDED';
-        else if (requested || last(T.APPOINTMENT_DECLINED)) stage = 'AWAITING_RECOMMENDATION';
+      }
+
+      const requestRow = last(T.APPOINTMENT_REASSIGN_REQUESTED);
+      const requestNum = requestRow?.message.match(REASSIGN_REQUEST_REGEX)?.[1] ?? null;
+      const request: ReassignRequest | null =
+        requestRow && requestNum
+          ? {
+              at: requestRow.createdAt,
+              appointmentNum: requestNum,
+              doctorPmdc: requestRow.message.match(PMDC_REFERENCE_REGEX)?.[1] ?? null,
+              status: requestStatus.get(requestNum) ?? null,
+            }
+          : null;
+
+      if (a.status === AppointmentStatus.CANCELLED) {
+        // The latest step decides where the case is
+        const latest = [...rows].reverse().find((r) => CANCELLED_CASE_EVENTS.includes(r.type));
+        switch (latest?.type) {
+          case T.APPOINTMENT_ALTERNATIVE_RECOMMENDED:
+            stage = 'ALTERNATIVE_RECOMMENDED';
+            break;
+          case T.APPOINTMENT_REASSIGN_APPROVED:
+            stage = 'REASSIGNED';
+            break;
+          case T.APPOINTMENT_REASSIGN_REQUESTED:
+            // Follow the requested appointment (it may have been changed from elsewhere)
+            stage =
+              request?.status === AppointmentStatus.PENDING
+                ? 'AWAITING_DOCTOR_APPROVAL'
+                : request?.status && ACCEPTED_REQUEST_STATUSES.includes(request.status)
+                  ? 'REASSIGNED'
+                  : 'AWAITING_RECOMMENDATION';
+            break;
+          case undefined:
+            break;
+          default:
+            stage = 'AWAITING_RECOMMENDATION';
+        }
       }
 
       result.set(a.id, {
@@ -254,6 +354,7 @@ export class AppointmentResolutionService {
         recommendedAt: recommended?.createdAt ?? null,
         recommendedPmdc: recommended?.message.match(PMDC_REFERENCE_REGEX)?.[1] ?? null,
         recommendedMode: (recommended?.message.match(RECOMMENDED_MODE_REGEX)?.[1] as ConsultationServiceMode | undefined) ?? null,
+        request,
       });
     }
     return result;
@@ -522,6 +623,8 @@ export class AppointmentResolutionService {
       rows.push({
         ...r,
         freeSlots: times,
+        /** the same times with the clinic each one is at (in-clinic visits) */
+        freeTimes: free.map((f) => ({ startTime: f.startTime, clinicId: f.clinicId })),
         availableAtOriginalTime: times.includes(a.startTime),
       });
     }
@@ -602,6 +705,186 @@ export class AppointmentResolutionService {
   }
 
   // ---------------------------------------------------------------------------
+  // Admin -> another doctor: "Request Appointment with Dr. X"
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Creates a PENDING appointment with the chosen doctor at one of their free
+   * times. The doctor approves or declines it from "Requests Waiting for Approval";
+   * the patient hears nothing until the doctor approves.
+   */
+  async requestAlternative(
+    appointmentId: string,
+    input: { doctorId: string; date: string; startTime: string; serviceMode?: ConsultationServiceMode; clinicId?: string; note?: string },
+  ) {
+    const a = await this.load(appointmentId);
+    if (a.status !== AppointmentStatus.CANCELLED) {
+      throw new BadRequestException('Another doctor can be requested once the original appointment is cancelled');
+    }
+    const state = (await this.states([a])).get(a.id)!;
+    if (state.stage === 'AWAITING_DOCTOR_APPROVAL') {
+      throw new BadRequestException(
+        `A request (${state.request?.appointmentNum}) is still waiting for the doctor's approval. Withdraw it first to choose another doctor.`,
+      );
+    }
+    if (state.stage === 'REASSIGNED') {
+      throw new BadRequestException(`Another doctor has already confirmed this patient (${state.request?.appointmentNum}).`);
+    }
+    if (input.doctorId === a.doctorId) throw new BadRequestException('Please choose a different doctor');
+
+    const d = await this.prisma.doctor.findUnique({
+      where: { id: input.doctorId },
+      select: { ...DOCTOR_CARD_SELECT, status: true, isActive: true },
+    });
+    if (!d || d.status !== DoctorStatus.APPROVED || !d.isActive) {
+      throw new BadRequestException('This doctor is not accepting appointments right now');
+    }
+    const mode = input.serviceMode ?? a.serviceMode;
+    if (feesFor(d, mode).length === 0) {
+      throw new BadRequestException(`This doctor does not offer a ${MODE_LABEL[mode] ?? 'consultation'}`);
+    }
+
+    // The consultation details may sit on an earlier request that was declined or withdrawn
+    let intakeId = a.intakeId;
+    if (!intakeId && state.request) {
+      const previous = await this.prisma.appointment.findUnique({
+        where: { appointmentNum: state.request.appointmentNum },
+        select: { intakeId: true, status: true },
+      });
+      if (previous?.status === AppointmentStatus.CANCELLED) intakeId = previous.intakeId;
+    }
+
+    const created = await this.appointments.createAdminRequest(
+      {
+        userId: a.userId,
+        patientType: a.patientType,
+        familyMemberId: a.familyMemberId,
+        intakeId,
+        paymentMethod: a.paymentMethod,
+      },
+      { doctorId: d.id, serviceMode: mode, clinicId: input.clinicId, date: input.date, startTime: input.startTime },
+    );
+
+    const from = doctorName(a.doctor.fullName);
+    const to = doctorName(d.fullName);
+    const patient = patientLabel(a);
+    const when = appointmentWhen(created.appointmentDate, created.startTime);
+    const note = input.note?.trim();
+
+    await recordDoctorNotification(this.prisma, {
+      doctorId: d.id,
+      appointmentId: created.id,
+      type: DOCTOR_NOTIFICATION_TYPES.ADMIN_ASSIGNED_REQUEST,
+      title: 'New consultation request assigned by Admin.',
+      message:
+        `Tabibistan admin assigned ${patient}'s ${MODE_LABEL[mode]} on ${when} (${created.appointmentNum}) to you. ` +
+        'Please approve or decline it under Requests Waiting for Approval.' +
+        (note ? ` Note from admin: ${note}` : ''),
+    });
+    await this.closeCase(a.appointmentNum);
+    // The original appointment number comes first: the case is read back from it
+    await recordDoctorPortalNotification(this.prisma, {
+      type: T.APPOINTMENT_REASSIGN_REQUESTED,
+      title: 'Appointment requested with another doctor',
+      message:
+        `Appointment ${a.appointmentNum}: requested ${to} (PMDC ${d.pmdcNumber}) for patient ${patient} on ${when} ` +
+        `(${MODE_LABEL[mode]}, ${pkr(created.fee)}), instead of ${from}. Waiting for the doctor's approval; ` +
+        `the patient will be notified once ${to} confirms. Request: ${created.appointmentNum}.`,
+      isRead: true,
+    });
+    return this.adminSummary(a.id);
+  }
+
+  /** Admin: cancels a request the new doctor hasn't answered, so another doctor can be chosen. */
+  async withdrawRequest(appointmentId: string) {
+    const a = await this.load(appointmentId);
+    const state = (await this.states([a])).get(a.id)!;
+    if (state.stage !== 'AWAITING_DOCTOR_APPROVAL' || !state.request) {
+      throw new BadRequestException("There is no request waiting for a doctor's approval");
+    }
+    const req = await this.prisma.appointment.findUnique({
+      where: { appointmentNum: state.request.appointmentNum },
+      select: { id: true, appointmentNum: true, doctorId: true, appointmentDate: true, startTime: true, doctor: { select: { fullName: true } } },
+    });
+    if (!req) throw new NotFoundException('The requested appointment was not found');
+    const { count } = await this.prisma.appointment.updateMany({
+      where: { id: req.id, status: AppointmentStatus.PENDING },
+      data: { status: AppointmentStatus.CANCELLED, cancelReason: 'Request withdrawn by Tabibistan admin.' },
+    });
+    if (count === 0) throw new BadRequestException('The doctor has already answered this request.');
+    await this.markRequestAnswered(req.id);
+
+    const dr = doctorName(req.doctor.fullName);
+    const patient = patientLabel(a);
+    await recordDoctorNotification(this.prisma, {
+      doctorId: req.doctorId,
+      appointmentId: req.id,
+      type: DOCTOR_NOTIFICATION_TYPES.ADMIN_REQUEST_WITHDRAWN,
+      title: 'Consultation request withdrawn',
+      message: `Tabibistan admin withdrew the request for ${patient} on ${appointmentWhen(req.appointmentDate, req.startTime)} (${req.appointmentNum}). No action is needed.`,
+    });
+    await recordDoctorPortalNotification(this.prisma, {
+      type: T.APPOINTMENT_REASSIGN_WITHDRAWN,
+      title: 'Request withdrawn',
+      message: `Appointment ${a.appointmentNum}: the request to ${dr} for patient ${patient} was withdrawn. Request: ${req.appointmentNum}.`,
+      isRead: true,
+    });
+    return this.adminSummary(a.id);
+  }
+
+  /**
+   * The original appointment number when `appointmentNum` was created by the
+   * admin's "Request Appointment with Dr. X", otherwise null.
+   */
+  async assignedRequestOrigin(appointmentNum: string): Promise<string | null> {
+    const row = await this.prisma.notification.findFirst({
+      where: { type: T.APPOINTMENT_REASSIGN_REQUESTED, message: { contains: `Request: ${appointmentNum}` } },
+      select: { message: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const origin = row?.message.match(APPOINTMENT_NUMBER_REGEX)?.[0] ?? null;
+    return origin && origin !== appointmentNum ? origin : null;
+  }
+
+  /** The new doctor approved: now the patient is told, and the admin gets a confirmation. */
+  async assignedRequestApproved(r: AssignedRequestInfo, originNum: string) {
+    await this.markRequestAnswered(r.appointmentId);
+    const dr = doctorName(r.doctorFullName);
+    const when = appointmentWhen(r.appointmentDate, r.startTime);
+    await recordPatientNotification(this.prisma, {
+      userId: r.userId,
+      type: PATIENT_NOTIFICATION_TYPES.APPOINTMENT_NEW_DOCTOR_CONFIRMED,
+      title: 'New Doctor Confirmed for Your Appointment!',
+      message: `Your consultation has been accepted by ${dr} for ${when}. Tap to view details.`,
+    });
+    await recordDoctorPortalNotification(this.prisma, {
+      type: T.APPOINTMENT_REASSIGN_APPROVED,
+      title: 'Reassigned appointment approved',
+      message: `${dr} approved the reassigned appointment for ${r.patientName}. Appointment ${originNum} is replaced by ${r.appointmentNum} on ${when}.`,
+    });
+  }
+
+  /** The new doctor declined: back to the admin. The patient is not told. */
+  async assignedRequestDeclined(r: AssignedRequestInfo, originNum: string, reason: string) {
+    await this.markRequestAnswered(r.appointmentId);
+    const dr = doctorName(r.doctorFullName);
+    await recordDoctorPortalNotification(this.prisma, {
+      type: T.APPOINTMENT_REASSIGN_DECLINED,
+      title: 'Assigned request declined by doctor',
+      message:
+        `${dr} declined the assigned request. Please select another doctor. Appointment ${originNum} for patient ${r.patientName} ` +
+        `(request ${r.appointmentNum}, ${appointmentWhen(r.appointmentDate, r.startTime)}). Reason: ${reason}`,
+    });
+  }
+
+  private async markRequestAnswered(appointmentId: string) {
+    await this.prisma.doctorNotification.updateMany({
+      where: { appointmentId, type: DOCTOR_NOTIFICATION_TYPES.ADMIN_ASSIGNED_REQUEST, isRead: false },
+      data: { isRead: true },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Patient: appointments that need the patient's reply (for the notifications page)
   // ---------------------------------------------------------------------------
 
@@ -630,7 +913,11 @@ export class AppointmentResolutionService {
 
     const items = [];
     for (const a of list) {
-      const s = states.get(a.id)!;
+      const raw = states.get(a.id)!;
+      // A request to another doctor is the admin's business until that doctor approves:
+      // the patient keeps seeing "our team is finding another doctor".
+      if (raw.stage === 'REASSIGNED') continue;
+      const s = { ...raw, stage: raw.stage === 'AWAITING_DOCTOR_APPROVAL' ? ('AWAITING_RECOMMENDATION' as const) : raw.stage };
       // AWAITING_FORWARD is the admin's step; the patient hasn't been asked anything yet.
       // A doctor's decline is handled by the admin first, so it only shows once the patient asked for another doctor.
       if (!s.stage || s.stage === 'AWAITING_FORWARD') continue;
@@ -699,6 +986,12 @@ export class AppointmentResolutionService {
     const recommended = s.recommendedPmdc
       ? await this.prisma.doctor.findUnique({ where: { pmdcNumber: s.recommendedPmdc }, select: { id: true, fullName: true } })
       : null;
+    const requested = s.request
+      ? await this.prisma.appointment.findUnique({
+          where: { appointmentNum: s.request.appointmentNum },
+          select: { id: true, appointmentNum: true, status: true, appointmentDate: true, startTime: true, doctor: { select: { id: true, fullName: true } } },
+        })
+      : null;
     return {
       id: a.id,
       appointmentNum: a.appointmentNum,
@@ -715,6 +1008,19 @@ export class AppointmentResolutionService {
       alternativeRequestedAt: s.alternativeRequestedAt,
       recommendedAt: s.recommendedAt,
       recommendedDoctor: recommended ? { id: recommended.id, name: doctorName(recommended.fullName) } : null,
+      /** the latest "Request Appointment with Dr. X" */
+      request:
+        s.request && requested
+          ? {
+              at: s.request.at,
+              appointmentId: requested.id,
+              appointmentNum: requested.appointmentNum,
+              status: requested.status,
+              appointmentDate: requested.appointmentDate,
+              startTime: requested.startTime,
+              doctor: { id: requested.doctor.id, name: doctorName(requested.doctor.fullName) },
+            }
+          : null,
     };
   }
 

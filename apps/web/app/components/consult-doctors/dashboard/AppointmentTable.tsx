@@ -12,6 +12,7 @@ import {
   LoaderCircle,
   MessageSquareText,
   Phone,
+  ShieldCheck,
   UserX,
   Video,
   X,
@@ -139,10 +140,19 @@ function ReasonCell({ a }: { a: DashboardAppointment }) {
   const reason = a.symptoms.join(', ');
   return (
     <div className="min-w-0">
+      {a.assignedByAdmin && (
+        <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-[#eef2fb] px-2 py-0.5 text-[11px] font-semibold text-[#2c4f8f] ring-1 ring-inset ring-[#d6e0f3]">
+          <ShieldCheck className="h-3 w-3" /> Assigned by Admin
+        </span>
+      )}
       <p className="truncate text-sm text-[#141b34]" title={reason || undefined}>
         {reason || <span className="text-[#a9a59a]">Not provided</span>}
       </p>
-      {a.patientRequestedSlot ? (
+      {a.assignedByAdmin && a.status === 'PENDING' ? (
+        <p className="mt-0.5 line-clamp-2 text-xs font-medium text-[#2c4f8f]">
+          Tabibistan admin assigned this patient to you. Approve the proposed time or decline the request.
+        </p>
+      ) : a.patientRequestedSlot ? (
         <p className="mt-0.5 line-clamp-2 text-xs font-medium text-[#8a6416]" title={a.cancelReason ?? undefined}>
           The patient asked for this time.{' '}
           {a.cancelReason?.includes('Note: ') ? `Note: ${a.cancelReason.split('Note: ')[1]}` : 'Accept it or propose another time.'}
@@ -197,6 +207,8 @@ function Actions({
     return <span className="block whitespace-nowrap text-xs text-[#8a8d99]">No action needed</span>;
   }
   const primary: AppointmentAction = a.patientRequestedSlot ? 'accept-slot' : a.status === 'PENDING' ? 'approve' : 'complete';
+  // Requests assigned by the admin are approved or declined (the admin arranges any other time)
+  const adminRequest = a.assignedByAdmin === true && a.status === 'PENDING';
   const spin = (x: AppointmentAction, Icon: typeof Check) =>
     busy === x ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />;
 
@@ -245,17 +257,19 @@ function Actions({
           onClick={() => onAction('approve', a)}
           className={`${btnBase} bg-[#2f6b45] text-white hover:bg-[#275a3a]`}
         >
-          {spin('approve', Check)} Approve
+          {spin('approve', Check)} {adminRequest ? 'Approve / Confirm' : 'Approve'}
         </button>
       )}
-      <button
-        type="button"
-        disabled={busy !== null}
-        onClick={() => onAction('reschedule', a)}
-        className={`${btnBase} border border-[#d9d3c6] bg-white text-[#141b34] hover:border-[#141b34]`}
-      >
-        <CalendarClock className="h-3.5 w-3.5" /> Reschedule
-      </button>
+      {!adminRequest && (
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => onAction('reschedule', a)}
+          className={`${btnBase} border border-[#d9d3c6] bg-white text-[#141b34] hover:border-[#141b34]`}
+        >
+          <CalendarClock className="h-3.5 w-3.5" /> Reschedule
+        </button>
+      )}
       <button
         type="button"
         disabled={busy !== null}

@@ -25,7 +25,7 @@ const TABS: { value: NotificationFilter; label: string }[] = [
 ];
 
 /** Notifications that need a follow-up (sending a new time to the patient, recommending a doctor) */
-const ACTION_TYPES = new Set(['APPOINTMENT_RESCHEDULED', 'APPOINTMENT_DECLINED', 'APPOINTMENT_ALTERNATIVE_REQUESTED']);
+const ACTION_TYPES = new Set(['APPOINTMENT_RESCHEDULED', 'APPOINTMENT_DECLINED', 'APPOINTMENT_ALTERNATIVE_REQUESTED', 'APPOINTMENT_REASSIGN_DECLINED']);
 
 const EMPTY_TEXT: Record<NotificationFilter, string> = {
   ALL: 'Doctor registrations, status changes, bookings and patient replies will appear here.',
@@ -164,6 +164,9 @@ export default function NotificationsPage() {
                     forwardedAt={n.appointment.forwardedAt}
                     recommendedAt={n.appointment.recommendedAt}
                     recommendedDoctorName={n.appointment.recommendedDoctorName}
+                    requestedAt={n.appointment.requestedAt}
+                    requestedAppointmentNum={n.appointment.requestedAppointmentNum}
+                    requestedDoctorName={n.appointment.requestedDoctorName}
                     onDone={(message) => {
                       setNotice(message);
                       reload();

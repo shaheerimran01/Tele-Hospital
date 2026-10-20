@@ -82,6 +82,42 @@ export class RecommendAlternativeDto {
   serviceMode?: (typeof SERVICE_MODES)[number];
 }
 
+/** POST /appointments/:id/request-alternative (admin -> the new doctor, who approves or declines) */
+export class RequestAlternativeDto {
+  @Transform(trim)
+  @IsUUID('all', { message: 'Please choose a doctor' })
+  doctorId: string;
+
+  /** Day of the new appointment */
+  @Transform(trim)
+  @Matches(DATE_REGEX, { message: 'date must be in YYYY-MM-DD format' })
+  date: string;
+
+  /** One of the doctor's free start times, e.g. "03:30 PM" */
+  @Transform(({ value }) => (typeof value === 'string' ? normalizeTime(value) : value))
+  @Matches(TIME_FORMAT_REGEX, { message: 'Please choose a time' })
+  startTime: string;
+
+  /** Consultation type with the new doctor (defaults to the original one) */
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(SERVICE_MODES, { message: `serviceMode must be one of: ${SERVICE_MODES.join(', ')}` })
+  serviceMode?: (typeof SERVICE_MODES)[number];
+
+  /** In-clinic visits: the doctor's clinic (found from the free time when left out) */
+  @IsOptional()
+  @Transform(optionalText)
+  @IsUUID('all', { message: 'clinicId must be a valid id' })
+  clinicId?: string;
+
+  /** Note for the new doctor */
+  @IsOptional()
+  @Transform(optionalText)
+  @IsString()
+  @MaxLength(500, { message: 'The note can be at most 500 characters' })
+  note?: string;
+}
+
 /** GET /appointments/:id/alternative-doctors?date=YYYY-MM-DD&modes=same|all */
 export class AlternativeDoctorsQueryDto {
   /** Day to check the doctors' free times for (defaults to the original day, or today if that has passed) */

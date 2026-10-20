@@ -15,6 +15,8 @@ import {
   UserRoundSearch,
   UserX,
   Timer,
+  CalendarPlus,
+  Undo2,
 } from 'lucide-react';
 import type { PortalNotification } from '@/lib/api/doctorPortal';
 import { timeAgo } from './ui';
@@ -32,6 +34,10 @@ const TYPE_UI: Record<string, { label: string; Icon: typeof Check; tone: string 
   APPOINTMENT_ALTERNATIVE_RECOMMENDED: { label: 'Doctor recommended', Icon: Stethoscope, tone: 'bg-teal-50 text-teal-600' },
   PATIENT_NOT_JOINED_ALERT: { label: 'Patient not joined', Icon: Timer, tone: 'bg-amber-50 text-amber-600' },
   APPOINTMENT_NO_SHOW: { label: 'Patient no-show', Icon: UserX, tone: 'bg-rose-50 text-rose-600' },
+  APPOINTMENT_REASSIGN_REQUESTED: { label: 'Sent to new doctor', Icon: CalendarPlus, tone: 'bg-slate-100 text-slate-600' },
+  APPOINTMENT_REASSIGN_APPROVED: { label: 'New doctor approved', Icon: CalendarCheck, tone: 'bg-emerald-50 text-emerald-600' },
+  APPOINTMENT_REASSIGN_DECLINED: { label: 'New doctor declined', Icon: CalendarX2, tone: 'bg-rose-50 text-rose-600' },
+  APPOINTMENT_REASSIGN_WITHDRAWN: { label: 'Request withdrawn', Icon: Undo2, tone: 'bg-slate-100 text-slate-600' },
 };
 
 export function notificationTypeUi(type: string) {
@@ -86,7 +92,10 @@ export default function NotificationItem({
             <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Doctor</dt>
-                <dd className="text-slate-900">{n.appointment.doctorName}</dd>
+                <dd className="text-slate-900">
+                  {/* a declined request names the doctor who was asked, not the original one */}
+                  {(n.type === 'APPOINTMENT_REASSIGN_DECLINED' && /^(.+?) declined the assigned request/.exec(n.message)?.[1]) || n.appointment.doctorName}
+                </dd>
               </div>
               <div>
                 <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Patient</dt>

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AppointmentStatus, IntakeStatus, PaymentStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import { AppointmentsService } from '../appointments/appointments.service.js';
+import { AppointmentResolutionService } from '../appointments/appointment-resolution.service.js';
 import { dateOnly, nowInAppZone, toMinutes } from '../appointments/slot-utils.js';
 import {
   appointmentWhen,
@@ -44,6 +45,7 @@ export class DoctorDashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly appointments: AppointmentsService,
+    private readonly resolution: AppointmentResolutionService,
   ) {}
 
   async getDashboard(doctorId: string) {
@@ -57,6 +59,12 @@ export class DoctorDashboardService {
       select: { appointmentId: true },
     });
     const slotRequestedIds = [...new Set(slotRequests.map((r) => r.appointmentId!))];
+    // Appointments the Tabibistan admin assigned to this doctor (shown with an "Assigned by Admin" badge)
+    const assignedRows = await this.prisma.doctorNotification.findMany({
+      where: { doctorId, type: DOCTOR_NOTIFICATION_TYPES.ADMIN_ASSIGNED_REQUEST, appointmentId: { not: null } },
+      select: { appointmentId: true },
+    });
+    const assignedByAdmin = new Set(assignedRows.map((r) => r.appointmentId!));
 
     const [
       todaySchedule,
@@ -168,7 +176,7 @@ export class DoctorDashboardService {
     ]);
 
     const slotRequested = new Set(slotRequestedIds);
-    const row = (a: Row) => this.toRow(a, slotRequested.has(a.id));
+    const row = (a: Row) => this.toRow(a, slotRequested.has(a.id), assignedByAdmin.has(a.id));
 
     return {
       today: todayIso,
@@ -235,6 +243,9 @@ export class DoctorDashboardService {
     }
 
     const cancelReason = status === 'CANCELLED' ? reason!.trim() : null;
+    // Requested by the Tabibistan admin for another doctor's patient?
+    const assignedFrom =
+      appointment.status === AppointmentStatus.PENDING ? await this.resolution.assignedRequestOrigin(appointment.appointmentNum) : null;
     await this.prisma.$transaction([
       this.prisma.appointment.update({
         where: { id: appointment.id },
@@ -251,6 +262,22 @@ export class DoctorDashboardService {
     const dr = doctorName(appointment.doctor.fullName);
     const when = appointmentWhen(appointment.appointmentDate, appointment.startTime);
     const patient = this.patientLabel(appointment);
+
+    // Admin-assigned request: the patient hears only about an approval; a decline goes back to the admin
+    if (assignedFrom && (status === 'CONFIRMED' || status === 'CANCELLED')) {
+      const info = {
+        appointmentId: appointment.id,
+        appointmentNum: appointment.appointmentNum,
+        userId: appointment.userId,
+        appointmentDate: appointment.appointmentDate,
+        startTime: appointment.startTime,
+        doctorFullName: appointment.doctor.fullName,
+        patientName: patient,
+      };
+      if (status === 'CONFIRMED') await this.resolution.assignedRequestApproved(info, assignedFrom);
+      else await this.resolution.assignedRequestDeclined(info, assignedFrom, cancelReason!);
+      return this.getRow(doctorId, appointment.id);
+    }
 
     if (status === 'CONFIRMED') {
       await recordPatientNotification(this.prisma, {
@@ -291,9 +318,14 @@ export class DoctorDashboardService {
 
     const before = await this.prisma.appointment.findFirst({
       where: { id: appointmentId, doctorId },
-      select: { appointmentDate: true, startTime: true },
+      select: { appointmentDate: true, startTime: true, status: true, appointmentNum: true },
     });
     if (!before) throw new NotFoundException('Appointment not found');
+    if (before.status === AppointmentStatus.PENDING && (await this.resolution.assignedRequestOrigin(before.appointmentNum))) {
+      throw new BadRequestException(
+        'This request was assigned by the Tabibistan admin. Please approve or decline it; the admin will arrange another time or doctor if needed.',
+      );
+    }
 
     const moved = await this.appointments.rescheduleByDoctor(doctorId, appointmentId, date, startTime, note);
     // The doctor proposed a different time instead of the patient's one
@@ -409,13 +441,16 @@ export class DoctorDashboardService {
   private async getRow(doctorId: string, id: string) {
     const a = await this.prisma.appointment.findFirst({ where: { id, doctorId }, include: ROW_INCLUDE });
     if (!a) throw new NotFoundException('Appointment not found');
-    const pending = await this.prisma.doctorNotification.count({
-      where: { doctorId, appointmentId: id, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false },
-    });
-    return this.toRow(a, pending > 0);
+    const [pending, assigned] = await Promise.all([
+      this.prisma.doctorNotification.count({
+        where: { doctorId, appointmentId: id, type: DOCTOR_NOTIFICATION_TYPES.NEW_SLOT_REQUESTED, isRead: false },
+      }),
+      this.prisma.doctorNotification.count({ where: { doctorId, appointmentId: id, type: DOCTOR_NOTIFICATION_TYPES.ADMIN_ASSIGNED_REQUEST } }),
+    ]);
+    return this.toRow(a, pending > 0, assigned > 0);
   }
 
-  private toRow(a: Row, patientRequestedSlot = false) {
+  private toRow(a: Row, patientRequestedSlot = false, assignedByAdmin = false) {
     const forFamily = a.patientType === 'FAMILY_MEMBER' && a.familyMember;
     const accountName = [a.user.firstName, a.user.lastName].filter(Boolean).join(' ').trim();
     return {
@@ -442,6 +477,8 @@ export class DoctorDashboardService {
       description: a.intake?.description ?? null,
       /** the patient asked for this time; the doctor can "Accept Slot" */
       patientRequestedSlot,
+      /** the Tabibistan admin assigned this patient to the doctor (approve or decline; no reschedule) */
+      assignedByAdmin,
       /** the digital prescription, once written */
       prescription: a.consultationPrescription,
       prescriptionUrl: a.prescriptionUrl,

@@ -1,7 +1,9 @@
 'use client';
 
 // Admin follow-up after a doctor reschedules or declines a booking:
-// "Notify Patient of Proposed Slot" and "Find Alternative Doctor" (recommend a doctor to the patient).
+// "Notify Patient of Proposed Slot" and "Find Alternative Doctor". The admin picks a
+// doctor and a free time and sends "Request Appointment with Dr. X": that doctor
+// approves or declines it first, and the patient is notified only after approval.
 
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -10,6 +12,7 @@ import {
   Check,
   Hourglass,
   LoaderCircle,
+  Undo2,
   Quote,
   Search,
   Send,
@@ -22,7 +25,8 @@ import {
   fetchAlternativeDoctors,
   fetchResolution,
   forwardRescheduleToPatient,
-  recommendAlternativeDoctor,
+  requestAlternativeAppointment,
+  withdrawAlternativeRequest,
   type AlternativeDoctorsResponse,
   type ResolutionStage,
   type ResolutionSummary,
@@ -44,6 +48,9 @@ export function ResolutionActions({
   forwardedAt,
   recommendedAt,
   recommendedDoctorName,
+  requestedAt,
+  requestedAppointmentNum,
+  requestedDoctorName,
   onDone,
   layout = 'row',
 }: {
@@ -52,12 +59,31 @@ export function ResolutionActions({
   forwardedAt?: string | null;
   recommendedAt?: string | null;
   recommendedDoctorName?: string | null;
+  /** the latest "Request Appointment with Dr. X" */
+  requestedAt?: string | null;
+  requestedAppointmentNum?: string | null;
+  requestedDoctorName?: string | null;
   /** called with a success message after an action */
   onDone: (message: string) => void;
   layout?: 'row' | 'column';
 }) {
   const [open, setOpen] = useState<'notify' | 'recommend' | null>(null);
+  const [withdrawing, setWithdrawing] = useState<'confirm' | 'busy' | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
   if (!stage) return null;
+
+  const withdraw = async () => {
+    setWithdrawing('busy');
+    setWithdrawError(null);
+    try {
+      await withdrawAlternativeRequest(appointmentId);
+      setWithdrawing(null);
+      onDone(`The request to ${requestedDoctorName ?? 'the doctor'} was withdrawn. You can now choose another doctor.`);
+    } catch (e) {
+      setWithdrawing('confirm');
+      setWithdrawError(e instanceof Error ? e.message : 'Could not withdraw the request.');
+    }
+  };
 
   const wrap = layout === 'column' ? 'flex flex-col gap-2' : 'flex flex-wrap items-center gap-2';
   const chip = (tone: string, Icon: typeof Check, text: string) => (
@@ -97,9 +123,48 @@ export function ResolutionActions({
               `Recommended ${recommendedDoctorName ?? 'a doctor'}${recommendedAt ? ` ${timeAgo(recommendedAt)}` : ''}`,
             )}
             <button type="button" onClick={() => setOpen('recommend')} className={`${btn} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}>
-              <UserRoundSearch className="h-4 w-4" /> Recommend Another Doctor
+              <UserRoundSearch className="h-4 w-4" /> Find Another Doctor
             </button>
           </>
+        )}
+        {stage === 'AWAITING_DOCTOR_APPROVAL' && (
+          <>
+            {chip(
+              'bg-sky-50 text-sky-800 ring-sky-200',
+              Hourglass,
+              `Requested ${requestedDoctorName ?? 'a doctor'}${requestedAt ? ` ${timeAgo(requestedAt)}` : ''} · waiting for the doctor's approval`,
+            )}
+            {withdrawing === null ? (
+              <button
+                type="button"
+                onClick={() => setWithdrawing('confirm')}
+                className={`${btn} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`}
+              >
+                <Undo2 className="h-4 w-4" /> Withdraw Request
+              </button>
+            ) : (
+              <span className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-2 py-1 text-xs text-slate-700 ring-1 ring-slate-200">
+                Withdraw the request{requestedAppointmentNum ? ` ${requestedAppointmentNum}` : ''}?
+                <button type="button" onClick={withdraw} disabled={withdrawing === 'busy'} className={`${btn} bg-rose-600 px-2.5 py-1 text-white hover:bg-rose-700`}>
+                  {withdrawing === 'busy' && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />} Yes, Withdraw
+                </button>
+                <button type="button" onClick={() => setWithdrawing(null)} disabled={withdrawing === 'busy'} className="font-semibold text-slate-600 hover:underline">
+                  Keep Waiting
+                </button>
+              </span>
+            )}
+          </>
+        )}
+        {stage === 'REASSIGNED' &&
+          chip(
+            'bg-emerald-50 text-emerald-800 ring-emerald-200',
+            CalendarCheck2,
+            `${requestedDoctorName ?? 'The new doctor'} approved${requestedAppointmentNum ? ` · new appointment ${requestedAppointmentNum}` : ''} · patient notified`,
+          )}
+        {withdrawError && (
+          <span className="text-xs font-medium text-rose-700" role="alert">
+            {withdrawError}
+          </span>
         )}
       </div>
 
@@ -360,6 +425,9 @@ function inWindow(slot: string, w: TimeWindow) {
   return true;
 }
 
+/** "Bilal Shah" -> "Dr. Bilal Shah" (keeps an existing title) */
+const drName = (name: string) => (/^(dr|prof|professor)\.?\s/i.test(name.trim()) ? name.trim() : `Dr. ${name.trim()}`);
+
 const dayLabel = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 
@@ -384,6 +452,9 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
   const [initialised, setInitialised] = useState(false);
 
   const [choice, setChoice] = useState<string | null>(null);
+  /** start time picked for the chosen doctor, and the clinic (in-clinic visits with more than one) */
+  const [time, setTime] = useState<string | null>(null);
+  const [clinicId, setClinicId] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -447,6 +518,32 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
   const patientAsked = !!a?.alternativeRequestedAt;
   const chosen = data?.doctors.find((x) => x.doctorId === choice) ?? null;
 
+  // Times the chosen doctor is free (inside the time filter); the original time first when free
+  const chosenTimes = useMemo(() => {
+    if (!chosen) return [];
+    const inFilter = timeWindow === 'morning' || timeWindow === 'afternoon' || timeWindow === 'evening'
+      ? chosen.freeSlots.filter((t) => inWindow(t, timeWindow))
+      : timeWindow === 'original' && data
+        ? chosen.freeSlots.filter((t) => t === data.originalTime)
+        : chosen.freeSlots;
+    return inFilter;
+  }, [chosen, timeWindow, data]);
+  const clinicsAtTime = chosen && time ? chosen.freeTimes.filter((f) => f.startTime === time && f.clinicId) : [];
+
+  // A new doctor or day: pick the original time if it is free, otherwise the first free time
+  useEffect(() => {
+    if (!chosen || !data) {
+      setTime(null);
+      return;
+    }
+    setTime((t) => (t && chosenTimes.includes(t) ? t : chosenTimes.includes(data.originalTime) ? data.originalTime : chosenTimes[0] ?? null));
+  }, [chosen, chosenTimes, data]);
+  useEffect(() => {
+    setClinicId((c) => (c && clinicsAtTime.some((x) => x.clinicId === c) ? c : clinicsAtTime[0]?.clinicId ?? null));
+    // clinicsAtTime is derived from chosen + time
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chosen, time]);
+
   const resetFilters = () => {
     if (!data) return;
     setSameSpeciality(true);
@@ -458,19 +555,24 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
   };
 
   const submit = async () => {
-    if (!chosen || !data) return;
+    if (!chosen || !data || !time) return;
     setBusy(true);
     setError(null);
     try {
-      await recommendAlternativeDoctor(
-        appointmentId,
-        chosen.doctorId,
-        note.trim() || undefined,
-        chosen.serviceMode !== data.serviceMode ? chosen.serviceMode : undefined,
+      await requestAlternativeAppointment(appointmentId, {
+        doctorId: chosen.doctorId,
+        date: data.date,
+        startTime: time,
+        ...(chosen.serviceMode !== data.serviceMode ? { serviceMode: chosen.serviceMode } : {}),
+        ...(clinicId ? { clinicId } : {}),
+        ...(note.trim() ? { note: note.trim() } : {}),
+      });
+      onDone(
+        `Request sent to ${drName(chosen.fullName)} for ${dayLabel(data.date)}, ${displayTime(time)}. ` +
+          `${a?.patientName ?? 'The patient'} will be notified once the doctor approves it.`,
       );
-      onDone(`${chosen.fullName} was recommended to ${a?.patientName ?? 'the patient'}. They can now book directly.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the recommendation.');
+      setError(e instanceof Error ? e.message : 'Could not send the request.');
       setBusy(false);
     }
   };
@@ -495,9 +597,9 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
           onClose={onClose}
           busy={busy}
           error={error}
-          disabled={!choice}
+          disabled={!chosen || !time}
           onSubmit={submit}
-          label={patientAsked ? 'Recommend Doctor to Patient' : 'Send Recommendation to Patient'}
+          label={chosen ? `Request Appointment with ${drName(chosen.fullName)}` : 'Request Appointment'}
         />
       }
     >
@@ -701,16 +803,67 @@ function RecommendDoctorModal({ appointmentId, onClose, onDone }: { appointmentI
             </ul>
           )}
 
+          {chosen && (
+            <section aria-label="Appointment time" className="space-y-2 rounded-xl border border-slate-200 p-3">
+              <p className="text-xs font-semibold text-slate-700">
+                Time with {drName(chosen.fullName)} on {dayLabel(data.date)}
+              </p>
+              {chosenTimes.length === 0 ? (
+                <p className="text-xs text-amber-800">
+                  {drName(chosen.fullName)} has no free time {timeWindow === 'any' || timeWindow === 'free' ? '' : 'in the selected time slot '}on {dayLabel(data.date)}. Choose another
+                  availability date or time slot.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Free times">
+                  {chosenTimes.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      role="radio"
+                      aria-checked={time === t}
+                      onClick={() => setTime(t)}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-semibold tabular-nums transition ${
+                        time === t ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                      }`}
+                    >
+                      {displayTime(t)}
+                      {t === data.originalTime && <span className={`ml-1 font-normal ${time === t ? 'text-white/70' : 'text-slate-400'}`}>(original)</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {clinicsAtTime.length > 1 && (
+                <div>
+                  <label htmlFor="alt-clinic" className={fieldLabel}>
+                    Clinic
+                  </label>
+                  <select id="alt-clinic" value={clinicId ?? ''} onChange={(e) => setClinicId(e.target.value)} className={fieldInput}>
+                    {clinicsAtTime.map((c) => {
+                      const fee = chosen.fees.find((f) => f.clinicId === c.clinicId);
+                      return (
+                        <option key={c.clinicId!} value={c.clinicId!}>
+                          {fee?.clinicName ?? 'Clinic'}
+                          {fee ? ` · ${pkr(fee.fee)}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+            </section>
+          )}
+
           <NoteField
             id="recommend-note"
-            label="Message to the patient"
+            label="Note for the doctor"
             value={note}
             onChange={setNote}
-            placeholder="e.g. Dr. Sara has free times this week and treats this condition often."
+            placeholder="e.g. The patient's first doctor was unavailable. The patient prefers a morning time."
           />
           <p className="text-xs text-slate-500">
-            The patient gets the doctor&apos;s name, speciality and fee with a button to book directly. Their symptoms and voice note carry over to the new booking.
-            {chosen && !chosen.offersSameMode && ` ${chosen.fullName} does not offer ${MODE_LABELS[data.serviceMode]}, so the patient will book a ${MODE_LABELS[chosen.serviceMode]} instead.`}
+            {chosen ? drName(chosen.fullName) : 'The doctor'} gets this as a new request under Requests Waiting for Approval, with the patient&apos;s symptoms and voice note. The
+            patient is notified only after the doctor approves it. If the doctor declines, you&apos;ll get an alert to choose another doctor.
+            {chosen && !chosen.offersSameMode && ` ${chosen.fullName} does not offer ${MODE_LABELS[data.serviceMode]}, so this will be a ${MODE_LABELS[chosen.serviceMode]}.`}
           </p>
         </div>
       )}

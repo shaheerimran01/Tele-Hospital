@@ -16,6 +16,8 @@ const ACTIONABLE_TYPES = new Set(['APPOINTMENT_RESCHEDULE_PROPOSED', 'APPOINTMEN
 /** "Dr. X is Waiting for You!": the Join button shows while the doctor may still be waiting */
 const DOCTOR_WAITING_TYPE = 'DOCTOR_WAITING_ALERT';
 const DOCTOR_WAITING_JOIN_MS = 15 * 60 * 1000;
+/** Notifications that open the patient's appointments */
+const APPOINTMENT_DETAIL_TYPES = new Set(['APPOINTMENT_NEW_DOCTOR_CONFIRMED', 'APPOINTMENT_CONFIRMED']);
 
 interface UserNotification {
   id: string;
@@ -180,6 +182,15 @@ export default function UserNotificationsPage() {
                     className="shrink-0 px-3 py-1.5 bg-[#ff6f61] text-white text-xs font-bold rounded-lg hover:bg-[#e85b4d] transition shadow-2xs"
                   >
                     Join Consultation
+                  </Link>
+                )}
+
+                {APPOINTMENT_DETAIL_TYPES.has(item.type) && (
+                  <Link
+                    href="/consult-doctors/my-appointments"
+                    className="shrink-0 px-3 py-1.5 bg-[#ff6f61] text-white text-xs font-bold rounded-lg hover:bg-[#e85b4d] transition shadow-2xs"
+                  >
+                    View Details
                   </Link>
                 )}
 

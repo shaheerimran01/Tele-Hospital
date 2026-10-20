@@ -18,6 +18,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
 import { GetSlotsDto } from './dto/get-slots.dto.js';
 import {
+  DOCTOR_NOTIFICATION_TYPES,
   DOCTOR_PORTAL_NOTIFICATION_TYPES,
   recordDoctorPortalNotification,
 } from '../doctor-admin/doctor-portal-notifications.js';
@@ -96,6 +97,18 @@ type DoctorForBooking = Prisma.DoctorGetPayload<{
 }>;
 
 type Db = Prisma.TransactionClient | PrismaService;
+
+/**
+ * Appointments the admin asked another doctor to take, which that doctor hasn't
+ * approved (still pending, or declined / withdrawn). The patient doesn't see them:
+ * they are told only once the new doctor confirms.
+ */
+export const UNAPPROVED_ADMIN_REQUEST_WHERE: Prisma.AppointmentWhereInput = {
+  AND: [
+    { status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CANCELLED] } },
+    { doctorNotifications: { some: { type: DOCTOR_NOTIFICATION_TYPES.ADMIN_ASSIGNED_REQUEST } } },
+  ],
+};
 
 @Injectable()
 export class AppointmentsService {
@@ -268,7 +281,7 @@ export class AppointmentsService {
 
   async findOne(userId: string, id: string) {
     const appointment = await this.prisma.appointment.findFirst({
-      where: { id, userId },
+      where: { id, userId, NOT: UNAPPROVED_ADMIN_REQUEST_WHERE },
       include: APPOINTMENT_INCLUDE,
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
@@ -277,7 +290,7 @@ export class AppointmentsService {
 
   async findForUser(userId: string) {
     return this.prisma.appointment.findMany({
-      where: { userId },
+      where: { userId, NOT: UNAPPROVED_ADMIN_REQUEST_WHERE },
       include: APPOINTMENT_INCLUDE,
       orderBy: [{ appointmentDate: 'desc' }, { createdAt: 'desc' }],
       take: 100,
@@ -568,8 +581,104 @@ export class AppointmentsService {
   }
 
   // ---------------------------------------------------------------------------
-  // Helpers
+  // Admin: ask another doctor to take a cancelled booking
   // ---------------------------------------------------------------------------
+
+  /**
+   * A new PENDING appointment with `doctorId` for the same patient, at a free
+   * time of that doctor. The consultation details (symptoms, voice note) move to
+   * it from the cancelled booking. Nobody is notified here.
+   */
+  async createAdminRequest(
+    source: {
+      userId: string;
+      patientType: PatientType;
+      familyMemberId: string | null;
+      intakeId: string | null;
+      paymentMethod: string | null;
+    },
+    request: { doctorId: string; serviceMode: ConsultationServiceMode; clinicId?: string; date: string; startTime: string },
+  ) {
+    this.assertBookableDate(request.date);
+    const start = toMinutes(request.startTime);
+    if (start == null) throw new BadRequestException('startTime is not a valid time');
+    const date = request.date;
+
+    const book = () =>
+      this.prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`appointment:${request.doctorId}:${date}`}))::text AS locked`;
+
+          const doctor = await this.loadDoctor(tx, request.doctorId);
+          // In-clinic: the clinic whose schedule has this time free, unless the admin chose one
+          const clinics =
+            request.serviceMode === ConsultationServiceMode.IN_CLINIC && !request.clinicId ? doctor.clinics.map((c) => c.id) : [request.clinicId];
+          let chosen: { clinic: DoctorForBooking['clinics'][number] | null; fee: number; slot: Slot } | null = null;
+          for (const clinicId of clinics) {
+            let service: ReturnType<AppointmentsService['resolveService']>;
+            try {
+              service = this.resolveService(doctor, request.serviceMode, clinicId);
+            } catch (e) {
+              if (clinics.length === 1) throw e;
+              continue; // e.g. a clinic without a fee
+            }
+            const slot = (await this.freeSlots(tx, doctor.id, date, service.windows)).find((x) => x.start === start);
+            if (slot) {
+              chosen = { clinic: service.clinic, fee: service.fee, slot };
+              break;
+            }
+          }
+          if (!chosen) {
+            throw new ConflictException(`${doctor.fullName} is not free at ${request.startTime} on ${date}. Please choose another time.`);
+          }
+
+          if (source.intakeId) {
+            // The details belong to one booking at a time: release them from the cancelled one
+            await tx.appointment.updateMany({
+              where: { intakeId: source.intakeId, status: AppointmentStatus.CANCELLED },
+              data: { intakeId: null },
+            });
+          }
+
+          const appointment = await this.createWithUniqueNumber(tx, {
+            userId: source.userId,
+            doctorId: doctor.id,
+            clinicId: chosen.clinic?.id ?? null,
+            intakeId: source.intakeId,
+            patientType: source.patientType,
+            familyMemberId: source.familyMemberId,
+            serviceMode: request.serviceMode,
+            appointmentDate: dateOnly(date),
+            startTime: chosen.slot.startTime,
+            endTime: chosen.slot.endTime,
+            fee: chosen.fee,
+            paymentMethod: source.paymentMethod,
+            status: AppointmentStatus.PENDING,
+          });
+          if (source.intakeId) {
+            await tx.consultationIntake.update({
+              where: { id: source.intakeId },
+              data: { status: IntakeStatus.DOCTOR_ASSIGNED, serviceMode: request.serviceMode },
+            });
+          }
+          return appointment;
+        },
+        { timeout: 15_000 },
+      );
+
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await book();
+      } catch (error) {
+        const { code, meta } = (error ?? {}) as { code?: string; meta?: { target?: unknown } };
+        if (code !== 'P2002') throw error;
+        if (String(meta?.target ?? '').includes('intake')) {
+          throw new ConflictException('These consultation details are already part of another active booking.');
+        }
+        if (attempt >= 3) throw new ConflictException('Could not create the appointment. Please try again.');
+      }
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Admin: another doctor's free times (alternative-doctor finder)

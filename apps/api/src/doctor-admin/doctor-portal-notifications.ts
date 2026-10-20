@@ -29,7 +29,18 @@ export const DOCTOR_PORTAL_NOTIFICATION_TYPES = {
   APPOINTMENT_NO_SHOW: 'APPOINTMENT_NO_SHOW',
   /** Doctor is waiting in the consultation room and the patient has not joined */
   PATIENT_NOT_JOINED_ALERT: 'PATIENT_NOT_JOINED_ALERT',
+  /** Admin asked another doctor to take the appointment (saved as read; carries "(PMDC x)" and "Request: APT-...") */
+  APPOINTMENT_REASSIGN_REQUESTED: 'APPOINTMENT_REASSIGN_REQUESTED',
+  /** The new doctor approved the admin's request; the patient was told */
+  APPOINTMENT_REASSIGN_APPROVED: 'APPOINTMENT_REASSIGN_APPROVED',
+  /** The new doctor declined the admin's request (needs admin action; carries "Reason: ...") */
+  APPOINTMENT_REASSIGN_DECLINED: 'APPOINTMENT_REASSIGN_DECLINED',
+  /** Admin withdrew a request before the doctor answered (saved as read) */
+  APPOINTMENT_REASSIGN_WITHDRAWN: 'APPOINTMENT_REASSIGN_WITHDRAWN',
 } as const;
+
+/** The appointment created for the new doctor, inside the admin's request notifications */
+export const REASSIGN_REQUEST_REGEX = /Request: (APT-\d{6}-\d{4,6})/;
 
 /** Appointment alerts whose type does not start with "APPOINTMENT_" */
 export const APPOINTMENT_ALERT_TYPES: string[] = [DOCTOR_PORTAL_NOTIFICATION_TYPES.PATIENT_NOT_JOINED_ALERT];
@@ -39,6 +50,7 @@ export const DOCTOR_ACTION_NOTIFICATION_TYPES: string[] = [
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_DECLINED,
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_RESCHEDULED,
   DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_ALTERNATIVE_REQUESTED,
+  DOCTOR_PORTAL_NOTIFICATION_TYPES.APPOINTMENT_REASSIGN_DECLINED,
 ];
 
 /** The doctor's note inside an admin notification message ("... Reason: <note>") */
@@ -97,6 +109,8 @@ export const PATIENT_NOTIFICATION_TYPES = {
   DOCTOR_WAITING_ALERT: 'DOCTOR_WAITING_ALERT',
   /** The patient did not join the online consultation; the doctor marked it as missed */
   APPOINTMENT_NO_SHOW: 'APPOINTMENT_NO_SHOW',
+  /** A doctor chosen by the admin accepted the patient's appointment */
+  APPOINTMENT_NEW_DOCTOR_CONFIRMED: 'APPOINTMENT_NEW_DOCTOR_CONFIRMED',
 } as const;
 
 /** Notifications shown on the doctor's own dashboard (DoctorNotification.type). */
@@ -107,6 +121,10 @@ export const DOCTOR_NOTIFICATION_TYPES = {
   NEW_SLOT_REQUESTED: 'NEW_SLOT_REQUESTED',
   /** Patient declined the proposed time and asked for another doctor */
   RESCHEDULE_DECLINED: 'RESCHEDULE_DECLINED',
+  /** Admin assigned this appointment to the doctor; it waits for the doctor's approval */
+  ADMIN_ASSIGNED_REQUEST: 'ADMIN_ASSIGNED_REQUEST',
+  /** Admin withdrew an assigned request before the doctor answered */
+  ADMIN_REQUEST_WITHDRAWN: 'ADMIN_REQUEST_WITHDRAWN',
 } as const;
 
 interface DoctorNotificationWriter {

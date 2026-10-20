@@ -157,6 +157,9 @@ export default function DoctorActionCases({ rows, onChanged }: { rows: CaseRow[]
                       stage={a.stage}
                       forwardedAt={a.forwardedAt}
                       recommendedAt={a.recommendedAt}
+                      requestedAt={a.requestedAt}
+                      requestedAppointmentNum={a.requestedAppointmentNum}
+                      requestedDoctorName={a.requestedDoctorName}
                       onDone={(text) => {
                         setMessages((m) => ({ ...m, [a.id]: { tone: 'ok', text } }));
                         reloadCounts();
