@@ -20,8 +20,8 @@ export interface LabCategoryCard {
 export interface LabSection {
   id: string;
   title: string;
-  /** a card that scrolls to another section ("X Rays, Scans & More") */
-  shortcut: { label: string; description: string; targetSectionId: string } | null;
+  /** "X Rays, Scans & More": its own page with every category of the target section */
+  shortcut: (Omit<LabCategoryCard, 'key'> & { key: string; targetSectionId: string }) | null;
   cards: LabCategoryCard[];
 }
 

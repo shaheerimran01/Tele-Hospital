@@ -12,7 +12,7 @@ import LabListing, { plural } from './LabListing';
 import LabItemModal from './LabItemModal';
 import LabCart from './LabCart';
 import { useLabCart } from './lab-cart';
-import { categoryStyle } from './lab-ui';
+import { CARD_PHOTO, categoryStyle } from './lab-ui';
 import { categoryHref } from './LabCatalog';
 
 const readType = (t: string | null): LabTypeFilter => (t === 'PACKAGE' || t === 'INDIVIDUAL_TEST' ? t : 'ALL');
@@ -39,8 +39,15 @@ export default function LabCategoryPage({ group }: { group: string }) {
     };
   }, [retry]);
 
-  const section = catalog?.sections.find((s) => s.cards.some((c) => c.key === group));
-  const card = section?.cards.find((c) => c.key === group);
+  // A category card, or a shortcut such as "X Rays, Scans & More" (every radiology category)
+  const shortcut = catalog?.sections.map((s) => s.shortcut).find((x) => x?.key === group) ?? null;
+  const section = shortcut
+    ? catalog?.sections.find((s) => s.id === shortcut.targetSectionId)
+    : catalog?.sections.find((s) => s.cards.some((c) => c.key === group));
+  const card = shortcut ?? section?.cards.find((c) => c.key === group);
+  /** "All" pill in front of the section's categories, when a shortcut covers the section */
+  const allPill = section ? catalog?.sections.map((s) => s.shortcut).find((x) => x?.targetSectionId === section.id) ?? null : null;
+  const pills = section ? [...(allPill ? [{ ...allPill, label: 'All Scans & X-Rays' }] : []), ...section.cards] : [];
   const { Icon, tone } = categoryStyle(group);
 
   // The type filter is part of the address, so the page can be shared or reloaded
@@ -100,9 +107,13 @@ export default function LabCategoryPage({ group }: { group: string }) {
           ) : (
             <>
               <div className="mt-4 flex items-start gap-4">
-                <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${tone}`}>
-                  <Icon className="h-7 w-7" />
-                </span>
+                {CARD_PHOTO[group] ? (
+                  <img src={CARD_PHOTO[group]} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" />
+                ) : (
+                  <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${tone}`}>
+                    <Icon className="h-7 w-7" />
+                  </span>
+                )}
                 <div className="min-w-0">
                   <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 sm:text-3xl">{card.label}</h1>
                   <p className="mt-1 text-sm text-gray-600">
@@ -120,10 +131,10 @@ export default function LabCategoryPage({ group }: { group: string }) {
               </div>
 
               {/* The other categories of this section */}
-              {section.cards.length > 1 && (
+              {pills.length > 1 && (
                 <div className="-mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
                   <ul className="flex w-max gap-2 sm:w-auto sm:flex-wrap" aria-label={section.title}>
-                    {section.cards.map((c) => (
+                    {pills.map((c) => (
                       <li key={c.key}>
                         <Link
                           href={categoryHref(c.key)}

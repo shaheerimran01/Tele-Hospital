@@ -17,8 +17,11 @@ export interface CategoryCard {
 export interface CatalogSection {
   id: string;
   title: string;
-  /** the shortcut card that scrolls to another section (Section 1 → radiology) */
-  shortcut?: { label: string; description: string; targetSectionId: string };
+  /**
+   * A card that shows everything of another section on one page
+   * (Section 1 "X Rays, Scans & More" → every radiology category)
+   */
+  shortcut?: { key: string; label: string; description: string; targetSectionId: string };
   cards: CategoryCard[];
 }
 
@@ -26,7 +29,7 @@ export const LAB_SECTIONS: CatalogSection[] = [
   {
     id: 'needs',
     title: 'Find tests & packages for your needs',
-    shortcut: { label: 'X Rays, Scans & More', description: 'CT, MRI, ultrasound, ECG and more', targetSectionId: 'radiology-section' },
+    shortcut: { key: 'scans', label: 'X Rays, Scans & More', description: 'CT, MRI, ultrasound, ECG and more', targetSectionId: 'radiology-section' },
     cards: [
       { key: 'full-body', label: 'Full Body Packages', description: 'Complete health checkups', categories: ['Full Body Checkup'] },
       { key: 'fever-infection', label: 'Fever & Infection Tests', description: 'Dengue, malaria, typhoid and more', categories: ['Infection', 'Fever Checkup'] },
@@ -74,6 +77,24 @@ export const LAB_SECTIONS: CatalogSection[] = [
 
 export const ALL_CARDS: CategoryCard[] = LAB_SECTIONS.flatMap((s) => s.cards);
 export const CARD_BY_KEY = new Map(ALL_CARDS.map((c) => [c.key, c]));
+
+/** The shortcut cards, each covering every category of its target section */
+export const SHORTCUT_CARDS: (CategoryCard & { targetSectionId: string })[] = LAB_SECTIONS.flatMap((s) =>
+  s.shortcut
+    ? [
+        {
+          key: s.shortcut.key,
+          label: s.shortcut.label,
+          description: s.shortcut.description,
+          targetSectionId: s.shortcut.targetSectionId,
+          categories: LAB_SECTIONS.find((t) => t.id === s.shortcut!.targetSectionId)?.cards.flatMap((c) => c.categories) ?? [],
+        },
+      ]
+    : [],
+);
+
+/** Everything that has its own page: /lab-tests/<key> */
+export const GROUP_BY_KEY = new Map<string, CategoryCard>([...ALL_CARDS, ...SHORTCUT_CARDS].map((c) => [c.key, c]));
 
 /** lower-cased category -> card key */
 export const CARD_KEY_BY_CATEGORY = new Map(ALL_CARDS.flatMap((c) => c.categories.map((cat) => [cat.toLowerCase(), c.key] as const)));

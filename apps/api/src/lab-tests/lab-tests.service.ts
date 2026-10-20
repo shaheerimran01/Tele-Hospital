@@ -4,8 +4,8 @@ import type { Prisma } from '../generated/prisma/client.js';
 import {
   ALL_CARDS,
   brandText,
-  CARD_BY_KEY,
   CARD_KEY_BY_CATEGORY,
+  GROUP_BY_KEY,
   cleanTests,
   groupTests,
   LAB_SECTIONS,
@@ -97,10 +97,20 @@ export class LabTestsService {
     }
 
     const totals = { all: 0, packages: 0, tests: 0 };
+    // A shortcut card adds up every card of the section it covers
+    const shortcutStats = (targetSectionId: string) => {
+      const keys = LAB_SECTIONS.find((s) => s.id === targetSectionId)?.cards.map((c) => c.key) ?? [];
+      const all = keys.map((k) => stats.get(k)).filter((x): x is NonNullable<typeof x> => !!x);
+      const prices = all.map((x) => x.fromPrice).filter((x): x is number => x != null);
+      const packages = all.reduce((n, x) => n + x.packages, 0);
+      const tests = all.reduce((n, x) => n + x.tests, 0);
+      return { count: packages + tests, packages, tests, fromPrice: prices.length ? Math.min(...prices) : null };
+    };
     const sections = LAB_SECTIONS.map((section) => ({
       id: section.id,
       title: section.title,
-      shortcut: section.shortcut ?? null,
+      /** opens /lab-tests/<key> with every category of the target section */
+      shortcut: section.shortcut ? { ...section.shortcut, ...shortcutStats(section.shortcut.targetSectionId) } : null,
       cards: section.cards.map((card) => {
         const s = stats.get(card.key) ?? { packages: 0, tests: 0, fromPrice: null };
         totals.packages += s.packages;
@@ -124,7 +134,7 @@ export class LabTestsService {
   /** GET /lab-tests: one card's items (or a search), with counts for the type filter */
   async list(query: ListLabItemsQueryDto) {
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    const card = query.group ? CARD_BY_KEY.get(query.group) : undefined;
+    const card = query.group ? GROUP_BY_KEY.get(query.group) : undefined;
     const search = query.search?.trim();
 
     const base: Prisma.LabPackageWhereInput[] = [{ isActive: true }];

@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { ALL_CARDS, ITEM_TYPES } from '../lab-catalog.js';
+import { GROUP_BY_KEY, ITEM_TYPES } from '../lab-catalog.js';
 
 const optionalText = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || undefined : value);
 
@@ -8,10 +8,10 @@ export const LAB_SORTS = ['popular', 'price-asc', 'price-desc'] as const;
 
 /** GET /lab-tests?group=&type=&search=&sort=&page=&pageSize= */
 export class ListLabItemsQueryDto {
-  /** a category card, e.g. "full-body" or "x-ray" */
+  /** a category card, e.g. "full-body" or "x-ray", or "scans" (every radiology category) */
   @IsOptional()
   @Transform(optionalText)
-  @IsIn(ALL_CARDS.map((c) => c.key), { message: 'Unknown test category' })
+  @IsIn([...GROUP_BY_KEY.keys()], { message: 'Unknown test category' })
   group?: string;
 
   /** PACKAGE or INDIVIDUAL_TEST (all when left out) */

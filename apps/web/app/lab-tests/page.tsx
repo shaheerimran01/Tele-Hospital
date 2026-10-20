@@ -20,14 +20,12 @@ export default function LabTestsPage() {
 
       {/* Main Lab Tests Content between Header and TrustAndStatsSection */}
       <main>
-        {/* 2. Search + the 4 sections from the LabPackage table:
-               1 Find tests & packages for your needs, 2 Tests and packages for your health needs,
-               3 Radiology tests, x-rays & scans (#radiology-section), 4 Routine Diagnostics & Specialized Care.
-               Each card opens its own page, /lab-tests/<category> (app/lab-tests/[group]/page.tsx). */}
-        <LabCatalog />
-
-        {/* 5. Promotional Banners Carousel with Navigation */}
-        <LabBannersCarousel />
+        {/* 2. Hero with search and "Find tests & packages for your needs", then
+               "Tests and packages for your health needs", the promotional banners,
+               "Radiology tests, x-rays & scans" and "Routine Diagnostics & Specialized Care"
+               (all from the LabPackage table). Each card opens its own page,
+               /lab-tests/<category> (app/lab-tests/[group]/page.tsx). */}
+        <LabCatalog banners={<LabBannersCarousel />} />
 
         {/* 7. How Does Home Sample Collection Work? (5-Step Cards) */}
         <HowItWorksSteps />
