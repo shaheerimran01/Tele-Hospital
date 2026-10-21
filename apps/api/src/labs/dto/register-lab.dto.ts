@@ -1,16 +1,20 @@
 import { BadRequestException } from '@nestjs/common';
-import { Transform, plainToInstance } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -76,6 +80,25 @@ export class RegisterLabDto {
   @IsEnum(RegulatoryBody, { message: `regulatoryBody must be one of: ${Object.values(RegulatoryBody).join(', ')}.` })
   @IsNotEmpty()
   regulatoryBody!: RegulatoryBody;
+
+  /** Home sample collection offered; multipart sends "true" / "false" (default: true) */
+  @Transform(({ value }) => (value === 'true' || value === true ? true : value === 'false' || value === false ? false : value === '' ? undefined : value))
+  @IsOptional()
+  @IsBoolean({ message: 'hasHomeSample must be true or false.' })
+  hasHomeSample?: boolean;
+
+  /** Home collection fee in PKR (0 = free); ignored when hasHomeSample is false */
+  @Type(() => Number)
+  @Transform(({ obj, key }: { obj: Record<string, unknown>; key: string }) => {
+    const raw = obj[key];
+    if (raw === undefined || raw === null || (typeof raw === 'string' && raw.trim() === '')) return undefined;
+    return typeof raw === 'number' ? raw : Number(String(raw).trim());
+  })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false }, { message: 'Home collection fee must be a number.' })
+  @Min(0, { message: 'Home collection fee cannot be negative.' })
+  @Max(100000, { message: 'Home collection fee is too high.' })
+  homeSampleFee?: number;
 
   @Transform(toBranches)
   @IsArray({ message: 'branches must be an array.' })

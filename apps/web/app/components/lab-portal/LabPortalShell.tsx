@@ -4,7 +4,7 @@
 // status, sign out). Loads the signed-in lab once and shares it with the pages.
 // No session -> /lab-login; signed in but no lab yet -> /lab-registration.
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Building2, CircleAlert, FileText, FlaskConical, LayoutDashboard, LoaderCircle, LogOut, Menu, Settings, X } from 'lucide-react';
@@ -81,6 +81,22 @@ export default function LabPortalShell({ children }: { children: React.ReactNode
   }, [labId, params, pathname, router]);
 
   useEffect(() => setMenuOpen(false), [pathname]);
+
+  // Pick up changes made by our team (approval, review notes) when the lab
+  // moves to another page or comes back to this browser tab
+  const loaded = useRef(false);
+  useEffect(() => {
+    if (!loaded.current) {
+      loaded.current = true;
+      return;
+    }
+    if (getLabSession()) load();
+  }, [pathname, load]);
+  useEffect(() => {
+    const onVisible = () => document.visibilityState === 'visible' && getLabSession() && load();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [load]);
   useEffect(() => {
     if (!menuOpen) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenuOpen(false);

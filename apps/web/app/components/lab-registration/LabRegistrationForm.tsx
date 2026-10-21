@@ -13,6 +13,7 @@ import { Field, FormSection, inputClass, inputErrorClass } from '../consult-doct
 import FileUploadField from './FileUploadField';
 import PhoneInput from './PhoneInput';
 import BranchCard from './BranchCard';
+import Toggle from '../lab-dashboard/Toggle';
 import {
   LICENSE_MAX_BYTES,
   LICENSE_TYPES,
@@ -281,6 +282,39 @@ export default function LabRegistrationForm() {
                     </button>
                   )}
                 </Field>
+
+                {/* Home sample collection */}
+                <div className="sm:col-span-2" id="field-homeSample">
+                  <div className="rounded-xl border border-[#e2ddd2] bg-[#faf9f6] p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-medium text-[#141b34]">Home Sample Collection</p>
+                        <p className="mt-0.5 text-xs text-[#6b6f80]">
+                          {form.hasHomeSample ? 'Yes: patients can ask for a sample pickup at home.' : 'No: patients visit your branches to give samples.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-semibold ${form.hasHomeSample ? 'text-[#2f7a4b]' : 'text-[#8a8d99]'}`}>{form.hasHomeSample ? 'Yes' : 'No'}</span>
+                        <Toggle checked={form.hasHomeSample} onChange={(v) => set('hasHomeSample', v)} label="Home sample collection available" />
+                      </div>
+                    </div>
+                    {form.hasHomeSample && (
+                      <div className="mt-3 max-w-xs">
+                        <Field id="homeSampleFee" label="Home Collection Fee (PKR)" hint="(0 = free)" error={errors.homeSampleFee}>
+                          <input
+                            id="homeSampleFee"
+                            inputMode="numeric"
+                            value={form.homeSampleFee}
+                            onChange={(e) => set('homeSampleFee', e.target.value)}
+                            aria-invalid={!!errors.homeSampleFee}
+                            placeholder="0"
+                            className={`${inputClass} tabular-nums ${errors.homeSampleFee ? inputErrorClass : ''}`}
+                          />
+                        </Field>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </FormSection>
           </div>

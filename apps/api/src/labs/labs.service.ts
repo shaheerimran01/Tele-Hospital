@@ -85,6 +85,8 @@ export class LabsService {
           whatsappNumber: dto.whatsappNumber ?? null,
           licenseNumber: dto.licenseNumber,
           regulatoryBody: dto.regulatoryBody,
+          hasHomeSample: dto.hasHomeSample ?? true,
+          homeSampleFee: (dto.hasHomeSample ?? true) ? Math.round(dto.homeSampleFee ?? 0) : 0,
           logoUrl,
           licenseDocUrl,
           verificationStatus: 'PENDING',

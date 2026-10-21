@@ -21,6 +21,8 @@ export default function LabOverviewPage() {
   const { laboratory: lab, stats, issues, canResubmit } = overview;
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  /** REJECTED, or the board left notes on the lab */
+  const needsFix = lab.verificationStatus === 'REJECTED' || Boolean(lab.rejectionReason?.trim());
 
   const resubmit = async () => {
     setSubmitting(true);
@@ -50,8 +52,33 @@ export default function LabOverviewPage() {
         <p className="mt-1 text-sm text-[#6b6f80]">An overview of {lab.name} on Tabibistan.</p>
       </div>
 
+      {/* Admin review notes: full text + Fix Now (opens Documents & Licensing) */}
+      {needsFix && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 sm:px-5" role="alert">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-red-800">Action Required: our medical board needs changes</p>
+                {lab.rejectionReason?.trim() ? (
+                  <p className="mt-1 whitespace-pre-line text-sm text-red-800">{lab.rejectionReason.trim()}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-red-800">Please review your license document and details, then resubmit.</p>
+                )}
+              </div>
+            </div>
+            <Link
+              href={href('/lab-dashboard/documents')}
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600/40 focus-visible:ring-offset-2"
+            >
+              Fix Now <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Verification banner */}
-      {lab.verificationStatus === 'APPROVED' ? (
+      {needsFix ? null : lab.verificationStatus === 'APPROVED' ? (
         <div className="flex items-start gap-3 rounded-2xl border border-[#2f7a4b]/20 bg-[#e8f3ec] px-4 py-3.5">
           <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#2f7a4b]" />
           <div>
@@ -147,7 +174,7 @@ export default function LabOverviewPage() {
                         href={`${href(TARGET[issue.target].path)}&fix=${issue.id}`}
                         className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
                       >
-                        Fix Now <ArrowRight className="h-3.5 w-3.5" />
+                        {issue.target === 'documents' ? 'Fix Now' : `Update ${issue.target === 'branches' ? 'Branches' : 'Profile'}`} <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
                     </td>
                   </tr>

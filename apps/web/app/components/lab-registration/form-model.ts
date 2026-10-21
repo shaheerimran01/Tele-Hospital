@@ -65,6 +65,10 @@ export interface LabForm {
   licenseNumber: string;
   licenseDocument: PickedFile | null;
   regulatoryBody: RegulatoryBody | '';
+  /** home sample collection offered (Laboratory.hasHomeSample) */
+  hasHomeSample: boolean;
+  /** home collection fee in PKR, as typed ("" / "0" = free) */
+  homeSampleFee: string;
   branches: BranchForm[];
 }
 
@@ -91,6 +95,8 @@ export const initialLabForm = (): LabForm => ({
   licenseNumber: '',
   licenseDocument: null,
   regulatoryBody: '',
+  hasHomeSample: true,
+  homeSampleFee: '0',
   branches: [emptyBranch()],
 });
 
@@ -164,6 +170,10 @@ export function validateLabForm(form: LabForm): FormErrors {
 
   if (!form.regulatoryBody) e.regulatoryBody = 'Select the issuing regulatory body.';
 
+  if (form.hasHomeSample && homeSampleFeeValue(form.homeSampleFee) === null) {
+    e.homeSampleFee = 'Enter the fee in whole rupees (0 for free), up to 100,000.';
+  }
+
   const seen = new Map<string, number>();
   form.branches.forEach((b, i) => {
     const k = (f: string) => `branches.${b.id}.${f}`;
@@ -192,6 +202,15 @@ export function sectionOf(key: string): 1 | 2 | 3 {
   return 1;
 }
 
+/** "" -> 0, "300" -> 300, invalid -> null */
+export function homeSampleFeeValue(input: string): number | null {
+  const t = input.replace(/[,\s]/g, '');
+  if (!t) return 0;
+  if (!/^\d{1,6}$/.test(t)) return null;
+  const n = Number(t);
+  return n <= 100000 ? n : null;
+}
+
 export const BRANCH_PHONE_RE = /^\+?[0-9][0-9\s\-()]{6,19}$/;
 
 /**
@@ -207,6 +226,8 @@ export function buildRegistrationFormData(form: LabForm, phone: string): FormDat
   if (wa) fd.append('whatsappNumber', wa);
   fd.append('licenseNumber', form.licenseNumber.trim().toUpperCase());
   fd.append('regulatoryBody', form.regulatoryBody);
+  fd.append('hasHomeSample', String(form.hasHomeSample));
+  fd.append('homeSampleFee', String(form.hasHomeSample ? homeSampleFeeValue(form.homeSampleFee) ?? 0 : 0));
   if (form.logo) fd.append('logo', form.logo.file);
   if (form.licenseDocument) fd.append('licenseDoc', form.licenseDocument.file);
   fd.append(
