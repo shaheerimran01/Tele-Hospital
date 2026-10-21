@@ -910,7 +910,8 @@ model Laboratory {
   name                String                // e.g. "Crescent Diagnostic Laboratories"
   logoUrl             String?               // Optional square logo URL
   email               String                @unique
-  whatsappNumber      String                // International format e.g. "+923001234567"
+  phone               String                @unique // 👈 Main verified phone number (Login/OTP ke lye, non-editable)
+  whatsappNumber      String?               // 👈 Contact WhatsApp number
   
   // 2. Regulatory & Healthcare Licensing
   licenseNumber       String                @unique // e.g. "PHC/LAB/2024/01234"
@@ -922,6 +923,8 @@ model Laboratory {
   isVerified          Boolean               @default(false)
   rejectionReason     String?               @db.Text
   
+  hasHomeSample       Boolean               @default(true) // 👈 Home Sample Collection available or not
+  homeSampleFee       Float?                @default(0)    // Optional home collection charges (0 = Free)
   // Relations
   branches            LabBranch[]
   prices LabPackagePrice[]

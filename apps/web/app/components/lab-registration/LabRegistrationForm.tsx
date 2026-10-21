@@ -5,7 +5,8 @@
 // form and logs the payload; the API call is connected in the next phase.
 
 import { useEffect, useRef, useState } from 'react';
-import { CircleAlert, CircleCheck, FlaskConical, Plus, ShieldCheck, Building2, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { CircleAlert, CircleCheck, FlaskConical, LoaderCircle, Plus, ShieldCheck, Building2 } from 'lucide-react';
 import { Field, FormSection, inputClass, inputErrorClass } from '../consult-doctors/join-now/ui';
 import FileUploadField from './FileUploadField';
 import PhoneInput from './PhoneInput';
@@ -17,11 +18,11 @@ import {
   LOGO_TYPES,
   MAX_BRANCHES,
   REGULATORY_BODIES,
-  buildPayload,
   emptyBranch,
   initialLabForm,
   sectionOf,
   validateLabForm,
+  whatsappE164,
   type BranchForm,
   type FormErrors,
   type LabForm,
@@ -34,12 +35,13 @@ const SECTIONS = [
   { n: 3 as const, id: 'lab-branches', title: 'Branches & Medical Staff', Icon: Building2 },
 ];
 
-type Payload = ReturnType<typeof buildPayload>;
-
 export default function LabRegistrationForm() {
+  const router = useRouter();
   const [form, setForm] = useState<LabForm>(initialLabForm);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [submitted, setSubmitted] = useState<Payload | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [newBranchId, setNewBranchId] = useState<string | null>(null);
   const triedSubmit = useRef(false);
   const formRef = useRef(form);
@@ -84,8 +86,9 @@ export default function LabRegistrationForm() {
   const doneCount = SECTIONS.filter((s) => sectionDone(s.n)).length;
   const errorCount = Object.keys(errors).length;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     triedSubmit.current = true;
+    setSubmitError(null);
     const found = validateLabForm(form);
     setErrors(found);
     if (Object.keys(found).length > 0) {
@@ -98,20 +101,74 @@ export default function LabRegistrationForm() {
       });
       return;
     }
-    const payload = buildPayload(form);
-    // Frontend phase: the API call replaces this log later. Files are kept in
-    // state (form.logo.file, form.licenseDocument.file) for the upload.
-    console.log('Lab registration payload:\n' + JSON.stringify(payload, null, 2));
-    setSubmitted(payload);
-  };
 
-  const startOver = () => {
-    [form.logo, form.licenseDocument].forEach((x) => x && URL.revokeObjectURL(x.previewUrl));
-    triedSubmit.current = false;
-    setErrors({});
-    setSubmitted(null);
-    setForm(initialLabForm());
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!form.regulatoryBody) {
+      setSubmitError('Please select an issuing regulatory body.');
+      return;
+    }
+
+    if (!form.licenseDocument?.file) {
+      setSubmitError('Please upload your healthcare license document.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const branches = form.branches.map((b, i) => ({
+        name: b.name.trim(),
+        isMainCenter: i === 0,
+        medicalDirectorName: b.directorName.trim(),
+        medicalCouncilLicenseNo: b.councilLicenseNumber.trim().toUpperCase(),
+        address: b.address.trim(),
+        latitude: typeof b.latitude === 'number' ? b.latitude : undefined,
+        longitude: typeof b.longitude === 'number' ? b.longitude : undefined,
+      }));
+
+      const phone = whatsappE164(form.whatsappCountry, form.whatsappNumber) || form.whatsappNumber.trim();
+
+      const formData = new FormData();
+      formData.append('name', form.labName.trim());
+      formData.append('email', form.email.trim().toLowerCase());
+      formData.append('whatsappNumber', phone);
+      formData.append('licenseNumber', form.licenseNumber.trim().toUpperCase());
+      formData.append('regulatoryBody', form.regulatoryBody);
+
+      if (form.logo?.file) {
+        formData.append('logo', form.logo.file);
+      }
+      formData.append('licenseDoc', form.licenseDocument.file);
+      formData.append('branches', JSON.stringify(branches));
+
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const res = await fetch(`${apiBase}/labs/register`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        const errorMsg =
+          (errData && (Array.isArray(errData.message) ? errData.message.join(', ') : errData.message)) ||
+          'Failed to register laboratory. Please verify your details and try again.';
+        setSubmitError(errorMsg);
+        setIsSubmitting(false);
+        return;
+      }
+
+      const resData = await res.json();
+      const labId = resData?.id || resData?.data?.id || resData?.laboratory?.id;
+      if (!labId) {
+        setSubmitError('Registration was successful, but no laboratory ID was returned by the server.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      setSuccessMsg('Registration successful! Redirecting to your dashboard…');
+      router.push(`/lab-dashboard/manage-tests?labId=${labId}`);
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : 'An unexpected error occurred while submitting.');
+      setIsSubmitting(false);
+    }
   };
 
   const text = (
@@ -298,6 +355,18 @@ export default function LabRegistrationForm() {
 
           {/* Submit */}
           <div className="rounded-2xl border border-[#e7e2d8] bg-white p-4 sm:p-6">
+            {submitError && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
+            {successMsg && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl bg-[#e8f3ec] px-4 py-3 text-sm text-[#2f7a4b]" role="alert">
+                <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
             {errorCount > 0 && (
               <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
                 <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -312,77 +381,22 @@ export default function LabRegistrationForm() {
               </p>
               <button
                 type="submit"
-                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#141b34] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#232c4f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#141b34]/40 focus-visible:ring-offset-2"
+                disabled={isSubmitting}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#141b34] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#232c4f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#141b34]/40 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <FlaskConical className="h-4 w-4" /> Register Laboratory
+                {isSubmitting ? (
+                  <>
+                    <LoaderCircle className="h-4 w-4 animate-spin" /> Registering…
+                  </>
+                ) : (
+                  <>
+                    <FlaskConical className="h-4 w-4" /> Register Laboratory
+                  </>
+                )}
               </button>
             </div>
           </div>
         </form>
-      </div>
-
-      {submitted && <SuccessDialog payload={submitted} onClose={() => setSubmitted(null)} onStartOver={startOver} />}
-    </div>
-  );
-}
-
-function SuccessDialog({ payload, onClose, onStartOver }: { payload: Payload; onClose: () => void; onStartOver: () => void }) {
-  const closeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    closeRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="lab-reg-success-title"
-        onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-      >
-        <button ref={closeRef} type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 rounded-full p-1.5 text-[#8a8d99] hover:bg-[#f3f1ec]">
-          <X className="h-5 w-5" />
-        </button>
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e8f3ec] text-[#2f7a4b]">
-          <CircleCheck className="h-6 w-6" />
-        </span>
-        <h2 id="lab-reg-success-title" className="mt-4 text-lg font-semibold text-[#141b34]">
-          Registration details are complete
-        </h2>
-        <p className="mt-1 text-sm text-[#6b6f80]">
-          {payload.labName} with {payload.branches.length} {payload.branches.length === 1 ? 'branch' : 'branches'} passed all checks.
-        </p>
-        <ul className="mt-4 space-y-1.5 rounded-xl bg-[#faf9f6] p-3 text-xs text-[#3a3f52]">
-          <li>
-            <span className="text-[#8a8d99]">Email:</span> {payload.email}
-          </li>
-          <li>
-            <span className="text-[#8a8d99]">WhatsApp:</span> {payload.whatsappNumber}
-          </li>
-          <li>
-            <span className="text-[#8a8d99]">License:</span> {payload.license.number} · {payload.license.regulatoryBodyName}
-          </li>
-          {payload.branches.map((b) => (
-            <li key={b.order}>
-              <span className="text-[#8a8d99]">Branch {b.order}:</span> {b.name} · {b.medicalDirectorName}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-[#8a8d99]">
-          Preview mode: the details were written to the browser console. Sending them to Tabibistan will be connected in the next phase.
-        </p>
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onStartOver} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-[#3a3f52] hover:bg-[#f3f1ec]">
-            Register another lab
-          </button>
-          <button type="button" onClick={onClose} className="rounded-xl bg-[#141b34] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#232c4f]">
-            Done
-          </button>
-        </div>
       </div>
     </div>
   );

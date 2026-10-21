@@ -39,7 +39,7 @@ const STATUS_STYLE = {
   REJECTED: { label: 'Not approved', cls: 'bg-red-50 text-red-700' },
 } as const;
 
-export default function ManageTests() {
+export default function ManageTests({ labId: propLabId }: { labId?: string } = {}) {
   const router = useRouter();
   const params = useSearchParams();
   const [labId, setLabId] = useState<string | null>(null);
@@ -57,14 +57,14 @@ export default function ManageTests() {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
 
-  // Lab from ?laboratoryId= (remembered on this device), else the remembered one
+  // Lab from ?labId= (or ?laboratoryId=), or prompt screen when not passed in URL
   useEffect(() => {
-    const fromUrl = params.get('laboratoryId');
-    const id = fromUrl && isUuid(fromUrl) ? fromUrl : readStoredLab();
+    const fromUrl = propLabId || params.get('labId') || params.get('laboratoryId');
+    const id = fromUrl && isUuid(fromUrl) ? fromUrl : null;
     if (fromUrl && isUuid(fromUrl)) storeLab(fromUrl);
-    setLabId(id && isUuid(id) ? id : null);
+    setLabId(id);
     setReady(true);
-  }, [params]);
+  }, [params, propLabId]);
 
   useEffect(() => {
     if (!labId) return;
@@ -149,7 +149,7 @@ export default function ManageTests() {
   };
 
   if (!ready) return null;
-  if (!labId) return <LabIdPrompt onOpen={(id) => router.replace(`/lab-dashboard/manage-tests?laboratoryId=${id}`)} />;
+  if (!labId) return <LabIdPrompt onOpen={(id) => router.replace(`/lab-dashboard/manage-tests?labId=${id}`)} />;
 
   const status = data ? STATUS_STYLE[data.laboratory.verificationStatus] : null;
 
