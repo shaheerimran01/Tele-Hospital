@@ -48,6 +48,8 @@ export interface BranchForm {
   name: string;
   directorName: string;
   councilLicenseNumber: string;
+  /** branch phone / helpline (optional) */
+  phone: string;
   address: string;
   latitude: number | null;
   longitude: number | null;
@@ -73,6 +75,7 @@ export const emptyBranch = (): BranchForm => ({
   id: newBranchId(),
   name: '',
   directorName: '',
+  phone: '',
   councilLicenseNumber: '',
   address: '',
   latitude: null,
@@ -143,8 +146,8 @@ export function validateLabForm(form: LabForm): FormErrors {
   if (!email) e.email = 'Enter an email address.';
   else if (!EMAIL_RE.test(email)) e.email = 'Enter a valid email address, e.g. info@yourlab.com.';
 
-  if (!form.whatsappNumber.trim()) e.whatsappNumber = 'Enter a WhatsApp number.';
-  else if (!whatsappE164(form.whatsappCountry, form.whatsappNumber)) {
+  // WhatsApp is an optional contact number for patient inquiries
+  if (form.whatsappNumber.trim() && !whatsappE164(form.whatsappCountry, form.whatsappNumber)) {
     e.whatsappNumber =
       form.whatsappCountry === 'PK' ? 'Enter a valid Pakistani mobile number, e.g. 300 1234567.' : 'Enter a valid mobile number.';
   }
@@ -175,6 +178,7 @@ export function validateLabForm(form: LabForm): FormErrors {
     const council = b.councilLicenseNumber.trim();
     if (!council) e[k('councilLicenseNumber')] = 'Enter the PMDC / PMC license number.';
     else if (!COUNCIL_RE.test(council)) e[k('councilLicenseNumber')] = 'Use 3 to 20 letters, numbers or dashes, e.g. 12345-P.';
+    if (b.phone.trim() && !BRANCH_PHONE_RE.test(b.phone.trim())) e[k('phone')] = 'Enter a valid phone number, e.g. 042 35761234 or 0300 1234567.';
     if (b.address.trim().length < 5) e[k('address')] = 'Enter the full branch address.';
     if (b.latitude == null || b.longitude == null) e[k('location')] = 'Drop a pin on the map to set the exact location.';
   });
@@ -186,6 +190,40 @@ export function sectionOf(key: string): 1 | 2 | 3 {
   if (key.startsWith('branches.')) return 3;
   if (['licenseNumber', 'licenseDocument', 'regulatoryBody'].includes(key)) return 2;
   return 1;
+}
+
+export const BRANCH_PHONE_RE = /^\+?[0-9][0-9\s\-()]{6,19}$/;
+
+/**
+ * Multipart body for POST /labs/register. `phone` is the verified login phone
+ * (the API also checks it against the signed-in session).
+ */
+export function buildRegistrationFormData(form: LabForm, phone: string): FormData {
+  const fd = new FormData();
+  fd.append('name', form.labName.trim());
+  fd.append('email', form.email.trim().toLowerCase());
+  fd.append('phone', phone);
+  const wa = form.whatsappNumber.trim() ? whatsappE164(form.whatsappCountry, form.whatsappNumber) : null;
+  if (wa) fd.append('whatsappNumber', wa);
+  fd.append('licenseNumber', form.licenseNumber.trim().toUpperCase());
+  fd.append('regulatoryBody', form.regulatoryBody);
+  if (form.logo) fd.append('logo', form.logo.file);
+  if (form.licenseDocument) fd.append('licenseDoc', form.licenseDocument.file);
+  fd.append(
+    'branches',
+    JSON.stringify(
+      form.branches.map((b, i) => ({
+        name: b.name.trim(),
+        isMainCenter: i === 0,
+        medicalDirectorName: b.directorName.trim(),
+        medicalCouncilLicenseNo: b.councilLicenseNumber.trim().toUpperCase(),
+        address: b.address.trim(),
+        ...(b.phone.trim() ? { phone: b.phone.trim() } : {}),
+        ...(b.latitude != null && b.longitude != null ? { latitude: b.latitude, longitude: b.longitude } : {}),
+      })),
+    ),
+  );
+  return fd;
 }
 
 const fileInfo = (f: PickedFile | null) => (f ? { name: f.file.name, type: f.file.type, size: f.file.size } : null);
@@ -210,6 +248,7 @@ export function buildPayload(form: LabForm) {
       name: b.name.trim(),
       medicalDirectorName: b.directorName.trim(),
       medicalCouncilLicenseNumber: b.councilLicenseNumber.trim().toUpperCase(),
+      phone: b.phone.trim() || null,
       address: b.address.trim(),
       latitude: b.latitude,
       longitude: b.longitude,

@@ -2,48 +2,21 @@
 
 // Lab dashboard: Test & Package Inventory. Every master catalog item with this
 // lab's price, availability and switched-off sub-tests (LabPackagePrice).
+// Rendered inside LabPortalShell, which provides the signed-in lab's ID.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { CircleAlert, CircleCheck, FlaskConical, LoaderCircle, Pencil, Search, Tag, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, LoaderCircle, Pencil, Search, Tag, X } from 'lucide-react';
 import { formatPkr } from '@/app/lib/api/lab-tests';
-import { getLabPricingApi, isUuid, updateLabPriceApi, type LabPricingItem, type LabPricingResponse } from '@/app/lib/api/lab-pricing';
+import { getLabPricingApi, updateLabPriceApi, type LabPricingItem, type LabPricingResponse } from '@/app/lib/api/lab-pricing';
 import EditItemDrawer from './EditItemDrawer';
 import Toggle from './Toggle';
 
-const LAB_KEY = 'lab_dashboard_lab_id';
 const PAGE = 40;
 
 type TypeTab = 'ALL' | 'PACKAGE' | 'INDIVIDUAL_TEST';
 type AvailTab = 'ALL' | 'AVAILABLE' | 'DISABLED';
 
-const readStoredLab = () => {
-  try {
-    return localStorage.getItem(LAB_KEY);
-  } catch {
-    return null;
-  }
-};
-const storeLab = (id: string | null) => {
-  try {
-    if (id) localStorage.setItem(LAB_KEY, id);
-    else localStorage.removeItem(LAB_KEY);
-  } catch {
-    // ignore
-  }
-};
-
-const STATUS_STYLE = {
-  APPROVED: { label: 'Verified', cls: 'bg-[#e8f3ec] text-[#2f7a4b]' },
-  PENDING: { label: 'Verification pending', cls: 'bg-amber-50 text-amber-800' },
-  REJECTED: { label: 'Not approved', cls: 'bg-red-50 text-red-700' },
-} as const;
-
-export default function ManageTests({ labId: propLabId }: { labId?: string } = {}) {
-  const router = useRouter();
-  const params = useSearchParams();
-  const [labId, setLabId] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
+export default function ManageTests({ labId }: { labId: string }) {
   const [data, setData] = useState<LabPricingResponse | null>(null);
   const [error, setError] = useState<{ message: string; status: number } | null>(null);
   const [retry, setRetry] = useState(0);
@@ -56,15 +29,6 @@ export default function ManageTests({ labId: propLabId }: { labId?: string } = {
   const [editing, setEditing] = useState<LabPricingItem | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ text: string; tone: 'ok' | 'error' } | null>(null);
-
-  // Lab from ?labId= (or ?laboratoryId=), or prompt screen when not passed in URL
-  useEffect(() => {
-    const fromUrl = propLabId || params.get('labId') || params.get('laboratoryId');
-    const id = fromUrl && isUuid(fromUrl) ? fromUrl : null;
-    if (fromUrl && isUuid(fromUrl)) storeLab(fromUrl);
-    setLabId(id);
-    setReady(true);
-  }, [params, propLabId]);
 
   useEffect(() => {
     if (!labId) return;
@@ -141,54 +105,23 @@ export default function ManageTests({ labId: propLabId }: { labId?: string } = {
     }
   };
 
-  const switchLab = () => {
-    storeLab(null);
-    setLabId(null);
-    setData(null);
-    router.replace('/lab-dashboard/manage-tests');
-  };
-
-  if (!ready) return null;
-  if (!labId) return <LabIdPrompt onOpen={(id) => router.replace(`/lab-dashboard/manage-tests?labId=${id}`)} />;
-
-  const status = data ? STATUS_STYLE[data.laboratory.verificationStatus] : null;
-
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#6b6f80]">
-            <span className="uppercase tracking-wider">Lab Dashboard</span>
-            {data && (
-              <>
-                <span>·</span>
-                <span className="text-[#141b34]">{data.laboratory.name}</span>
-                {status && <span className={`rounded-full px-2 py-0.5 text-[11px] ${status.cls}`}>{status.label}</span>}
-              </>
-            )}
-          </p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#141b34] sm:text-3xl">Test & Package Inventory</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-[#141b34] sm:text-3xl">Test & Package Inventory</h1>
           <p className="mt-1 max-w-2xl text-sm text-[#6b6f80]">Set your lab&apos;s prices, switch items on or off, and choose which tests in each package you perform.</p>
         </div>
-        <button type="button" onClick={switchLab} className="rounded-lg border border-[#d9d3c6] bg-white px-3 py-2 text-xs font-semibold text-[#3a3f52] hover:bg-[#faf9f6]">
-          Switch lab
-        </button>
       </div>
 
       {error ? (
         <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
           <CircleAlert className="h-4 w-4 shrink-0" />
-          {error.status === 404 ? 'No laboratory was found with this ID.' : error.message}
-          {error.status === 404 ? (
-            <button type="button" onClick={switchLab} className="font-semibold underline">
-              Enter another ID
-            </button>
-          ) : (
-            <button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">
-              Try again
-            </button>
-          )}
+          {error.message}
+          <button type="button" onClick={() => setRetry((n) => n + 1)} className="font-semibold underline">
+            Try again
+          </button>
         </div>
       ) : !data ? (
         <p className="mt-8 flex items-center gap-2 text-sm text-[#6b6f80]">
@@ -318,7 +251,7 @@ export default function ManageTests({ labId: propLabId }: { labId?: string } = {
         </>
       )}
 
-      {editing && labId && (
+      {editing && (
         <EditItemDrawer
           key={editing.id}
           item={editing}
@@ -452,55 +385,5 @@ function ItemRow({ item, busy, onToggle, onEdit }: { item: LabPricingItem; busy:
         <Pencil className="h-3.5 w-3.5" /> Edit Price & Availability
       </button>
     </li>
-  );
-}
-
-function LabIdPrompt({ onOpen }: { onOpen: (id: string) => void }) {
-  const [value, setValue] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  return (
-    <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-16">
-      <div className="rounded-2xl border border-[#e7e2d8] bg-white p-6">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#141b34] text-white">
-          <FlaskConical className="h-5 w-5" />
-        </span>
-        <h1 className="mt-4 text-xl font-bold text-[#141b34]">Open your lab dashboard</h1>
-        <p className="mt-1 text-sm text-[#6b6f80]">Enter your laboratory ID to manage your tests, packages and prices.</p>
-        <form
-          className="mt-4 space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!isUuid(value)) {
-              setError('Enter a valid laboratory ID, e.g. 3f2a9c1e-…');
-              return;
-            }
-            onOpen(value.trim());
-          }}
-        >
-          <label htmlFor="lab-id" className="text-xs font-medium text-[#3a3f52]">
-            Laboratory ID
-          </label>
-          <input
-            id="lab-id"
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              setError(null);
-            }}
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            autoComplete="off"
-            className="w-full rounded-lg border border-[#d9d3c6] px-3 py-2.5 font-mono text-sm outline-none focus:border-[#141b34] focus:ring-2 focus:ring-[#141b34]/10"
-          />
-          {error && (
-            <p className="text-xs text-red-600" role="alert">
-              {error}
-            </p>
-          )}
-          <button type="submit" className="w-full rounded-xl bg-[#141b34] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#232c4f]">
-            Open dashboard
-          </button>
-        </form>
-      </div>
-    </div>
   );
 }

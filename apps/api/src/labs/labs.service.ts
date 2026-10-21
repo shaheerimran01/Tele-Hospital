@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { formatLabPhone } from './lab-auth.js';
 import { RegisterLabDto } from './dto/register-lab.dto.js';
 
 export interface LabUploadFiles {
@@ -16,11 +17,12 @@ export const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 export const LICENSE_MAX_BYTES = 10 * 1024 * 1024;
 
 /** Public URL prefix and folder (served by main.ts: app.useStaticAssets('uploads', { prefix: '/uploads/' })) */
-const UPLOAD_ROOT = join(process.cwd(), 'uploads');
-const LOGO_DIR = 'labs/logos';
-const LICENSE_DIR = 'labs/licenses';
+export const UPLOAD_ROOT = join(process.cwd(), 'uploads');
+export const LOGO_DIR = 'labs/logos';
+export const LICENSE_DIR = 'labs/licenses';
 
 const CONFLICT_MESSAGE = 'Laboratory with this email or license number already registered.';
+const PHONE_CONFLICT_MESSAGE = 'A laboratory is already registered with this phone number. Please sign in instead.';
 
 /** Real file type from the first bytes (the browser-supplied MIME type can be wrong or spoofed) */
 export function sniffFileKind(buffer: Buffer | undefined): FileKind | null {
@@ -37,7 +39,16 @@ export class LabsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async registerLaboratory(dto: RegisterLabDto, files: LabUploadFiles = {}) {
+  /**
+   * @param verifiedPhone the phone proven by OTP (from the lab session token); the lab's primary phone
+   */
+  async registerLaboratory(dto: RegisterLabDto, files: LabUploadFiles = {}, verifiedPhone?: string) {
+    // 0. The primary phone must be the one verified by OTP
+    const phone = formatLabPhone(dto.phone);
+    if (verifiedPhone && phone !== verifiedPhone) {
+      throw new BadRequestException('The primary phone must be the number you signed in with.');
+    }
+
     // 1. Files and branch rules (before touching the database or the disk)
     const logo = files.logo?.[0];
     const licenseDoc = files.licenseDoc?.[0];
@@ -46,17 +57,18 @@ export class LabsService {
     const licenseKind = this.checkFile(licenseDoc, ['png', 'jpg', 'pdf'], LICENSE_MAX_BYTES, 'License document');
     const branches = this.normaliseBranches(dto);
 
-    // 2. Unique email & license number
+    // 2. Unique phone, email & license number
     const existing = await this.prisma.laboratory.findFirst({
       where: {
         OR: [
+          { phone },
           { email: { equals: dto.email, mode: 'insensitive' } },
           { licenseNumber: { equals: dto.licenseNumber, mode: 'insensitive' } },
         ],
       },
-      select: { id: true },
+      select: { phone: true },
     });
-    if (existing) throw new ConflictException(CONFLICT_MESSAGE);
+    if (existing) throw new ConflictException(existing.phone === phone ? PHONE_CONFLICT_MESSAGE : CONFLICT_MESSAGE);
 
     // 3. Store the files, then create the lab and all branches in one nested write
     //    (Prisma runs a nested create as a single transaction)
@@ -69,7 +81,8 @@ export class LabsService {
         data: {
           name: dto.name,
           email: dto.email,
-          whatsappNumber: dto.whatsappNumber,
+          phone,
+          whatsappNumber: dto.whatsappNumber ?? null,
           licenseNumber: dto.licenseNumber,
           regulatoryBody: dto.regulatoryBody,
           logoUrl,
@@ -91,7 +104,7 @@ export class LabsService {
   }
 
   /** Checks type (by content) and size; returns the detected kind */
-  private checkFile(file: Express.Multer.File, allowed: FileKind[], maxBytes: number, label: string): FileKind {
+  checkFile(file: Express.Multer.File, allowed: FileKind[], maxBytes: number, label: string): FileKind {
     const kind = sniffFileKind(file.buffer);
     const allowedText = allowed.map((k) => k.toUpperCase()).join(', ').replace(/, ([^,]*)$/, ' or $1');
     if (!kind || !allowed.includes(kind)) throw new BadRequestException(`${label} must be a ${allowedText} file.`);
@@ -124,13 +137,14 @@ export class LabsService {
       medicalDirectorName: b.medicalDirectorName,
       medicalCouncilLicenseNo: b.medicalCouncilLicenseNo,
       address: b.address,
+      phone: b.phone ?? null,
       latitude: b.latitude ?? null,
       longitude: b.longitude ?? null,
     }));
   }
 
   /** Writes the file under uploads/<dir> with a random name; returns its public URL */
-  private async saveFile(file: Express.Multer.File, kind: FileKind, dir: string, written: string[]) {
+  async saveFile(file: Express.Multer.File, kind: FileKind, dir: string, written: string[]) {
     const folder = join(UPLOAD_ROOT, dir);
     await mkdir(folder, { recursive: true });
     const fileName = `${Date.now()}-${randomUUID()}.${kind}`;

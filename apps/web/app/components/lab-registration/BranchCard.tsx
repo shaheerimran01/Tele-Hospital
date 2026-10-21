@@ -34,9 +34,9 @@ export default function BranchCard({ branch, index, canRemove, errors, onChange,
   const id = (f: string) => `branches.${branch.id}.${f}`;
   const err = (f: string) => errors[id(f)];
   const [title, tag] = branchTitle(index).split(' · ');
-  const hasData = !!(branch.name || branch.directorName || branch.councilLicenseNumber || branch.address || branch.latitude != null);
+  const hasData = !!(branch.name || branch.directorName || branch.councilLicenseNumber || branch.phone || branch.address || branch.latitude != null);
 
-  const text = (f: 'name' | 'directorName' | 'councilLicenseNumber', props: React.InputHTMLAttributes<HTMLInputElement>) => (
+  const text = (f: 'name' | 'directorName' | 'councilLicenseNumber' | 'phone', props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input
       id={id(f)}
       type="text"
@@ -94,6 +94,9 @@ export default function BranchCard({ branch, index, canRemove, errors, onChange,
         </Field>
         <Field id={id('councilLicenseNumber')} label="Medical Council License Number" hint="(PMDC / PMC)" required error={err('councilLicenseNumber')}>
           {text('councilLicenseNumber', { placeholder: 'e.g. 12345-P', autoCapitalize: 'characters' })}
+        </Field>
+        <Field id={id('phone')} label="Branch Phone Number / Helpline" hint="(optional)" error={err('phone')} className="sm:col-span-2">
+          {text('phone', { type: 'tel', inputMode: 'tel', placeholder: 'e.g. 042 35761234 or 0300 1234567', autoComplete: 'off' })}
         </Field>
         <div className="sm:col-span-2" id={`field-${id('location')}`}>
           <ClinicLocationPicker

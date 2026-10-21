@@ -1,12 +1,14 @@
 'use client';
 
-// Laboratory registration (frontend phase): lab profile, licensing, and any
-// number of branches with a map pin each. "Register Laboratory" validates the
-// form and logs the payload; the API call is connected in the next phase.
+// Laboratory registration: lab profile, licensing, and any number of branches
+// with a map pin each. The primary phone is the one verified at /lab-login
+// (locked here); "Register Laboratory" sends everything to POST /labs/register
+// and opens the lab dashboard.
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CircleAlert, CircleCheck, FlaskConical, LoaderCircle, Plus, ShieldCheck, Building2 } from 'lucide-react';
+import { CircleAlert, CircleCheck, FlaskConical, LoaderCircle, Lock, Plus, ShieldCheck, Building2 } from 'lucide-react';
+import { LabPortalError, clearLabSession, displayPhone, getLabSession, labMeApi, registerLabApi } from '@/app/lib/api/lab-portal';
 import { Field, FormSection, inputClass, inputErrorClass } from '../consult-doctors/join-now/ui';
 import FileUploadField from './FileUploadField';
 import PhoneInput from './PhoneInput';
@@ -18,11 +20,11 @@ import {
   LOGO_TYPES,
   MAX_BRANCHES,
   REGULATORY_BODIES,
+  buildRegistrationFormData,
   emptyBranch,
   initialLabForm,
   sectionOf,
   validateLabForm,
-  whatsappE164,
   type BranchForm,
   type FormErrors,
   type LabForm,
@@ -43,7 +45,24 @@ export default function LabRegistrationForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [newBranchId, setNewBranchId] = useState<string | null>(null);
+  /** primary phone verified by OTP (from the lab session) */
+  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
   const triedSubmit = useRef(false);
+
+  // Registration needs a verified phone: no session -> /lab-login; already registered -> dashboard
+  useEffect(() => {
+    const session = getLabSession();
+    if (!session) {
+      router.replace('/lab-login');
+      return;
+    }
+    labMeApi()
+      .then((me) => {
+        if (me.registered && me.laboratory) router.replace(`/lab-dashboard?labId=${me.laboratory.id}`);
+        else setVerifiedPhone(me.phone);
+      })
+      .catch(() => router.replace('/lab-login'));
+  }, [router]);
   const formRef = useRef(form);
   formRef.current = form;
 
@@ -102,71 +121,18 @@ export default function LabRegistrationForm() {
       return;
     }
 
-    if (!form.regulatoryBody) {
-      setSubmitError('Please select an issuing regulatory body.');
-      return;
-    }
-
-    if (!form.licenseDocument?.file) {
-      setSubmitError('Please upload your healthcare license document.');
-      return;
-    }
-
+    if (!verifiedPhone) return;
     setIsSubmitting(true);
     try {
-      const branches = form.branches.map((b, i) => ({
-        name: b.name.trim(),
-        isMainCenter: i === 0,
-        medicalDirectorName: b.directorName.trim(),
-        medicalCouncilLicenseNo: b.councilLicenseNumber.trim().toUpperCase(),
-        address: b.address.trim(),
-        latitude: typeof b.latitude === 'number' ? b.latitude : undefined,
-        longitude: typeof b.longitude === 'number' ? b.longitude : undefined,
-      }));
-
-      const phone = whatsappE164(form.whatsappCountry, form.whatsappNumber) || form.whatsappNumber.trim();
-
-      const formData = new FormData();
-      formData.append('name', form.labName.trim());
-      formData.append('email', form.email.trim().toLowerCase());
-      formData.append('whatsappNumber', phone);
-      formData.append('licenseNumber', form.licenseNumber.trim().toUpperCase());
-      formData.append('regulatoryBody', form.regulatoryBody);
-
-      if (form.logo?.file) {
-        formData.append('logo', form.logo.file);
+      const created = await registerLabApi(buildRegistrationFormData(form, verifiedPhone));
+      setSuccessMsg('Registration submitted. Opening your lab dashboard…');
+      router.push(`/lab-dashboard?labId=${created.id}`);
+    } catch (err) {
+      if (err instanceof LabPortalError && err.status === 401) {
+        setSubmitError('Your sign-in has expired. Please verify your phone again; your details on this page will be lost.');
+      } else {
+        setSubmitError(err instanceof Error ? err.message : 'Could not register the laboratory. Please try again.');
       }
-      formData.append('licenseDoc', form.licenseDocument.file);
-      formData.append('branches', JSON.stringify(branches));
-
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${apiBase}/labs/register`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        const errorMsg =
-          (errData && (Array.isArray(errData.message) ? errData.message.join(', ') : errData.message)) ||
-          'Failed to register laboratory. Please verify your details and try again.';
-        setSubmitError(errorMsg);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const resData = await res.json();
-      const labId = resData?.id || resData?.data?.id || resData?.laboratory?.id;
-      if (!labId) {
-        setSubmitError('Registration was successful, but no laboratory ID was returned by the server.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      setSuccessMsg('Registration successful! Redirecting to your dashboard…');
-      router.push(`/lab-dashboard/manage-tests?labId=${labId}`);
-    } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : 'An unexpected error occurred while submitting.');
       setIsSubmitting(false);
     }
   };
@@ -185,6 +151,14 @@ export default function LabRegistrationForm() {
       {...props}
     />
   );
+
+  if (!verifiedPhone) {
+    return (
+      <p className="flex flex-1 items-center justify-center gap-2 py-24 text-sm text-[#6b6f80]">
+        <LoaderCircle className="h-4 w-4 animate-spin" /> Checking your sign-in…
+      </p>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
@@ -260,10 +234,35 @@ export default function LabRegistrationForm() {
                     error={errors.logo}
                   />
                 </div>
+                <div className="sm:col-span-2" id="field-phone">
+                  <p className="mb-1.5 text-xs font-medium text-[#3a3f52]">
+                    Phone Number (Primary Login &amp; OTP)<span className="ml-0.5 text-red-500">*</span>
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[#d9d3c6] bg-[#faf9f6] px-3 py-2.5">
+                    <Lock className="h-4 w-4 text-[#8a8d99]" aria-hidden />
+                    <span className="text-sm font-semibold tabular-nums text-[#141b34]" aria-label="Primary phone number">
+                      {displayPhone(verifiedPhone)}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#e8f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#2f7a4b]">
+                      <ShieldCheck className="h-3 w-3" /> Verified
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearLabSession();
+                        router.push('/lab-login');
+                      }}
+                      className="ml-auto text-xs font-semibold text-[#3a3f52] underline"
+                    >
+                      Use a different number
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-[#8a8d99]">You sign in to your lab dashboard with this number. It can&apos;t be changed later.</p>
+                </div>
                 <Field id="email" label="Email Address" required error={errors.email}>
                   {text('email', { type: 'email', inputMode: 'email', autoComplete: 'email', placeholder: 'info@yourlab.com' })}
                 </Field>
-                <Field id="whatsappNumber" label="WhatsApp Number" required error={errors.whatsappNumber}>
+                <Field id="whatsappNumber" label="WhatsApp Number" hint="(optional, for patient inquiries)" error={errors.whatsappNumber}>
                   <PhoneInput
                     id="whatsappNumber"
                     country={form.whatsappCountry}
@@ -272,6 +271,15 @@ export default function LabRegistrationForm() {
                     onCountry={(v) => set('whatsappCountry', v)}
                     onNumber={(v) => set('whatsappNumber', v)}
                   />
+                  {!form.whatsappNumber && (
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, whatsappCountry: 'PK', whatsappNumber: verifiedPhone.replace(/^\+92/, '') }))}
+                      className="mt-1 text-xs font-semibold text-[#141b34] underline"
+                    >
+                      Same as primary phone
+                    </button>
+                  )}
                 </Field>
               </div>
             </FormSection>

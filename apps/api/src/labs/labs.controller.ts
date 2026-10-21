@@ -1,8 +1,9 @@
-import { Body, Controller, Post, UploadedFiles, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Post, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { RegisterLabDto } from './dto/register-lab.dto.js';
 import { LICENSE_MAX_BYTES, LabsService, type LabUploadFiles } from './labs.service.js';
+import { CurrentLab, LabAuthGuard, type LabTokenPayload } from './lab-auth.js';
 
 /**
  * Files stay in memory until the form passes validation and the duplicate
@@ -20,16 +21,18 @@ export class LabsController {
   constructor(private readonly labsService: LabsService) {}
 
   /**
-   * POST /labs/register   (multipart/form-data)
-   *   name, email, whatsappNumber (+923001234567), licenseNumber,
+   * POST /labs/register   (multipart/form-data, Authorization: Bearer <lab_token> from /labs/auth/verify-otp)
+   *   name, email, phone (primary login phone, must be the verified one),
+   *   whatsappNumber? (+923001234567), licenseNumber,
    *   regulatoryBody (PHC | SHC | KPK_HCC | B_HCC | FEDERAL | OTHER),
    *   branches (JSON array: name, isMainCenter?, medicalDirectorName,
-   *             medicalCouncilLicenseNo, address, latitude?, longitude?),
+   *             medicalCouncilLicenseNo, address, phone?, latitude?, longitude?),
    *   logo (optional PNG/JPG, max 2 MB), licenseDoc (required PNG/JPG/PDF, max 10 MB)
    * -> 201 laboratory with branches (verificationStatus PENDING, isVerified false)
-   * -> 400 validation errors, 409 email or license number already registered
+   * -> 400 validation errors, 401 not signed in, 409 phone, email or license number already registered
    */
   @Post('register')
+  @UseGuards(LabAuthGuard)
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -39,7 +42,7 @@ export class LabsController {
       uploadOptions,
     ),
   )
-  register(@Body() dto: RegisterLabDto, @UploadedFiles() files: LabUploadFiles) {
-    return this.labsService.registerLaboratory(dto, files ?? {});
+  register(@CurrentLab() auth: LabTokenPayload, @Body() dto: RegisterLabDto, @UploadedFiles() files: LabUploadFiles) {
+    return this.labsService.registerLaboratory(dto, files ?? {}, auth.phone);
   }
 }

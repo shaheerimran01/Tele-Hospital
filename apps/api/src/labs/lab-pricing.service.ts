@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ALL_CARDS, CARD_BY_KEY, CARD_KEY_BY_CATEGORY, brandText, cleanTests } from '../lab-tests/lab-catalog.js';
 import { UpdateLabPriceDto } from './dto/lab-pricing.dto.js';
@@ -127,18 +127,21 @@ export function toPricingItem(row: ItemRow, price: PriceRow | null | undefined):
 export class LabPricingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getLab(laboratoryId: string) {
+  /** @param phone the signed-in lab's verified phone: a lab can only manage its own prices */
+  private async getLab(laboratoryId: string, phone?: string) {
     const lab = await this.prisma.laboratory.findUnique({
       where: { id: laboratoryId },
-      select: { id: true, name: true, logoUrl: true, verificationStatus: true, isVerified: true },
+      select: { id: true, name: true, logoUrl: true, verificationStatus: true, isVerified: true, phone: true },
     });
     if (!lab) throw new NotFoundException('Laboratory not found.');
-    return lab;
+    if (phone !== undefined && lab.phone !== phone) throw new ForbiddenException('You can only manage your own laboratory.');
+    const { phone: _phone, ...rest } = lab;
+    return rest;
   }
 
   /** Whole master catalog with this lab's overrides (GET /lab-pricing/items) */
-  async listItems(laboratoryId: string) {
-    const laboratory = await this.getLab(laboratoryId);
+  async listItems(laboratoryId: string, phone?: string) {
+    const laboratory = await this.getLab(laboratoryId, phone);
     const rows = await this.prisma.labPackage.findMany({
       select: { ...ITEM_SELECT, labPrices: { where: { laboratoryId }, select: PRICE_SELECT, take: 1 } },
       orderBy: [{ createdAt: 'desc' }, { title: 'asc' }],
@@ -166,8 +169,8 @@ export class LabPricingService {
   }
 
   /** Create or update this lab's price / availability for one item (PATCH /lab-pricing/items/:labPackageId) */
-  async updateItem(labPackageId: string, dto: UpdateLabPriceDto) {
-    await this.getLab(dto.laboratoryId);
+  async updateItem(labPackageId: string, dto: UpdateLabPriceDto, phone?: string) {
+    await this.getLab(dto.laboratoryId, phone);
     const row = await this.prisma.labPackage.findUnique({ where: { id: labPackageId }, select: ITEM_SELECT });
     if (!row) throw new NotFoundException('Test or package not found.');
 

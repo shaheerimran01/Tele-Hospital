@@ -7,6 +7,7 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -50,12 +51,19 @@ export class RegisterLabDto {
   @MaxLength(254)
   email!: string;
 
-  /** International format, e.g. +923001234567 */
+  /** Primary login phone (verified by OTP). Must match the signed-in lab session. */
   @Transform(({ value }) => (typeof value === 'string' ? value.replace(/[\s\-()]/g, '') : value))
   @IsString()
-  @IsNotEmpty({ message: 'WhatsApp number is required.' })
+  @IsNotEmpty({ message: 'Primary phone number is required.' })
+  @Matches(/^(\+92|0)?3\d{9}$/, { message: 'Primary phone must be a Pakistani mobile number, e.g. +923001234567.' })
+  phone!: string;
+
+  /** Contact WhatsApp for patient inquiries (optional), international format e.g. +923001234567 */
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/[\s\-()]/g, '') || undefined : value))
+  @IsOptional()
+  @IsString()
   @Matches(/^\+[1-9]\d{7,14}$/, { message: 'WhatsApp number must be in international format, e.g. +923001234567.' })
-  whatsappNumber!: string;
+  whatsappNumber?: string;
 
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
   @IsString()

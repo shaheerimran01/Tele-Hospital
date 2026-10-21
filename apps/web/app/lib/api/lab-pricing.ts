@@ -2,6 +2,7 @@
 // (apps/api: /lab-pricing, LabPackagePrice table)
 
 import { API_BASE } from './lab-tests';
+import { clearLabSession, labAuthHeader } from './lab-portal';
 
 export interface LabPricingItem {
   id: string;
@@ -54,12 +55,13 @@ export class LabPricingError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { cache: 'no-store', ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
+    res = await fetch(`${API_BASE}${path}`, { cache: 'no-store', ...init, headers: { 'Content-Type': 'application/json', ...labAuthHeader(), ...init?.headers } });
   } catch {
     throw new LabPricingError('Could not reach the server. Check your connection and try again.');
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401) clearLabSession();
     const message = Array.isArray(data?.message) ? data.message[0] : data?.message;
     throw new LabPricingError(message || 'Something went wrong. Please try again.', res.status);
   }

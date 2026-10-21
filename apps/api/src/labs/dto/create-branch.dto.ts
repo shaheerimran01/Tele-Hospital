@@ -67,6 +67,13 @@ export class CreateBranchDto {
   @MaxLength(500)
   address!: string;
 
+  /** Branch phone / helpline (mobile or landline), optional */
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() || undefined : value === null ? undefined : value))
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+?[0-9][0-9\s\-()]{6,19}$/, { message: 'Branch phone must be a valid phone number, e.g. 042 35761234 or +923001234567.' })
+  phone?: string;
+
   @Type(() => Number)
   @Transform(toOptionalNumber)
   @IsNumber({ allowNaN: false, allowInfinity: false }, { message: 'Latitude must be a number.' })

@@ -348,7 +348,7 @@ export default function LabCatalog({ banners }: { banners?: ReactNode }) {
               </div>
             </div>
             <Link
-              href="/lab-registration"
+              href="/lab-login"
               className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#141b34] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#232c4f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#141b34]/40 focus-visible:ring-offset-2"
             >
               Register Your Lab <ArrowRight className="h-4 w-4" />
