@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, MessageCircle, Phone, Search, X, Zap } from 'lucide-react';
+import { ArrowRight, Building2, ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, MessageCircle, Phone, Search, X, Zap } from 'lucide-react';
 import { formatPkr, getLabCatalogApi, type LabCatalog as Catalog, type LabCategoryCard, type LabItem, type LabSection, type LabTypeFilter } from '@/app/lib/api/lab-tests';
 import LabListing, { plural } from './LabListing';
 import LabItemModal from './LabItemModal';
@@ -322,8 +322,9 @@ export default function LabCatalog({ banners }: { banners?: ReactNode }) {
             </div>
           </div>
 
+          <div className="min-w-0 space-y-3 lg:col-span-5">
           {/* Trust tiles */}
-          <div className="hidden grid-cols-2 gap-3 sm:grid lg:col-span-5 lg:gap-3.5">
+          <div className="hidden grid-cols-2 gap-3 sm:grid lg:gap-3.5">
             {HERO_TILES.map((t) => (
               <div key={t.title} className="relative aspect-[4/3.3] overflow-hidden rounded-2xl bg-gray-800 shadow-sm">
                 <img src={t.image} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -333,6 +334,26 @@ export default function LabCatalog({ banners }: { banners?: ReactNode }) {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* For laboratories: registration */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-[#e7e2d8] bg-[#f6f4ef] p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#141b34] text-white">
+                <Building2 className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900">Own a diagnostic lab?</p>
+                <p className="text-xs text-gray-600">List your lab and branches on Tabibistan and receive test bookings.</p>
+              </div>
+            </div>
+            <Link
+              href="/lab-registration"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#141b34] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#232c4f] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#141b34]/40 focus-visible:ring-offset-2"
+            >
+              Register Your Lab <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
           </div>
         </div>
 

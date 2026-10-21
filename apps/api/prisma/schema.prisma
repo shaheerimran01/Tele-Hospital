@@ -877,8 +877,109 @@ model LabPackage {
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  labPrices       LabPackagePrice[]
 
   @@index([category])
   @@index([itemType])
   @@map("lab_packages")
+}
+
+// ------------------------------------------------------
+// LABORATORY REGISTRATION & BRANCHES SCHEMA
+// ------------------------------------------------------
+
+enum LabVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RegulatoryBody {
+  PHC      // Punjab Healthcare Commission
+  SHC      // Sindh Healthcare Commission
+  KPK_HCC  // KPK Healthcare Commission
+  B_HCC    // Balochistan Healthcare Commission
+  FEDERAL  // Federal Regulatory Authority
+  OTHER
+}
+
+model Laboratory {
+  id                  String                @id @default(uuid())
+  
+  // 1. Lab Profile & Contact Details
+  name                String                // e.g. "Crescent Diagnostic Laboratories"
+  logoUrl             String?               // Optional square logo URL
+  email               String                @unique
+  whatsappNumber      String                // International format e.g. "+923001234567"
+  
+  // 2. Regulatory & Healthcare Licensing
+  licenseNumber       String                @unique // e.g. "PHC/LAB/2024/01234"
+  regulatoryBody      RegulatoryBody        @default(PHC)
+  licenseDocUrl       String                // License Photo or Scanned PDF URL
+  
+  // Admin Verification Status (Admin approval ke lye)
+  verificationStatus  LabVerificationStatus @default(PENDING)
+  isVerified          Boolean               @default(false)
+  rejectionReason     String?               @db.Text
+  
+  // Relations
+  branches            LabBranch[]
+  prices LabPackagePrice[]
+  
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  @@map("laboratories")
+}
+
+model LabBranch {
+  id                      String     @id @default(uuid())
+  
+  laboratoryId            String
+  laboratory              Laboratory @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  
+  // 3. Branch Info & Medical Staff Details
+  name                    String     // e.g. "Gulberg Main Center"
+  isMainCenter            Boolean    @default(false) // Badge for Main Center vs Sub-branches
+  
+  // Medical Staff Details
+  medicalDirectorName     String     // e.g. "Dr. Sana Malik"
+  medicalCouncilLicenseNo String     // PMDC / PMC License No e.g. "12345-P"
+  
+  // Location & Map Pin Details (OpenStreetMap coordinates)
+  address                 String     @db.Text // e.g. "Shop 12, Main Boulevard, Gulberg III, Lahore"
+  latitude                Float?     // Map marker lat
+  longitude               Float?     // Map marker lng
+  
+  // Operational Status
+  isActive                Boolean    @default(true)
+  phone                   String?    // Branch specific landline/mobile
+  
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+
+  @@index([laboratoryId])
+  @@map("lab_branches")
+}
+
+model LabPackagePrice {
+  id                  String     @id @default(uuid())
+  
+  laboratoryId        String
+  laboratory          Laboratory @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+  
+  labPackageId        String
+  labPackage          LabPackage @relation(fields: [labPackageId], references: [id], onDelete: Cascade)
+  
+  customBasePrice     Float?     
+  customDiscountPrice Float?     
+  
+  isAvailable         Boolean    @default(true)
+  disabledSubTests    String[]   @default([])
+  
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@unique([laboratoryId, labPackageId])
+  @@map("lab_package_prices")
 }

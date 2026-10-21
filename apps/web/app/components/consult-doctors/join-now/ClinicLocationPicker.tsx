@@ -19,6 +19,32 @@ const ClinicMap = dynamic(() => import('./ClinicMap'), {
 const SUGGEST_DELAY_MS = 300;
 const MIN_QUERY = 3;
 
+/** Text shown in the picker; the defaults are the doctor (clinic / hospital) wording */
+export interface LocationPickerWording {
+  title: string;
+  titleHint: string;
+  searchLabel: string;
+  searchPlaceholder: string;
+  noPin: string;
+  addressLabel: string;
+  addressHint: string;
+  addressPlaceholder: string;
+  /** used in messages, e.g. "Search for the clinic / hospital or click the map instead." */
+  place: string;
+}
+
+export const CLINIC_WORDING: LocationPickerWording = {
+  title: 'Clinic / Hospital Location',
+  titleHint: '(search, then drag the pin to the exact building)',
+  searchLabel: 'Search clinic / hospital or area',
+  searchPlaceholder: 'Search clinic / hospital or area, e.g. Blue Area Islamabad',
+  noPin: 'No pin yet. Nearby patients can only find clinics / hospitals that have one.',
+  addressLabel: 'Clinic / Hospital Address',
+  addressHint: 'filled from the map; add floor or suite if needed',
+  addressPlaceholder: 'e.g. Office 4, 2nd floor, Jinnah Avenue, Blue Area, Islamabad',
+  place: 'clinic / hospital',
+};
+
 interface Props {
   idPrefix: string;
   address: string;
@@ -26,6 +52,9 @@ interface Props {
   longitude: number | null;
   error?: string;
   onChange: (patch: { address?: string; latitude?: number | null; longitude?: number | null }) => void;
+  wording?: Partial<LocationPickerWording>;
+  /** Error under the map, e.g. "Drop a pin on the map" */
+  pinError?: string;
 }
 
 export default function ClinicLocationPicker({
@@ -35,7 +64,10 @@ export default function ClinicLocationPicker({
   longitude,
   error,
   onChange,
+  wording,
+  pinError,
 }: Props) {
+  const w = { ...CLINIC_WORDING, ...wording };
   const [query, setQuery] = useState('');
   const [suggestions, setSuggestions] = useState<GeocodeResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -157,8 +189,8 @@ export default function ClinicLocationPicker({
         setLocating(false);
         setMessage(
           err.code === err.PERMISSION_DENIED
-            ? 'Location permission was denied. Search for the clinic / hospital or click the map instead.'
-            : 'Could not get your location. Search for the clinic / hospital or click the map instead.',
+            ? `Location permission was denied. Search for the ${w.place} or click the map instead.`
+            : `Could not get your location. Search for the ${w.place} or click the map instead.`,
         );
       },
       { enableHighAccuracy: true, timeout: 15000 },
@@ -185,12 +217,12 @@ export default function ClinicLocationPicker({
   return (
     <div className="rounded-xl border border-[#e2ddd2] bg-white p-4" id={`field-${idPrefix}.address`}>
       <p className="mb-3 flex items-center gap-1.5 text-sm font-medium text-[#141b34]">
-        <MapPin className="h-4 w-4" /> Clinic / Hospital Location
-        <span className="font-normal text-[#8a8d99]">(search, then drag the pin to the exact building)</span>
+        <MapPin className="h-4 w-4" /> {w.title}
+        <span className="font-normal text-[#8a8d99]">{w.titleHint}</span>
       </p>
 
       {/* Map with the search bar floating on top */}
-      <div className="relative z-0 h-80 overflow-hidden rounded-lg border border-[#e2ddd2]">
+      <div className={`relative z-0 h-80 overflow-hidden rounded-lg border ${pinError ? 'border-red-400' : 'border-[#e2ddd2]'}`}>
         <ClinicMap latitude={latitude} longitude={longitude} onPick={onPinMoved} />
 
         <div ref={searchBoxRef} className="absolute left-3 right-3 top-3 z-[1000]">
@@ -202,7 +234,7 @@ export default function ClinicLocationPicker({
                 role="combobox"
                 aria-expanded={open}
                 aria-autocomplete="list"
-                aria-label="Search clinic / hospital or area"
+                aria-label={w.searchLabel}
                 autoComplete="off"
                 value={query}
                 onChange={(e) => {
@@ -211,7 +243,7 @@ export default function ClinicLocationPicker({
                 }}
                 onFocus={() => suggestions.length > 0 && setOpen(true)}
                 onKeyDown={onKeyDown}
-                placeholder="Search clinic / hospital or area, e.g. Blue Area Islamabad"
+                placeholder={w.searchPlaceholder}
                 className="w-full rounded-lg border border-[#d9d3c6] bg-white py-2.5 pl-9 pr-9 text-sm text-[#141b34] shadow-md outline-none placeholder:text-gray-400 focus:border-[#141b34]"
               />
               {searching ? (
@@ -304,7 +336,9 @@ export default function ClinicLocationPicker({
             </button>
           </p>
         ) : (
-          <p className="text-[#8a8d99]">No pin yet. Nearby patients can only find clinics / hospitals that have one.</p>
+          <p className={pinError ? 'text-red-600' : 'text-[#8a8d99]'} role={pinError ? 'alert' : undefined}>
+            {pinError ?? w.noPin}
+          </p>
         )}
         {message && <p className="mt-1 text-[#8a6d1f]">{message}</p>}
       </div>
@@ -313,9 +347,9 @@ export default function ClinicLocationPicker({
       <div className="mt-3">
         <label htmlFor={`${idPrefix}-address`} className="mb-1.5 flex items-center gap-2 text-xs font-medium text-[#3a3f52]">
           <span>
-            Clinic / Hospital Address<span className="ml-0.5 text-red-500">*</span>
+            {w.addressLabel}<span className="ml-0.5 text-red-500">*</span>
           </span>
-          <span className="font-normal text-[#8a8d99]">filled from the map; add floor or suite if needed</span>
+          <span className="font-normal text-[#8a8d99]">{w.addressHint}</span>
           {resolvingAddress && <LoaderCircle className="h-3.5 w-3.5 animate-spin text-[#8a8d99]" />}
         </label>
         <textarea
@@ -323,7 +357,7 @@ export default function ClinicLocationPicker({
           rows={2}
           value={address}
           onChange={(e) => onChange({ address: e.target.value })}
-          placeholder="e.g. Office 4, 2nd floor, Jinnah Avenue, Blue Area, Islamabad"
+          placeholder={w.addressPlaceholder}
           className={`${inputClass} resize-y ${error ? inputErrorClass : ''}`}
         />
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
