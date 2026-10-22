@@ -245,7 +245,7 @@ export default function OrdersPage() {
 
             <button
               type="button"
-              onClick={loadOrdersData}
+              onClick={() => loadOrdersData(true)}
               className="flex items-center gap-1.5 px-3.5 py-1.5 border border-blue-600 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />

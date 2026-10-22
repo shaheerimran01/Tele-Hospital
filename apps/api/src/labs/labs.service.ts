@@ -155,4 +155,51 @@ export class LabsService {
     written.push(fullPath);
     return `/uploads/${dir}/${fileName}`;
   }
+
+  /**
+   * Admin dashboard statistics
+   */
+  async getDashboardStats() {
+    const [totalLabs, pendingLabs, totalCatalogItems] = await Promise.all([
+      this.prisma.laboratory.count(),
+      this.prisma.laboratory.count({ where: { verificationStatus: 'PENDING' } }),
+      this.prisma.labPackage.count(),
+    ]);
+
+    let totalOrders = 0;
+    try {
+      totalOrders = await this.prisma.appointment.count();
+    } catch (e) {
+      totalOrders = 0;
+    }
+
+    let recentNotifications: any[] = [];
+    try {
+      const notifications = await (this.prisma as any).doctorNotification.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          message: true,
+          title: true,
+          createdAt: true,
+          type: true,
+        },
+      });
+      recentNotifications = notifications;
+    } catch (e) {
+      recentNotifications = [];
+    }
+
+    return {
+      success: true,
+      data: {
+        totalLabs,
+        pendingLabs,
+        totalCatalogItems,
+        totalOrders,
+        recentNotifications,
+      },
+    };
+  }
 }

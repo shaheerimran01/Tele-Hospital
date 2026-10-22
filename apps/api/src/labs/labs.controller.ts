@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Post, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { RegisterLabDto } from './dto/register-lab.dto.js';
@@ -19,6 +19,11 @@ const uploadOptions = {
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }))
 export class LabsController {
   constructor(private readonly labsService: LabsService) {}
+
+  @Get('admin/labs/dashboard-stats')
+  getDashboardStats() {
+    return this.labsService.getDashboardStats();
+  }
 
   /**
    * POST /labs/register   (multipart/form-data, Authorization: Bearer <lab_token> from /labs/auth/verify-otp)
