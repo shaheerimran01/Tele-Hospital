@@ -88,7 +88,12 @@ export class LabPortalService {
     const lab = await this.myLab(phone);
     const [branches, customPriced, unavailableItems] = await Promise.all([
       this.prisma.labBranch.findMany({ where: { laboratoryId: lab.id }, select: BRANCH_SELECT, orderBy: [{ isMainCenter: 'desc' }, { createdAt: 'asc' }] }),
-      this.prisma.labPackagePrice.count({ where: { laboratoryId: lab.id, customBasePrice: { not: null } } }),
+      this.prisma.labPackagePrice.count({
+        where: {
+          laboratoryId: lab.id,
+          OR: [{ customBasePrice: { not: null } }, { customDiscountPrice: { not: null } }],
+        },
+      }),
       this.prisma.labPackagePrice.count({ where: { laboratoryId: lab.id, isAvailable: false } }),
     ]);
     return {

@@ -13,7 +13,8 @@ export class PatientLabsController {
    * -> { success, item, sortedBy: 'distance' | 'price', data: [{ laboratoryId, labName, logoUrl,
    *      offeredPrice, originalPrice, discountPercent, hasHomeSample, homeSampleFee,
    *      unavailableTests, nearestBranch: { id, name, address, distanceKm }, branches }] }
-   * Only APPROVED, verified labs with an active branch that have not switched the item off.
+   * During development, PENDING and APPROVED labs with an active branch and
+   * matching available LabPackagePrice row are included.
    */
   @Get('labs-for-test')
   labsForTest(@Query() query: LabsForTestQueryDto) {

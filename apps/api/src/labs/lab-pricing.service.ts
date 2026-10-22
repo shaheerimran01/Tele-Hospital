@@ -80,8 +80,9 @@ const round = (n: number) => Math.round(n);
 
 /** Effective pricing: custom base (+ optional custom discount) replaces the master pricing as a whole */
 export function effectivePrice(master: { basePrice: number; discountPrice: number | null }, custom: { basePrice: number | null; discountPrice: number | null }) {
-  const basePrice = round(custom.basePrice ?? master.basePrice);
-  const price = round(custom.basePrice != null ? custom.discountPrice ?? custom.basePrice : master.discountPrice ?? master.basePrice);
+  const hasCustomPrice = custom.basePrice != null || custom.discountPrice != null;
+  const basePrice = round(custom.basePrice ?? custom.discountPrice ?? master.basePrice);
+  const price = round(hasCustomPrice ? custom.discountPrice ?? custom.basePrice! : master.discountPrice ?? master.basePrice);
   const discountPercent = basePrice > price ? Math.round(((basePrice - price) / basePrice) * 100) : 0;
   return { basePrice, price, discountPercent };
 }
@@ -113,7 +114,7 @@ export function toPricingItem(row: ItemRow, price: PriceRow | null | undefined):
     subTests,
     master,
     custom,
-    hasCustomPrice: custom.basePrice != null,
+    hasCustomPrice: custom.basePrice != null || custom.discountPrice != null,
     effective: effectivePrice(master, custom),
     isAvailable: price?.isAvailable ?? true,
     // names no longer in the package are ignored

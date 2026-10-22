@@ -6,9 +6,14 @@
 // With no LabPackagePrice row the lab offers it at the master price, which is
 // how the lab dashboard shows it too.
 
+import { type Prisma } from '../generated/prisma/client.js';
+import { type LabVerificationStatus } from '../generated/prisma/enums.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 
 export const APPROVED_LAB = { verificationStatus: 'APPROVED' as const, isVerified: true };
+export const PATIENT_SELECTABLE_LAB = {
+  verificationStatus: { in: ['APPROVED', 'PENDING'] as LabVerificationStatus[] },
+};
 
 export const OFFER_BRANCH_SELECT = { id: true, name: true, address: true, phone: true, latitude: true, longitude: true, isMainCenter: true } as const;
 
@@ -36,10 +41,35 @@ export interface OfferLab {
   prices: PriceRow[];
 }
 
+export interface OfferLabOptions {
+  /** Require an enabled LabPackagePrice row for every returned package/test. */
+  requireAvailablePriceRow?: boolean;
+  /** During development, show PENDING labs alongside APPROVED labs. */
+  allowPendingVerification?: boolean;
+}
+
 /** Approved labs with active branches, and their price rows for these items */
-export function loadOfferLabs(prisma: PrismaService, labPackageIds: string[]): Promise<OfferLab[]> {
+export function loadOfferLabs(
+  prisma: PrismaService,
+  labPackageIds: string[],
+  options: OfferLabOptions = {},
+): Promise<OfferLab[]> {
+  const where: Prisma.LaboratoryWhereInput = {
+    ...(options.allowPendingVerification ? PATIENT_SELECTABLE_LAB : APPROVED_LAB),
+    branches: { some: { isActive: true } },
+    ...(options.requireAvailablePriceRow
+      ? {
+          prices: {
+            some: {
+              labPackageId: { in: labPackageIds },
+              isAvailable: true,
+            },
+          },
+        }
+      : {}),
+  };
   return prisma.laboratory.findMany({
-    where: { ...APPROVED_LAB, branches: { some: { isActive: true } } },
+    where,
     select: {
       id: true,
       name: true,
@@ -63,20 +93,28 @@ export function masterPrice(m: Pick<OfferMaster, 'basePrice' | 'discountPrice'>)
 }
 
 /** The lab's price for one item, or null when the lab does not offer it */
-export function offerOf(lab: OfferLab, item: OfferMaster) {
+export function offerOf(lab: OfferLab, item: OfferMaster, requireAvailablePriceRow = false) {
   if (lab.branches.length === 0) return null;
   const row = lab.prices.find((p) => p.labPackageId === item.id);
   if (row && !row.isAvailable) return null;
+  if (requireAvailablePriceRow && (!row || !row.isAvailable)) {
+    return null;
+  }
   let prices = masterPrice(item);
   if (row?.customDiscountPrice != null) {
-    const base = Math.round(row.customBasePrice ?? item.basePrice);
+    const base = Math.round(row.customBasePrice ?? row.customDiscountPrice);
     prices = { offeredPrice: Math.round(row.customDiscountPrice), originalPrice: base };
   } else if (row?.customBasePrice != null) {
     const base = Math.round(row.customBasePrice);
     prices = { offeredPrice: base, originalPrice: base };
   }
   const discountPercent = prices.originalPrice > prices.offeredPrice ? Math.round(((prices.originalPrice - prices.offeredPrice) / prices.originalPrice) * 100) : 0;
-  return { ...prices, discountPercent, customPrice: row?.customBasePrice != null, disabledSubTests: row?.disabledSubTests ?? [] };
+  return {
+    ...prices,
+    discountPercent,
+    customPrice: row?.customBasePrice != null || row?.customDiscountPrice != null,
+    disabledSubTests: row?.disabledSubTests ?? [],
+  };
 }
 
 /** For catalog cards: how many labs offer each item and the lowest price */

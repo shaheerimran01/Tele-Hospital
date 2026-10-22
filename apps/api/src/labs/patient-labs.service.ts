@@ -28,10 +28,15 @@ export class PatientLabsService {
     if (!item || !item.isActive) throw new NotFoundException('This test or package is no longer available.');
     const subTests = new Set(item.itemType === 'PACKAGE' ? cleanTests(item.testsIncluded ?? []) : []);
 
-    const labs = await loadOfferLabs(this.prisma, [item.id]);
+    // During development, patients can see PENDING and APPROVED labs. Each
+    // result must have an available price row for this exact package/test.
+    const labs = await loadOfferLabs(this.prisma, [item.id], {
+      allowPendingVerification: true,
+      requireAvailablePriceRow: true,
+    });
     const data = labs
       .map((lab) => {
-        const offer = offerOf(lab, item);
+        const offer = offerOf(lab, item, true);
         if (!offer) return null;
         const branches = lab.branches
           .map((b) => ({

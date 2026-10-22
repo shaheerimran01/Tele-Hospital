@@ -158,12 +158,12 @@ export default function SelectLabModal({ item, onClose }: { item: CartableItem; 
             <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-5 py-10 text-center">
               <Building2 className="mx-auto h-8 w-8 text-gray-300" />
               <p className="mt-2 text-sm font-semibold text-gray-900">No partner lab offers this yet</p>
-              <p className="mt-1 text-xs text-gray-500">We&apos;re adding verified labs across Pakistan. Please check again soon.</p>
+              <p className="mt-1 text-xs text-gray-500">We&apos;re adding partner labs across Pakistan. Please check again soon.</p>
             </div>
           ) : (
             <>
               <p className="mb-3 text-xs text-gray-500" aria-live="polite">
-                {data.data.length === 1 ? '1 verified lab offers this' : `${data.data.length} verified labs offer this`} ·{' '}
+                {data.data.length === 1 ? '1 partner lab offers this' : `${data.data.length} partner labs offer this`} ·{' '}
                 {data.sortedBy === 'distance' ? 'nearest first' : 'lowest price first'}
               </p>
               <ul className="space-y-3">
