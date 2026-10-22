@@ -349,6 +349,28 @@ export default function Header() {
     loadAddress();
   }, [user]);
 
+  useEffect(() => {
+    const openLocation = () => setShowLocationModal(true);
+    window.addEventListener('header-location:open', openLocation);
+    return () => window.removeEventListener('header-location:open', openLocation);
+  }, []);
+
+  useEffect(() => {
+    if (address?.latitude == null || address.longitude == null) return;
+    try {
+      localStorage.setItem('selected_location', JSON.stringify({
+        address: address.addressLine1,
+        area: address.area,
+        city: address.city,
+        lat: address.latitude,
+        lng: address.longitude,
+      }));
+      window.dispatchEvent(new Event('header-location:updated'));
+    } catch {
+      // The header address remains usable even if browser storage is unavailable.
+    }
+  }, [address]);
+
   const navLinks = [
     { name: 'MEDICINES', href: '/' },
     { name: 'LAB TESTS', href: '/lab-tests' },
@@ -931,6 +953,7 @@ export default function Header() {
         currentAddress={address}
         onAddressSaved={(savedAddress: UserAddress) => {
           setAddress(savedAddress);
+          window.dispatchEvent(new Event('header-location:updated'));
           setShowLocationModal(false);
         }}
       />

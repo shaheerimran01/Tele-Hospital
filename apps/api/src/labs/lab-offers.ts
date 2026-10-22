@@ -68,10 +68,12 @@ export function offerOf(lab: OfferLab, item: OfferMaster) {
   const row = lab.prices.find((p) => p.labPackageId === item.id);
   if (row && !row.isAvailable) return null;
   let prices = masterPrice(item);
-  if (row?.customBasePrice != null) {
+  if (row?.customDiscountPrice != null) {
+    const base = Math.round(row.customBasePrice ?? item.basePrice);
+    prices = { offeredPrice: Math.round(row.customDiscountPrice), originalPrice: base };
+  } else if (row?.customBasePrice != null) {
     const base = Math.round(row.customBasePrice);
-    const offered = row.customDiscountPrice != null && row.customDiscountPrice < row.customBasePrice ? Math.round(row.customDiscountPrice) : base;
-    prices = { offeredPrice: offered, originalPrice: base };
+    prices = { offeredPrice: base, originalPrice: base };
   }
   const discountPercent = prices.originalPrice > prices.offeredPrice ? Math.round(((prices.originalPrice - prices.offeredPrice) / prices.originalPrice) * 100) : 0;
   return { ...prices, discountPercent, customPrice: row?.customBasePrice != null, disabledSubTests: row?.disabledSubTests ?? [] };

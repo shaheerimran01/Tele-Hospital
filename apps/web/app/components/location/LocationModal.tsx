@@ -473,6 +473,7 @@ export default function LocationModal({
       if (typeof window !== 'undefined') {
         localStorage.setItem('selected_location', JSON.stringify({
           address: addressDetails.addressLine1,
+          area: addressDetails.area,
           city: addressDetails.city,
           lat: selectedLocation.latitude,
           lng: selectedLocation.longitude,

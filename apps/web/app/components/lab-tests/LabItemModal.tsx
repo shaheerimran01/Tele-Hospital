@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, CircleAlert, Clock, Droplet, FlaskConical, LoaderCircle, UserRound, X } from 'lucide-react';
 import { getLabItemApi, type LabItem, type LabItemDetails } from '@/app/lib/api/lab-tests';
-import { openLabCart, Price } from './LabItemCards';
+import { openLabCart } from './LabItemCards';
 
 export default function LabItemModal({
   item,
@@ -91,7 +91,7 @@ export default function LabItemModal({
         {/* Body */}
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 px-4 py-3">
-            <Price item={item} size="lg" />
+            <p className="text-sm font-semibold text-gray-700">Select a lab to view its price</p>
             {item.badgeText && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">{item.badgeText}</span>}
           </div>
 

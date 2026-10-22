@@ -13,25 +13,16 @@ import { apiFileUrl, formatKm, formatPkr, getLabsForTestApi, type LabPartner, ty
 import { useLabCart, type CartableItem } from './lab-cart';
 
 const OPEN_EVENT = 'lab-select:open';
-const COORDS_KEY = 'tabibistan_user_coords';
-
 export const openSelectLab = (item: CartableItem) => window.dispatchEvent(new CustomEvent<CartableItem>(OPEN_EVENT, { detail: item }));
 
-type Coords = { lat: number; lng: number };
+type Coords = { lat: number; lng: number; city?: string; area?: string };
 
-const readCoords = (): Coords | null => {
+const readHeaderLocation = (): Coords | null => {
   try {
-    const v = JSON.parse(sessionStorage.getItem(COORDS_KEY) ?? 'null');
-    return v && typeof v.lat === 'number' && typeof v.lng === 'number' ? v : null;
+    const v = JSON.parse(localStorage.getItem('selected_location') ?? 'null');
+    return v && typeof v.lat === 'number' && typeof v.lng === 'number' ? { lat: v.lat, lng: v.lng, city: v.city, area: v.area } : null;
   } catch {
     return null;
-  }
-};
-const saveCoords = (c: Coords) => {
-  try {
-    sessionStorage.setItem(COORDS_KEY, JSON.stringify(c));
-  } catch {
-    // ignore
   }
 };
 
@@ -55,8 +46,6 @@ export default function SelectLabModal({ item, onClose }: { item: CartableItem; 
   const router = useRouter();
   const cart = useLabCart();
   const [coords, setCoords] = useState<Coords | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [locationNote, setLocationNote] = useState<string | null>(null);
   const [data, setData] = useState<LabsForTestResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmFor, setConfirmFor] = useState<string | null>(null);
@@ -72,11 +61,20 @@ export default function SelectLabModal({ item, onClose }: { item: CartableItem; 
     [item.id],
   );
 
-  // Use the location given earlier in this visit; otherwise list by price until the patient shares it
+  // Keep the picker synced with the location selected in the site header.
   useEffect(() => {
-    const saved = readCoords();
-    setCoords(saved);
-    load(saved);
+    const syncLocation = () => {
+      const active = readHeaderLocation();
+      setCoords(active);
+      load(active);
+    };
+    syncLocation();
+    window.addEventListener('header-location:updated', syncLocation);
+    window.addEventListener('storage', syncLocation);
+    return () => {
+      window.removeEventListener('header-location:updated', syncLocation);
+      window.removeEventListener('storage', syncLocation);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -90,32 +88,7 @@ export default function SelectLabModal({ item, onClose }: { item: CartableItem; 
     };
   }, [onClose]);
 
-  const locate = () => {
-    if (!('geolocation' in navigator)) {
-      setLocationNote('Your browser does not share location, so labs are listed by price.');
-      return;
-    }
-    setLocating(true);
-    setLocationNote(null);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords: c }) => {
-        const next = { lat: c.latitude, lng: c.longitude };
-        saveCoords(next);
-        setCoords(next);
-        setLocating(false);
-        load(next);
-      },
-      (err) => {
-        setLocating(false);
-        setLocationNote(
-          err.code === err.PERMISSION_DENIED
-            ? 'Location permission was denied, so labs are listed by price. You can allow it in your browser settings.'
-            : 'Could not get your location, so labs are listed by price.',
-        );
-      },
-      { enableHighAccuracy: false, timeout: 15000, maximumAge: 5 * 60 * 1000 },
-    );
-  };
+  const updateLocation = () => window.dispatchEvent(new Event('header-location:open'));
 
   const choose = (p: LabPartner) => {
     if (cart.lab && cart.lab.id !== p.laboratoryId && cart.items.some((x) => x.id !== item.id) && confirmFor !== p.laboratoryId) {
@@ -154,21 +127,19 @@ export default function SelectLabModal({ item, onClose }: { item: CartableItem; 
         <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-5 py-2.5 text-xs">
           {coords ? (
             <span className="flex items-center gap-1.5 text-gray-700">
-              <MapPin className="h-3.5 w-3.5 text-[#ff574d]" /> Nearest labs first, from your location
+              <MapPin className="h-3.5 w-3.5 text-[#ff574d]" /> Nearest labs first{coords.city ? ` · ${coords.area ? `${coords.area}, ` : ''}${coords.city}` : ', from your header location'}
             </span>
           ) : (
             <span className="text-gray-600">Share your location to see the nearest labs first.</span>
           )}
           <button
             type="button"
-            onClick={locate}
-            disabled={locating}
+            onClick={updateLocation}
             className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 font-semibold text-gray-800 hover:border-gray-400 disabled:opacity-60"
           >
-            {locating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Crosshair className="h-3.5 w-3.5" />}
-            {coords ? 'Update location' : 'Use my location'}
+            <Crosshair className="h-3.5 w-3.5" />
+            {coords ? 'Update location' : 'Set location'}
           </button>
-          {locationNote && <p className="w-full text-amber-700">{locationNote}</p>}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">

@@ -29,13 +29,13 @@ export function Price({ item, size = 'md' }: { item: LabItem; size?: 'md' | 'lg'
   if (!offer || offer.labsCount === 0 || offer.fromPrice == null) {
     return <p className={`font-semibold text-gray-600 ${size === 'lg' ? 'text-base' : 'text-xs'}`}>Select a lab to view price</p>;
   }
-  return (
-    <div>
-      <p className={`text-gray-500 ${size === 'lg' ? 'text-sm' : 'text-[11px]'}`}>Prices from</p>
-      <p className={`font-bold tabular-nums text-gray-900 ${size === 'lg' ? 'text-2xl' : 'text-lg'}`}>{formatPkr(offer.fromPrice)}</p>
-      <p className={`text-gray-500 ${size === 'lg' ? 'text-xs' : 'text-[11px]'}`}>{offer.labsCount === 1 ? 'at 1 verified lab' : `at ${offer.labsCount} verified labs`}</p>
-    </div>
-  );
+  // return (
+  //   <div>
+  //     <p className={`text-gray-500 ${size === 'lg' ? 'text-sm' : 'text-[11px]'}`}>Prices from</p>
+  //     <p className={`font-bold tabular-nums text-gray-900 ${size === 'lg' ? 'text-2xl' : 'text-lg'}`}>{formatPkr(offer.fromPrice)}</p>
+  //     <p className={`text-gray-500 ${size === 'lg' ? 'text-xs' : 'text-[11px]'}`}>{offer.labsCount === 1 ? 'at 1 verified lab' : `at ${offer.labsCount} verified labs`}</p>
+  //   </div>
+  // );
 }
 
 function Meta({ item }: { item: LabItem }) {
