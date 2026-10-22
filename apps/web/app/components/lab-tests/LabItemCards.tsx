@@ -1,9 +1,9 @@
 'use client';
 
 // Cards for the lab listing: health packages (open the details modal) and
-// individual tests (booked straight from the card).
+// individual tests. "Select Lab" opens the partner-lab picker (SelectLabModal).
 
-import { Check, Clock, Droplet, FlaskConical, Plus, Sparkles, TestTube } from 'lucide-react';
+import { Check, Clock, Droplet, FlaskConical, Sparkles, TestTube } from 'lucide-react';
 import { formatPkr, type LabItem } from '@/app/lib/api/lab-tests';
 
 export const openLabCart = () => window.dispatchEvent(new CustomEvent('lab-cart:open'));
@@ -20,16 +20,20 @@ const genderLabel = (g: string | null) => (g === 'MALE' ? 'For men' : g === 'FEM
 /** Imaging items have no sample ("N/A (Scan)") */
 const sampleLabel = (s: string | null) => (!s || /^n\/a/i.test(s) ? null : s);
 
+/**
+ * Patients pay the price of the lab they choose, so cards show the lowest
+ * partner-lab price ("Prices from Rs. X") instead of one fixed price.
+ */
 export function Price({ item, size = 'md' }: { item: LabItem; size?: 'md' | 'lg' }) {
+  const offer = item.labOffer;
+  if (!offer || offer.labsCount === 0 || offer.fromPrice == null) {
+    return <p className={`font-semibold text-gray-600 ${size === 'lg' ? 'text-base' : 'text-xs'}`}>Select a lab to view price</p>;
+  }
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-      <span className={`font-bold text-gray-900 tabular-nums ${size === 'lg' ? 'text-2xl' : 'text-lg'}`}>{formatPkr(item.price)}</span>
-      {item.mrp > item.price && (
-        <>
-          <span className="text-xs text-gray-400 line-through tabular-nums">{formatPkr(item.mrp)}</span>
-          <span className="text-xs font-semibold text-emerald-600">{item.discountPercent}% off</span>
-        </>
-      )}
+    <div>
+      <p className={`text-gray-500 ${size === 'lg' ? 'text-sm' : 'text-[11px]'}`}>Prices from</p>
+      <p className={`font-bold tabular-nums text-gray-900 ${size === 'lg' ? 'text-2xl' : 'text-lg'}`}>{formatPkr(offer.fromPrice)}</p>
+      <p className={`text-gray-500 ${size === 'lg' ? 'text-xs' : 'text-[11px]'}`}>{offer.labsCount === 1 ? 'at 1 verified lab' : `at ${offer.labsCount} verified labs`}</p>
     </div>
   );
 }
@@ -75,7 +79,7 @@ function BookButton({ inCart, onBook, label }: { inCart: boolean; onBook: () => 
       onClick={onBook}
       className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#ff574d] px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#e8453b]"
     >
-      <Plus className="h-4 w-4" /> {label}
+      <FlaskConical className="h-4 w-4" /> {label}
     </button>
   );
 }
@@ -114,7 +118,7 @@ export function PackageCard({ item, inCart, onOpen, onBook }: { item: LabItem; i
           >
             View Tests
           </button>
-          <BookButton inCart={inCart} onBook={onBook} label="Book Package" />
+          <BookButton inCart={inCart} onBook={onBook} label="Select Lab" />
         </div>
       </div>
     </article>
@@ -140,7 +144,7 @@ export function TestCard({ item, inCart, onOpen, onBook }: { item: LabItem; inCa
       <Meta item={item} />
       <div className="mt-auto flex items-end justify-between gap-3 pt-4">
         <Price item={item} />
-        <BookButton inCart={inCart} onBook={onBook} label="Book Test" />
+        <BookButton inCart={inCart} onBook={onBook} label="Select Lab" />
       </div>
     </article>
   );

@@ -7,11 +7,13 @@ import { LabPricingService } from './lab-pricing.service.js';
 import { LabAuthService } from './lab-auth.service.js';
 import { LabPortalService } from './lab-portal.service.js';
 import { LabAuthController, LabPortalController } from './lab-portal.controller.js';
+import { PatientLabsController } from './patient-labs.controller.js';
+import { PatientLabsService } from './patient-labs.service.js';
 
 @Module({
   imports: [PrismaModule],
-  controllers: [LabsController, LabPricingController, LabAuthController, LabPortalController],
-  providers: [LabsService, LabPricingService, LabAuthService, LabPortalService],
+  controllers: [LabsController, LabPricingController, LabAuthController, LabPortalController, PatientLabsController],
+  providers: [LabsService, LabPricingService, LabAuthService, LabPortalService, PatientLabsService],
   exports: [LabsService, LabPricingService],
 })
 export class LabsModule {}

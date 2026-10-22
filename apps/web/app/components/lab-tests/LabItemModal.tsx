@@ -5,7 +5,7 @@
 // package is booked as a whole.
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, CircleAlert, Clock, Droplet, FlaskConical, LoaderCircle, Plus, UserRound, X } from 'lucide-react';
+import { Check, ChevronDown, CircleAlert, Clock, Droplet, FlaskConical, LoaderCircle, UserRound, X } from 'lucide-react';
 import { getLabItemApi, type LabItem, type LabItemDetails } from '@/app/lib/api/lab-tests';
 import { openLabCart, Price } from './LabItemCards';
 
@@ -238,7 +238,7 @@ export default function LabItemModal({
               }}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
             >
-              <Check className="h-4 w-4" /> Added to Cart · View Cart
+              <Check className="h-4 w-4" /> In Cart · View Cart
             </button>
           ) : (
             <button
@@ -246,7 +246,7 @@ export default function LabItemModal({
               onClick={() => onBook(item)}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ff574d] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e8453b]"
             >
-              <Plus className="h-4 w-4" /> {isPackage ? 'Add to Cart / Book Package' : 'Add to Cart / Book Test'}
+              <FlaskConical className="h-4 w-4" /> {isPackage ? 'Select Lab & Book Package' : 'Select Lab & Book Test'}
             </button>
           )}
         </div>

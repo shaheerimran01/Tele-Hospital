@@ -1,11 +1,14 @@
 'use client';
 
-// Floating "Lab Cart" button and the drawer listing the chosen tests and packages.
+// Floating "Lab Cart" button and the drawer listing the chosen tests and packages
+// (all at one partner lab). Also hosts the "Select Diagnostic Partner" picker.
 
 import { useEffect, useState } from 'react';
-import { FlaskConical, ShoppingBag, Trash2, X } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Building2, FlaskConical, ShoppingBag, Trash2, X } from 'lucide-react';
 import { formatPkr } from '@/app/lib/api/lab-tests';
 import { useLabCart } from './lab-cart';
+import { SelectLabHost, checkoutHref } from './SelectLabModal';
 
 export default function LabCart() {
   const cart = useLabCart();
@@ -60,6 +63,14 @@ export default function LabCart() {
               </div>
             ) : (
               <>
+                {cart.items[0] && (
+                  <p className="flex items-center gap-2 border-b border-gray-100 bg-[#fff6f5] px-5 py-2.5 text-xs text-gray-700">
+                    <Building2 className="h-4 w-4 shrink-0 text-[#d9443b]" />
+                    <span>
+                      At <span className="font-semibold text-gray-900">{cart.items[0].labName}</span> · {cart.items[0].branchName}
+                    </span>
+                  </p>
+                )}
                 <ul className="min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto px-5">
                   {cart.items.map((x) => (
                     <li key={x.id} className="flex items-start gap-3 py-3">
@@ -95,9 +106,15 @@ export default function LabCart() {
                     <span>Total</span>
                     <span className="tabular-nums">{formatPkr(cart.total)}</span>
                   </p>
-                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    Online checkout for lab tests is not available yet. Your selection is saved on this device.
-                  </p>
+                  {cart.items[0] && (
+                    <Link
+                      href={checkoutHref(cart.items[0].id, cart.items[0].laboratoryId, cart.items[0].branchId)}
+                      onClick={() => setOpen(false)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ff574d] px-4 py-3 text-sm font-semibold text-white hover:bg-[#e8453b]"
+                    >
+                      Proceed to Checkout <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  )}
                   <button type="button" onClick={cart.clear} className="w-full text-center text-xs font-semibold text-gray-500 hover:text-rose-600">
                     Clear cart
                   </button>
@@ -107,6 +124,7 @@ export default function LabCart() {
           </aside>
         </div>
       )}
+      <SelectLabHost />
     </>
   );
 }

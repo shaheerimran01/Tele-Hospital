@@ -11,11 +11,12 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Building2, ChevronLeft, ChevronRight, CircleAlert, LoaderCircle, MessageCircle, Phone, Search, X, Zap } from 'lucide-react';
-import { formatPkr, getLabCatalogApi, type LabCatalog as Catalog, type LabCategoryCard, type LabItem, type LabSection, type LabTypeFilter } from '@/app/lib/api/lab-tests';
+import { getLabCatalogApi, type LabCatalog as Catalog, type LabCategoryCard, type LabItem, type LabSection, type LabTypeFilter } from '@/app/lib/api/lab-tests';
 import LabListing, { plural } from './LabListing';
 import LabItemModal from './LabItemModal';
 import LabCart from './LabCart';
 import { useLabCart } from './lab-cart';
+import { openSelectLab } from './SelectLabModal';
 import { CARD_BACKDROP, CARD_PHOTO, HERO_TILES, categoryStyle } from './lab-ui';
 
 /** /lab-tests/full-body (?type=PACKAGE) */
@@ -80,7 +81,6 @@ function PhotoCard({ card, backdrop }: { card: CardLike; backdrop: string }) {
       <span className="mt-2 text-center text-xs font-semibold text-gray-800 group-hover:text-[#d9443b] sm:text-sm">{card.label}</span>
       <span className="text-center text-[11px] text-gray-500">
         {countText(card)}
-        {card.fromPrice != null && card.count > 0 && <> · from {formatPkr(card.fromPrice)}</>}
       </span>
     </Link>
   );
@@ -136,7 +136,6 @@ function CategoryCardLink({ card }: { card: LabCategoryCard }) {
       <span className="mt-auto flex items-center justify-between gap-2 pt-3 text-xs font-semibold text-gray-700">
         <span>
           {countText(card)}
-          {card.fromPrice != null && card.count > 0 && <span className="font-normal text-gray-500"> · from {formatPkr(card.fromPrice)}</span>}
         </span>
         <ArrowRight className="h-3.5 w-3.5 shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-[#ff574d]" />
       </span>
@@ -381,7 +380,10 @@ export default function LabCatalog({ banners }: { banners?: ReactNode }) {
       ))}
       {!catalog && banners}
 
-      {openItem && <LabItemModal item={openItem} inCart={cart.has(openItem.id)} onBook={(x) => cart.add(x)} onClose={() => setOpenItem(null)} />}
+      {openItem && <LabItemModal item={openItem} inCart={cart.has(openItem.id)} onBook={(x) => {
+            setOpenItem(null);
+            openSelectLab(x);
+          }} onClose={() => setOpenItem(null)} />}
       <LabCart />
     </div>
   );

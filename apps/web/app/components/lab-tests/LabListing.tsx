@@ -8,6 +8,7 @@ import { CircleAlert, LoaderCircle, X } from 'lucide-react';
 import { getLabItemsApi, type LabItem, type LabListResponse, type LabSort, type LabTypeFilter } from '@/app/lib/api/lab-tests';
 import { PackageCard, TestCard } from './LabItemCards';
 import { useLabCart } from './lab-cart';
+import { openSelectLab } from './SelectLabModal';
 
 const PAGE_SIZE = 24;
 
@@ -156,9 +157,9 @@ export default function LabListing({
               <li key={item.id} className="flex">
                 <div className="flex w-full flex-col [&>article]:flex-1">
                   {item.itemType === 'PACKAGE' ? (
-                    <PackageCard item={item} inCart={cart.has(item.id)} onOpen={() => onOpenItem(item)} onBook={() => cart.add(item)} />
+                    <PackageCard item={item} inCart={cart.has(item.id)} onOpen={() => onOpenItem(item)} onBook={() => openSelectLab(item)} />
                   ) : (
-                    <TestCard item={item} inCart={cart.has(item.id)} onOpen={() => onOpenItem(item)} onBook={() => cart.add(item)} />
+                    <TestCard item={item} inCart={cart.has(item.id)} onOpen={() => onOpenItem(item)} onBook={() => openSelectLab(item)} />
                   )}
                 </div>
               </li>

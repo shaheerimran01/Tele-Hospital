@@ -54,6 +54,8 @@ export interface LabItem {
   /** MALE / FEMALE when the item is for one gender */
   targetGender: string | null;
   isPopular: boolean;
+  /** approved partner labs offering it and their lowest price (null when none) */
+  labOffer: { labsCount: number; fromPrice: number | null };
 }
 
 export interface LabTestGroup {
@@ -117,5 +119,57 @@ export function getLabItemsApi(opts: { group?: string; type?: LabTypeFilter; sea
 }
 
 export const getLabItemApi = (slug: string) => get<LabItemDetails>(`/lab-tests/${encodeURIComponent(slug)}`);
+
+// ---------------------------------------------------------------------------
+// Partner labs for one test / package (GET /patient/labs-for-test)
+// ---------------------------------------------------------------------------
+
+export interface LabPartnerBranch {
+  id: string;
+  name: string;
+  address: string;
+  phone: string | null;
+  isMainCenter: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  distanceKm: number | null;
+}
+
+export interface LabPartner {
+  laboratoryId: string;
+  labName: string;
+  logoUrl: string | null;
+  offeredPrice: number;
+  originalPrice: number;
+  discountPercent: number;
+  hasHomeSample: boolean;
+  homeSampleFee: number | null;
+  /** package tests this lab does not perform */
+  unavailableTests: string[];
+  nearestBranch: { id: string; name: string; address: string; distanceKm: number | null };
+  branches: LabPartnerBranch[];
+}
+
+export interface LabsForTestResponse {
+  success: boolean;
+  item: { id: string; title: string; itemType: LabItemType; totalTestsCount: number; masterPrice: { offeredPrice: number; originalPrice: number } };
+  sortedBy: 'distance' | 'price';
+  data: LabPartner[];
+}
+
+export function getLabsForTestApi(labPackageId: string, near?: { lat: number; lng: number } | null) {
+  const q = new URLSearchParams({ labPackageId });
+  if (near) {
+    q.set('userLat', near.lat.toFixed(5));
+    q.set('userLng', near.lng.toFixed(5));
+  }
+  return get<LabsForTestResponse>(`/patient/labs-for-test?${q.toString()}`);
+}
+
+/** "/uploads/labs/..." -> absolute URL on the API server */
+export const apiFileUrl = (path: string | null | undefined) => (!path ? null : /^https?:/i.test(path) ? path : `${API_BASE}${path}`);
+
+/** 0.4 -> "400 m", 2.37 -> "2.4 km" */
+export const formatKm = (km: number) => (km < 1 ? `${Math.max(50, Math.round((km * 1000) / 50) * 50)} m` : `${km.toFixed(km < 10 ? 1 : 0)} km`);
 
 export const formatPkr = (n: number) => `Rs. ${Math.round(n).toLocaleString('en-PK')}`;

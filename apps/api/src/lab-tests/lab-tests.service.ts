@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { offerSummaries } from '../labs/lab-offers.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import {
@@ -196,7 +197,7 @@ export class LabTestsService {
       page,
       pageSize,
       pages,
-      items: items.map((r) => this.listItem(r)),
+      items: await this.withLabOffers(items.map((r) => this.listItem(r))),
     };
   }
 
@@ -207,8 +208,9 @@ export class LabTestsService {
     });
     if (!r) throw new NotFoundException('This test is no longer available');
     const tests = cleanTests(r.testsIncluded);
+    const [withOffer] = await this.withLabOffers([this.listItem(r)]);
     return {
-      ...this.listItem(r),
+      ...withOffer,
       aliases: (r.aliases ?? []).filter(Boolean),
       overview: brandText(r.overview),
       whyBooked: brandText(r.whyBooked),
@@ -219,6 +221,15 @@ export class LabTestsService {
       testGroups: r.itemType === 'PACKAGE' ? groupTests(tests) : [],
       tests,
     };
+  }
+
+  /** Adds "offered by N labs, from Rs. X" (approved labs' own prices) to catalog items */
+  private async withLabOffers<T extends { id: string; mrp: number; price: number }>(list: T[]) {
+    const offers = await offerSummaries(
+      this.prisma,
+      list.map((i) => ({ id: i.id, basePrice: i.mrp, discountPrice: i.price < i.mrp ? i.price : null })),
+    );
+    return list.map((i) => ({ ...i, labOffer: offers.get(i.id) ?? { labsCount: 0, fromPrice: null } }));
   }
 
   private listItem(r: ListRow) {

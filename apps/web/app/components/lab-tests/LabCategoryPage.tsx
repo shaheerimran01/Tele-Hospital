@@ -7,11 +7,12 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ChevronRight, CircleAlert, LoaderCircle } from 'lucide-react';
-import { formatPkr, getLabCatalogApi, type LabCatalog, type LabItem, type LabTypeFilter } from '@/app/lib/api/lab-tests';
+import { getLabCatalogApi, type LabCatalog, type LabItem, type LabTypeFilter } from '@/app/lib/api/lab-tests';
 import LabListing, { plural } from './LabListing';
 import LabItemModal from './LabItemModal';
 import LabCart from './LabCart';
 import { useLabCart } from './lab-cart';
+import { openSelectLab } from './SelectLabModal';
 import { CARD_PHOTO, categoryStyle } from './lab-ui';
 import { categoryHref } from './LabCatalog';
 
@@ -125,7 +126,6 @@ export default function LabCategoryPage({ group }: { group: string }) {
                     ]
                       .filter(Boolean)
                       .join(' · ')}
-                    {card.fromPrice != null && card.count > 0 && <> · from {formatPkr(card.fromPrice)}</>}
                   </p>
                 </div>
               </div>
@@ -163,7 +163,10 @@ export default function LabCategoryPage({ group }: { group: string }) {
         </div>
       )}
 
-      {openItem && <LabItemModal item={openItem} inCart={cart.has(openItem.id)} onBook={(x) => cart.add(x)} onClose={() => setOpenItem(null)} />}
+      {openItem && <LabItemModal item={openItem} inCart={cart.has(openItem.id)} onBook={(x) => {
+            setOpenItem(null);
+            openSelectLab(x);
+          }} onClose={() => setOpenItem(null)} />}
       <LabCart />
     </div>
   );
