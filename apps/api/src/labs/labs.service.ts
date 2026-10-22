@@ -265,4 +265,24 @@ export class LabsService {
       data: lab,
     };
   }
+
+  async getLabDetails(id: string) {
+    const lab = await this.prisma.laboratory.findUnique({
+      where: { id },
+      include: {
+        branches: {
+          orderBy: [{ isMainCenter: 'desc' }, { createdAt: 'asc' }],
+        },
+      },
+    });
+
+    if (!lab) {
+      throw new BadRequestException('Laboratory record not found.');
+    }
+
+    return {
+      success: true,
+      data: lab,
+    };
+  }
 }

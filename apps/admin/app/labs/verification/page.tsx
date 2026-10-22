@@ -277,13 +277,13 @@ export default function LabVerificationPage() {
                         {new Date(lab.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => setSelectedLab(lab)}
+                        <Link
+                          href={`/labs/verification/${lab.id}`}
                           className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-violet-600 hover:bg-violet-50 rounded-lg transition"
                         >
                           <Eye className="w-4 h-4" />
                           View Details / Review
-                        </button>
+                        </Link>
                       </td>
                     </tr>
                   ))

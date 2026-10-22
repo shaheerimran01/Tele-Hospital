@@ -63,4 +63,10 @@ export class LabsController {
   register(@CurrentLab() auth: LabTokenPayload, @Body() dto: RegisterLabDto, @UploadedFiles() files: LabUploadFiles) {
     return this.labsService.registerLaboratory(dto, files ?? {}, auth.phone);
   }
+
+  @Get('admin/labs/details/:id')
+    getLabDetails(@Param('id') id: string) {
+      return this.labsService.getLabDetails(id);
+    }
 }
+
