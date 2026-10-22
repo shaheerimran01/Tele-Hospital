@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { RegisterLabDto } from './dto/register-lab.dto.js';
@@ -23,6 +23,19 @@ export class LabsController {
   @Get('admin/labs/dashboard-stats')
   getDashboardStats() {
     return this.labsService.getDashboardStats();
+  }
+
+  @Get('admin/labs/verification-list')
+  getVerificationList(@Query('status') status?: string) {
+    return this.labsService.getVerificationList(status);
+  }
+
+  @Patch('admin/labs/update-status/:id')
+  updateLabStatus(
+    @Param('id') id: string,
+    @Body() body: { status: 'APPROVED' | 'REJECTED' | 'PENDING'; rejectionReason?: string },
+  ) {
+    return this.labsService.updateLabStatus(id, body);
   }
 
   /**

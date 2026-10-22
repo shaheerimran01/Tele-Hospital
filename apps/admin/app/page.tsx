@@ -33,7 +33,7 @@ const portals = [
     eyebrow: 'LAB & DIAGNOSTICS PORTAL',
     title: 'Lab & Diagnostics',
     description: 'Manage partner diagnostic centers, test packages, and report submissions.',
-    href: '/lab-dashboard',
+    href: '/labs/dashboard',
     action: 'Go to Lab Portal',
     color: 'violet',
   },

@@ -202,4 +202,67 @@ export class LabsService {
       },
     };
   }
+
+  async getVerificationList(status?: string) {
+    const where: any = {};
+    if (status && status !== 'ALL') {
+      where.verificationStatus = status;
+    }
+    
+    const labs = await this.prisma.laboratory.findMany({
+      where,
+      include: {
+        branches: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      success: true,
+      data: labs.map((lab) => ({
+        id: lab.id,
+        name: lab.name,
+        email: lab.email,
+        phone: lab.phone,
+        whatsappNumber: lab.whatsappNumber,
+        logoUrl: lab.logoUrl,
+        licenseNumber: lab.licenseNumber,
+        licenseDocUrl: lab.licenseDocUrl,
+        regulatoryBody: lab.regulatoryBody,
+        verificationStatus: lab.verificationStatus,
+        isVerified: lab.isVerified,
+        rejectionReason: lab.rejectionReason,
+        createdAt: lab.createdAt,
+        branchesCount: lab.branches.length,
+        branches: lab.branches,
+      })),
+    };
+  }
+
+  async updateLabStatus(id: string, body: { status: 'APPROVED' | 'REJECTED' | 'PENDING'; rejectionReason?: string }) {
+    const data: any = {
+      verificationStatus: body.status,
+    };
+    
+    if (body.status === 'APPROVED') {
+      data.isVerified = true;
+      data.rejectionReason = null;
+    } else if (body.status === 'REJECTED') {
+      data.isVerified = false;
+      data.rejectionReason = body.rejectionReason || null;
+    } else {
+      data.isVerified = false;
+    }
+
+    const lab = await this.prisma.laboratory.update({
+      where: { id },
+      data,
+      include: { branches: true },
+    });
+
+    return {
+      success: true,
+      data: lab,
+    };
+  }
 }

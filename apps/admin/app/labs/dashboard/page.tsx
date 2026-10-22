@@ -104,7 +104,7 @@ export default function LabDashboardPage() {
           {/* Nav Links */}
           <nav className="space-y-1">
             <Link
-              href="/admin/labs/dashboard"
+              href="/labs/dashboard"
               className="flex w-full items-center gap-3 rounded-lg bg-violet-50 px-3 py-2.5 text-sm font-medium text-violet-700 transition-colors"
             >
               <LayoutDashboard className="h-5 w-5" />
@@ -112,7 +112,7 @@ export default function LabDashboardPage() {
             </Link>
 
             <Link
-              href="/admin/labs/verification"
+              href="/labs/verification"
               className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <div className="flex items-center gap-3">
@@ -127,7 +127,7 @@ export default function LabDashboardPage() {
             </Link>
 
             <Link
-              href="/admin/orders"
+              href="/orders"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <ShoppingBag className="h-5 w-5" />
@@ -135,7 +135,7 @@ export default function LabDashboardPage() {
             </Link>
 
             <Link
-              href="/admin/catalog"
+              href="/catalog"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <FlaskConical className="h-5 w-5" />
@@ -173,7 +173,7 @@ export default function LabDashboardPage() {
 
           {stats.pendingLabs > 0 && (
             <Link
-              href="/admin/labs/verification"
+              href="/labs/verification"
               className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 shadow-sm transition hover:bg-amber-100"
             >
               <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -262,7 +262,7 @@ export default function LabDashboardPage() {
             </div>
             <div className="mt-6">
               <Link
-                href="/admin/labs/verification"
+                href="/labs/verification"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow transition hover:bg-violet-700"
               >
                 Go to Verification Table <ChevronRight className="h-4 w-4" />
