@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   Building2,
   FlaskConical,
-  ShoppingBag,
   FileCheck2,
   ArrowLeft,
   AlertTriangle,
@@ -15,9 +14,6 @@ import {
   Users,
   Search,
   X,
-  CheckCircle2,
-  XCircle,
-  Filter,
 } from 'lucide-react';
 
 interface DisabledInsight {
@@ -46,16 +42,16 @@ interface PackageExclusionItem {
   frequentlyDisabledTests: DisabledInsight[];
   testsIncluded: string[];
   labOfferings: LabOffering[];
+  hasExclusions?: boolean;
+  isFullyExcluded?: boolean;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function CatalogExclusionsPage() {
-  // Filter States
   const [activeTab, setActiveTab] = useState<'PKG_EXCL' | 'IND_TEST' | 'FULL_EXCL' | 'ACTIVE'>('PKG_EXCL');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Modal States
   const [selectedPkgForEdit, setSelectedPkgForEdit] = useState<PackageExclusionItem | null>(null);
   const [selectedPkgForLabs, setSelectedPkgForLabs] = useState<PackageExclusionItem | null>(null);
   const [editingTests, setEditingTests] = useState<string[]>([]);
@@ -69,7 +65,10 @@ export default function CatalogExclusionsPage() {
       try {
         const res = await fetch(`${API_BASE}/labs/admin/labs/catalog-exclusions`);
         const json = await res.json();
-        if (json.success) { setPackages(json.data); setSummary(json.summary); }
+        if (json.success) {
+          setPackages(json.data);
+          setSummary(json.summary);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -79,16 +78,30 @@ export default function CatalogExclusionsPage() {
     load();
   }, []);
 
-  // Filter Logic
+  // UPDATED STRICT FILTER LOGIC
   const filteredPackages = packages.filter((item) => {
     let matchesTab = true;
-    if (activeTab === 'PKG_EXCL') matchesTab = item.itemType === 'PACKAGE' && item.frequentlyDisabledTests.length > 0;
-    else if (activeTab === 'IND_TEST') matchesTab = item.itemType === 'INDIVIDUAL_TEST';
-    else if (activeTab === 'FULL_EXCL') matchesTab = item.itemType === 'PACKAGE' && item.activeLabsCount === 0;
-    else if (activeTab === 'ACTIVE') matchesTab = item.activeLabsCount > 0;
+
+    if (activeTab === 'PKG_EXCL') {
+      // Strictly packages with disabled sub-tests
+      matchesTab = item.itemType === 'PACKAGE' && item.frequentlyDisabledTests.length > 0;
+    } else if (activeTab === 'IND_TEST') {
+      // Strictly individual tests that have lab exclusions/disables
+      matchesTab =
+        item.itemType === 'INDIVIDUAL_TEST' &&
+        (item.frequentlyDisabledTests.length > 0 || Boolean(item.isFullyExcluded));
+    } else if (activeTab === 'FULL_EXCL') {
+      // Packages where at least one lab set isAvailable = false
+      matchesTab = item.itemType === 'PACKAGE' && Boolean(item.isFullyExcluded);
+    } else if (activeTab === 'ACTIVE') {
+      // Actively offered by at least 1 lab
+      matchesTab = item.activeLabsCount > 0;
+    }
+
     const matchesSearch =
       item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.code.toLowerCase().includes(searchTerm.toLowerCase());
+
     return matchesTab && matchesSearch;
   });
 
@@ -221,17 +234,17 @@ export default function CatalogExclusionsPage() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-semibold text-slate-500">Most Disabled Test</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{summary?.mostDisabledTest ?? '-'}</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{summary?.mostDisabledTest || 'None'}</p>
             <p className="text-[11px] text-slate-400">Disabled by {summary?.mostDisabledTestCount ?? 0} labs</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">Active Labs</p>
+            <p className="text-xs font-semibold text-slate-500">Active Participating Labs</p>
             <p className="mt-1 text-2xl font-bold text-slate-900">{summary?.activeLabsCount ?? 0}</p>
             <p className="text-[11px] text-slate-400">Labs with custom pricing/availability</p>
           </div>
         </div>
 
-        {/* TOP FILTER TABS */}
+        {/* TOP FILTER TABS - ACCURATE COUNTS FROM API SUMMARY */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <div className="flex gap-2">
             <button
@@ -242,7 +255,7 @@ export default function CatalogExclusionsPage() {
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Packages with Exclusions ({packages.filter((p) => p.itemType === 'PACKAGE' && p.frequentlyDisabledTests.length > 0).length})
+              Packages with Exclusions ({summary?.packagesWithExclusionsCount ?? 0})
             </button>
             <button
               onClick={() => setActiveTab('IND_TEST')}
@@ -252,7 +265,7 @@ export default function CatalogExclusionsPage() {
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Individual Tests Excluded ({packages.filter((p) => p.itemType === 'INDIVIDUAL_TEST').length})
+              Individual Tests Excluded ({summary?.individualTestsExcludedCount ?? 0})
             </button>
             <button
               onClick={() => setActiveTab('FULL_EXCL')}
@@ -306,13 +319,13 @@ export default function CatalogExclusionsPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                      Loading...
+                      Loading analytics data...
                     </td>
                   </tr>
                 ) : filteredPackages.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
-                      No matching catalog items found.
+                      No matching items found for this filter.
                     </td>
                   </tr>
                 ) : (
@@ -363,7 +376,6 @@ export default function CatalogExclusionsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          {/* VIEW LABS BREAKDOWN BUTTON */}
                           <button
                             onClick={() => setSelectedPkgForLabs(pkg)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
@@ -372,7 +384,6 @@ export default function CatalogExclusionsPage() {
                             View Labs ({pkg.labOfferings?.length || 0})
                           </button>
 
-                          {/* EDIT MASTER TESTS BUTTON */}
                           <button
                             onClick={() => handleOpenEditModal(pkg)}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 font-semibold text-white shadow hover:bg-violet-700 transition"
@@ -413,7 +424,6 @@ export default function CatalogExclusionsPage() {
               </button>
             </div>
 
-            {/* LABS LIST */}
             <div className="flex-1 overflow-y-auto space-y-3 pr-2">
               {selectedPkgForLabs.labOfferings && selectedPkgForLabs.labOfferings.length > 0 ? (
                 selectedPkgForLabs.labOfferings.map((lab) => (

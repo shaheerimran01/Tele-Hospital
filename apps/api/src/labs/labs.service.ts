@@ -16,7 +16,6 @@ type FileKind = 'png' | 'jpg' | 'pdf';
 export const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 export const LICENSE_MAX_BYTES = 10 * 1024 * 1024;
 
-/** Public URL prefix and folder (served by main.ts: app.useStaticAssets('uploads', { prefix: '/uploads/' })) */
 export const UPLOAD_ROOT = join(process.cwd(), 'uploads');
 export const LOGO_DIR = 'labs/logos';
 export const LICENSE_DIR = 'labs/licenses';
@@ -24,7 +23,6 @@ export const LICENSE_DIR = 'labs/licenses';
 const CONFLICT_MESSAGE = 'Laboratory with this email or license number already registered.';
 const PHONE_CONFLICT_MESSAGE = 'A laboratory is already registered with this phone number. Please sign in instead.';
 
-/** Real file type from the first bytes (the browser-supplied MIME type can be wrong or spoofed) */
 export function sniffFileKind(buffer: Buffer | undefined): FileKind | null {
   if (!buffer || buffer.length < 4) return null;
   if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'png';
@@ -39,17 +37,12 @@ export class LabsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * @param verifiedPhone the phone proven by OTP (from the lab session token); the lab's primary phone
-   */
   async registerLaboratory(dto: RegisterLabDto, files: LabUploadFiles = {}, verifiedPhone?: string) {
-    // 0. The primary phone must be the one verified by OTP
     const phone = formatLabPhone(dto.phone);
     if (verifiedPhone && phone !== verifiedPhone) {
       throw new BadRequestException('The primary phone must be the number you signed in with.');
     }
 
-    // 1. Files and branch rules (before touching the database or the disk)
     const logo = files.logo?.[0];
     const licenseDoc = files.licenseDoc?.[0];
     const logoKind = logo ? this.checkFile(logo, ['png', 'jpg'], LOGO_MAX_BYTES, 'Lab logo') : null;
@@ -57,7 +50,6 @@ export class LabsService {
     const licenseKind = this.checkFile(licenseDoc, ['png', 'jpg', 'pdf'], LICENSE_MAX_BYTES, 'License document');
     const branches = this.normaliseBranches(dto);
 
-    // 2. Unique phone, email & license number
     const existing = await this.prisma.laboratory.findFirst({
       where: {
         OR: [
@@ -70,8 +62,6 @@ export class LabsService {
     });
     if (existing) throw new ConflictException(existing.phone === phone ? PHONE_CONFLICT_MESSAGE : CONFLICT_MESSAGE);
 
-    // 3. Store the files, then create the lab and all branches in one nested write
-    //    (Prisma runs a nested create as a single transaction)
     const written: string[] = [];
     try {
       const logoUrl = logo ? await this.saveFile(logo, logoKind!, LOGO_DIR, written) : null;
@@ -97,16 +87,13 @@ export class LabsService {
         include: { branches: { orderBy: [{ isMainCenter: 'desc' }, { createdAt: 'asc' }] } },
       });
     } catch (err) {
-      // Nothing was saved: remove the files written for this request
       await Promise.all(written.map((p) => unlink(p).catch(() => undefined)));
-      // Another request registered the same email / license in the meantime
       if ((err as { code?: string })?.code === 'P2002') throw new ConflictException(CONFLICT_MESSAGE);
       if (!(err instanceof BadRequestException)) this.logger.error(`Lab registration failed: ${(err as Error)?.message}`);
       throw err;
     }
   }
 
-  /** Checks type (by content) and size; returns the detected kind */
   checkFile(file: Express.Multer.File, allowed: FileKind[], maxBytes: number, label: string): FileKind {
     const kind = sniffFileKind(file.buffer);
     const allowedText = allowed.map((k) => k.toUpperCase()).join(', ').replace(/, ([^,]*)$/, ' or $1');
@@ -115,11 +102,6 @@ export class LabsService {
     return kind;
   }
 
-  /**
-   * - Exactly one main center: the first branch marked isMainCenter, otherwise the first branch.
-   * - Branch names must be unique within the lab.
-   * - A map pin needs both latitude and longitude.
-   */
   private normaliseBranches(dto: RegisterLabDto) {
     const seen = new Map<string, number>();
     dto.branches.forEach((b, i) => {
@@ -146,7 +128,6 @@ export class LabsService {
     }));
   }
 
-  /** Writes the file under uploads/<dir> with a random name; returns its public URL */
   async saveFile(file: Express.Multer.File, kind: FileKind, dir: string, written: string[]) {
     const folder = join(UPLOAD_ROOT, dir);
     await mkdir(folder, { recursive: true });
@@ -157,9 +138,6 @@ export class LabsService {
     return `/uploads/${dir}/${fileName}`;
   }
 
-  /**
-   * Admin dashboard statistics
-   */
   async getDashboardStats() {
     const [totalLabs, pendingLabs, totalCatalogItems] = await Promise.all([
       this.prisma.laboratory.count(),
@@ -218,27 +196,41 @@ export class LabsService {
     let packagesWithExclusionsCount = 0;
     let fullyExcludedPackagesCount = 0;
     const uniqueLabIds = new Set<string>();
+    const excludedIndividualIds = new Set<string>();
 
     const data = packages.map((pkg: any) => {
       const testsIncluded = pkg.testsIncluded || [];
       const totalTestsCount = testsIncluded.length;
-      const activePrices = (pkg.labPrices || []).filter((p: any) => p.isAvailable);
+      const allPrices = pkg.labPrices || [];
+      const activePrices = allPrices.filter((p: any) => p.isAvailable);
       const activeLabsCount = activePrices.length;
 
-      for (const price of pkg.labPrices || []) {
+      for (const price of allPrices) {
         uniqueLabIds.add(price.laboratoryId);
-        if (price.isAvailable === false) fullyExcludedPackagesCount++;
+
+        if (price.isAvailable === false && pkg.itemType === 'PACKAGE') {
+          fullyExcludedPackagesCount++;
+        }
+
+        if (
+          pkg.itemType === 'INDIVIDUAL_TEST' &&
+          (price.isAvailable === false || (price.disabledSubTests || []).length > 0)
+        ) {
+          excludedIndividualIds.add(pkg.id);
+        }
+
         for (const test of price.disabledSubTests || []) {
           disabledCounts[test] = (disabledCounts[test] || 0) + 1;
         }
       }
 
       const localDisabled: Record<string, number> = {};
-      for (const price of activePrices) {
+      for (const price of allPrices) {
         for (const test of price.disabledSubTests || []) {
           localDisabled[test] = (localDisabled[test] || 0) + 1;
         }
       }
+
       const frequentlyDisabledTests = Object.entries(localDisabled)
         .map(([testName, disabledByCount]) => ({
           testName,
@@ -247,16 +239,19 @@ export class LabsService {
         }))
         .sort((a, b) => b.disabledByCount - a.disabledByCount);
 
-      if (frequentlyDisabledTests.length > 0) packagesWithExclusionsCount++;
+      if (pkg.itemType === 'PACKAGE' && frequentlyDisabledTests.length > 0) {
+        packagesWithExclusionsCount++;
+      }
 
       const labOfferings = activePrices.map((price: any) => {
         const disabledTests = price.disabledSubTests || [];
-        const offeredTestsCount = totalTestsCount - disabledTests.length;
+        const offeredTestsCount = Math.max(0, totalTestsCount - disabledTests.length);
         const customPrice =
           price.customDiscountPrice ??
           price.customBasePrice ??
           pkg.discountPrice ??
           pkg.basePrice;
+
         return {
           labId: price.laboratory.id,
           labName: price.laboratory.name,
@@ -278,6 +273,8 @@ export class LabsService {
         testsIncluded,
         frequentlyDisabledTests,
         labOfferings,
+        hasExclusions: frequentlyDisabledTests.length > 0,
+        isFullyExcluded: allPrices.some((p: any) => p.isAvailable === false),
       };
     });
 
@@ -298,6 +295,7 @@ export class LabsService {
         mostDisabledTestCount,
         activeLabsCount: uniqueLabIds.size,
         fullyExcludedPackagesCount,
+        individualTestsExcludedCount: excludedIndividualIds.size,
       },
       data,
     };
@@ -308,7 +306,7 @@ export class LabsService {
     if (status && status !== 'ALL') {
       where.verificationStatus = status;
     }
-    
+
     const labs = await this.prisma.laboratory.findMany({
       where,
       include: {
@@ -344,7 +342,7 @@ export class LabsService {
     const data: any = {
       verificationStatus: body.status,
     };
-    
+
     if (body.status === 'APPROVED') {
       data.isVerified = true;
       data.rejectionReason = null;
@@ -367,7 +365,6 @@ export class LabsService {
     };
   }
 
-  /** Records that the currently uploaded healthcare license was manually reviewed. */
   async updateDocumentVerification(id: string, documentVerified: boolean) {
     const lab = await this.prisma.laboratory.update({
       where: { id },
