@@ -25,6 +25,11 @@ export class LabsController {
     return this.labsService.getDashboardStats();
   }
 
+  @Get('admin/labs/catalog-exclusions')
+  getCatalogExclusions() {
+    return this.labsService.getCatalogExclusions();
+  }
+
   @Get('admin/labs/verification-list')
   getVerificationList(@Query('status') status?: string) {
     return this.labsService.getVerificationList(status);

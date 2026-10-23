@@ -204,6 +204,105 @@ export class LabsService {
     };
   }
 
+  async getCatalogExclusions() {
+    const packages = await this.prisma.labPackage.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        labPrices: {
+          include: { laboratory: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    const disabledCounts: Record<string, number> = {};
+    let packagesWithExclusionsCount = 0;
+    let fullyExcludedPackagesCount = 0;
+    const uniqueLabIds = new Set<string>();
+
+    const data = packages.map((pkg: any) => {
+      const testsIncluded = pkg.testsIncluded || [];
+      const totalTestsCount = testsIncluded.length;
+      const activePrices = (pkg.labPrices || []).filter((p: any) => p.isAvailable);
+      const activeLabsCount = activePrices.length;
+
+      for (const price of pkg.labPrices || []) {
+        uniqueLabIds.add(price.laboratoryId);
+        if (price.isAvailable === false) fullyExcludedPackagesCount++;
+        for (const test of price.disabledSubTests || []) {
+          disabledCounts[test] = (disabledCounts[test] || 0) + 1;
+        }
+      }
+
+      const localDisabled: Record<string, number> = {};
+      for (const price of activePrices) {
+        for (const test of price.disabledSubTests || []) {
+          localDisabled[test] = (localDisabled[test] || 0) + 1;
+        }
+      }
+      const frequentlyDisabledTests = Object.entries(localDisabled)
+        .map(([testName, disabledByCount]) => ({
+          testName,
+          disabledByCount,
+          percentage: activeLabsCount > 0 ? Math.round((disabledByCount / activeLabsCount) * 100) : 0,
+        }))
+        .sort((a, b) => b.disabledByCount - a.disabledByCount);
+
+      if (frequentlyDisabledTests.length > 0) packagesWithExclusionsCount++;
+
+      const labOfferings = activePrices.map((price: any) => {
+        const disabledTests = price.disabledSubTests || [];
+        const offeredTestsCount = totalTestsCount - disabledTests.length;
+        const customPrice =
+          price.customDiscountPrice ??
+          price.customBasePrice ??
+          pkg.discountPrice ??
+          pkg.basePrice;
+        return {
+          labId: price.laboratory.id,
+          labName: price.laboratory.name,
+          offeredTestsCount,
+          totalPackageTestsCount: totalTestsCount,
+          customPrice,
+          disabledTests,
+        };
+      });
+
+      return {
+        id: pkg.id,
+        title: pkg.title,
+        code: pkg.code,
+        itemType: pkg.itemType,
+        category: pkg.category,
+        totalTestsCount,
+        activeLabsCount,
+        testsIncluded,
+        frequentlyDisabledTests,
+        labOfferings,
+      };
+    });
+
+    let mostDisabledTest = '';
+    let mostDisabledTestCount = 0;
+    for (const [test, count] of Object.entries(disabledCounts)) {
+      if (count > mostDisabledTestCount) {
+        mostDisabledTest = test;
+        mostDisabledTestCount = count;
+      }
+    }
+
+    return {
+      success: true,
+      summary: {
+        packagesWithExclusionsCount,
+        mostDisabledTest,
+        mostDisabledTestCount,
+        activeLabsCount: uniqueLabIds.size,
+        fullyExcludedPackagesCount,
+      },
+      data,
+    };
+  }
+
   async getVerificationList(status?: string) {
     const where: any = {};
     if (status && status !== 'ALL') {

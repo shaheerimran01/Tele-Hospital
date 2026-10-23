@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   LayoutDashboard,
@@ -48,9 +48,11 @@ interface PackageExclusionItem {
   labOfferings: LabOffering[];
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
 export default function CatalogExclusionsPage() {
   // Filter States
-  const [activeTab, setActiveTab] = useState<'ALL' | 'PACKAGE' | 'INDIVIDUAL_TEST'>('ALL');
+  const [activeTab, setActiveTab] = useState<'PKG_EXCL' | 'IND_TEST' | 'FULL_EXCL' | 'ACTIVE'>('PKG_EXCL');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modal States
@@ -58,137 +60,32 @@ export default function CatalogExclusionsPage() {
   const [selectedPkgForLabs, setSelectedPkgForLabs] = useState<PackageExclusionItem | null>(null);
   const [editingTests, setEditingTests] = useState<string[]>([]);
 
-  // Sample Data (Real backend response mapping)
-  const [packages, setPackages] = useState<PackageExclusionItem[]>([
-    {
-      id: 'pkg-1',
-      title: 'Comprehensive Gold Full Body Checkup',
-      code: 'PKG-001',
-      itemType: 'PACKAGE',
-      category: 'Full Body Checkup',
-      totalTestsCount: 20,
-      activeLabsCount: 38,
-      testsIncluded: [
-        'Complete Blood Count (CBC)',
-        'Fasting Blood Sugar',
-        'HbA1c',
-        'Lipid Profile',
-        'Liver Function Test (LFT)',
-        'Renal Function Test (RFT)',
-        'Thyroid Profile (T3, T4, TSH)',
-        'Vitamin D3',
-        'Vitamin B12',
-        'Serum Ferritin',
-        'Urine Routine',
-        'Uric Acid',
-        'Calcium',
-        'ESR',
-        'Iron Studies',
-        'Electrolytes Panel',
-        'Stool Routine',
-        'SGPT/ALT',
-        'Bilirubin Total',
-        'Alkaline Phosphatase',
-      ],
-      frequentlyDisabledTests: [
-        { testName: 'Vitamin D3', disabledByCount: 26, percentage: 68 },
-        { testName: 'Vitamin B12', disabledByCount: 19, percentage: 50 },
-        { testName: 'Serum Ferritin', disabledByCount: 12, percentage: 31 },
-      ],
-      labOfferings: [
-        {
-          labId: 'lab-1',
-          labName: 'Chughtai Lab (Main Branch)',
-          offeredTestsCount: 18,
-          totalPackageTestsCount: 20,
-          customPrice: 4500,
-          disabledTests: ['Vitamin D3', 'Vitamin B12'],
-        },
-        {
-          labId: 'lab-2',
-          labName: 'Islamabad Diagnostic Centre (IDC)',
-          offeredTestsCount: 20,
-          totalPackageTestsCount: 20,
-          customPrice: 5200,
-          disabledTests: [],
-        },
-        {
-          labId: 'lab-3',
-          labName: 'Shaukat Khanum Lab',
-          offeredTestsCount: 17,
-          totalPackageTestsCount: 20,
-          customPrice: 4200,
-          disabledTests: ['Vitamin D3', 'Vitamin B12', 'Serum Ferritin'],
-        },
-      ],
-    },
-    {
-      id: 'pkg-2',
-      title: 'Executive Diabetes Care Package',
-      code: 'PKG-002',
-      itemType: 'PACKAGE',
-      category: 'Diabetes Care',
-      totalTestsCount: 8,
-      activeLabsCount: 42,
-      testsIncluded: [
-        'Fasting Blood Sugar',
-        'Postprandial Blood Sugar (PPBS)',
-        'HbA1c',
-        'Urine Microalbumin',
-        'Lipid Profile',
-        'Serum Creatinine',
-        'eGFR',
-        'Fundoscopy / Eye Screening',
-      ],
-      frequentlyDisabledTests: [
-        { testName: 'Fundoscopy / Eye Screening', disabledByCount: 31, percentage: 73 },
-      ],
-      labOfferings: [
-        {
-          labId: 'lab-1',
-          labName: 'Chughtai Lab (Main Branch)',
-          offeredTestsCount: 7,
-          totalPackageTestsCount: 8,
-          customPrice: 2200,
-          disabledTests: ['Fundoscopy / Eye Screening'],
-        },
-        {
-          labId: 'lab-4',
-          labName: 'Excel Labs',
-          offeredTestsCount: 8,
-          totalPackageTestsCount: 8,
-          customPrice: 2500,
-          disabledTests: [],
-        },
-      ],
-    },
-    {
-      id: 'test-1',
-      title: 'High-Sensitivity CRP (hs-CRP)',
-      code: 'TEST-089',
-      itemType: 'INDIVIDUAL_TEST',
-      category: 'Cardiology',
-      totalTestsCount: 1,
-      activeLabsCount: 15,
-      testsIncluded: ['High-Sensitivity CRP (hs-CRP)'],
-      frequentlyDisabledTests: [],
-      labOfferings: [
-        {
-          labId: 'lab-2',
-          labName: 'Islamabad Diagnostic Centre (IDC)',
-          offeredTestsCount: 1,
-          totalPackageTestsCount: 1,
-          customPrice: 1800,
-          disabledTests: [],
-        },
-      ],
-    },
-  ]);
+  const [packages, setPackages] = useState<PackageExclusionItem[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/labs/admin/labs/catalog-exclusions`);
+        const json = await res.json();
+        if (json.success) { setPackages(json.data); setSummary(json.summary); }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   // Filter Logic
   const filteredPackages = packages.filter((item) => {
-    const matchesTab =
-      activeTab === 'ALL' || item.itemType === activeTab;
+    let matchesTab = true;
+    if (activeTab === 'PKG_EXCL') matchesTab = item.itemType === 'PACKAGE' && item.frequentlyDisabledTests.length > 0;
+    else if (activeTab === 'IND_TEST') matchesTab = item.itemType === 'INDIVIDUAL_TEST';
+    else if (activeTab === 'FULL_EXCL') matchesTab = item.itemType === 'PACKAGE' && item.activeLabsCount === 0;
+    else if (activeTab === 'ACTIVE') matchesTab = item.activeLabsCount > 0;
     const matchesSearch =
       item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.code.toLowerCase().includes(searchTerm.toLowerCase());
@@ -315,38 +212,67 @@ export default function CatalogExclusionsPage() {
           </div>
         </div>
 
+        {/* KPI CARDS */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500">Packages with Exclusions</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{summary?.packagesWithExclusionsCount ?? 0}</p>
+            <p className="text-[11px] text-slate-400">Packages with disabled sub-tests</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500">Most Disabled Test</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{summary?.mostDisabledTest ?? '-'}</p>
+            <p className="text-[11px] text-slate-400">Disabled by {summary?.mostDisabledTestCount ?? 0} labs</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold text-slate-500">Active Labs</p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{summary?.activeLabsCount ?? 0}</p>
+            <p className="text-[11px] text-slate-400">Labs with custom pricing/availability</p>
+          </div>
+        </div>
+
         {/* TOP FILTER TABS */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4">
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('ALL')}
+              onClick={() => setActiveTab('PKG_EXCL')}
               className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
-                activeTab === 'ALL'
+                activeTab === 'PKG_EXCL'
                   ? 'bg-violet-600 text-white shadow'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              All Catalog Items ({packages.length})
+              Packages with Exclusions ({packages.filter((p) => p.itemType === 'PACKAGE' && p.frequentlyDisabledTests.length > 0).length})
             </button>
             <button
-              onClick={() => setActiveTab('PACKAGE')}
+              onClick={() => setActiveTab('IND_TEST')}
               className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
-                activeTab === 'PACKAGE'
+                activeTab === 'IND_TEST'
                   ? 'bg-violet-600 text-white shadow'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Packages with Exclusions ({packages.filter((p) => p.itemType === 'PACKAGE').length})
+              Individual Tests Excluded ({packages.filter((p) => p.itemType === 'INDIVIDUAL_TEST').length})
             </button>
             <button
-              onClick={() => setActiveTab('INDIVIDUAL_TEST')}
+              onClick={() => setActiveTab('FULL_EXCL')}
               className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
-                activeTab === 'INDIVIDUAL_TEST'
+                activeTab === 'FULL_EXCL'
                   ? 'bg-violet-600 text-white shadow'
                   : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
               }`}
             >
-              Individual Tests ({packages.filter((p) => p.itemType === 'INDIVIDUAL_TEST').length})
+              Fully Excluded Packages ({summary?.fullyExcludedPackagesCount ?? 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('ACTIVE')}
+              className={`rounded-lg px-4 py-2 text-xs font-semibold transition ${
+                activeTab === 'ACTIVE'
+                  ? 'bg-violet-600 text-white shadow'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Active Offered Items ({packages.filter((p) => p.activeLabsCount > 0).length})
             </button>
           </div>
 
@@ -377,7 +303,13 @@ export default function CatalogExclusionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredPackages.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                      Loading...
+                    </td>
+                  </tr>
+                ) : filteredPackages.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                       No matching catalog items found.
