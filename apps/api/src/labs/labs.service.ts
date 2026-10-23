@@ -365,6 +365,75 @@ export class LabsService {
     };
   }
 
+  async getCatalogExclusionDetails(id: string) {
+    const pkg = await this.prisma.labPackage.findUnique({
+      where: { id },
+      include: {
+        labPrices: {
+          include: {
+            laboratory: {
+              select: { id: true, name: true, phone: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!pkg) {
+      throw new BadRequestException('Master catalog item nahi mila.');
+    }
+
+    const testsIncluded = pkg.testsIncluded || [];
+    const labOfferings = (pkg.labPrices || []).map((p) => {
+      const disabledTests = p.disabledSubTests || [];
+      return {
+        labId: p.laboratory.id,
+        labName: p.laboratory.name,
+        labPhone: p.laboratory.phone,
+        isAvailable: p.isAvailable,
+        customPrice: p.customDiscountPrice ?? p.customBasePrice ?? pkg.discountPrice ?? pkg.basePrice,
+        disabledTests,
+        offeredTestsCount: Math.max(0, testsIncluded.length - disabledTests.length),
+      };
+    });
+
+    return {
+      success: true,
+      data: {
+        ...pkg,
+        labOfferings,
+      },
+    };
+  }
+
+  async updateMasterPackageTests(id: string, testsIncluded: string[]) {
+    const updated = await this.prisma.labPackage.update({
+      where: { id },
+      data: { testsIncluded },
+    });
+
+    return {
+      success: true,
+      data: updated,
+    };
+  }
+
+  async deleteMasterPackage(id: string) {
+    // Pehle Prisma relation delete karein agar cascade constraint set nahi hai
+    await this.prisma.labPackagePrice.deleteMany({
+      where: { labPackageId: id },
+    });
+
+    await this.prisma.labPackage.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      message: 'Master item successfully database se remove kar diya gaya hai.',
+    };
+  }
+
   async updateDocumentVerification(id: string, documentVerified: boolean) {
     const lab = await this.prisma.laboratory.update({
       where: { id },

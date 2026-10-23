@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UploadedFiles, UseGuards, UseInterceptors, UsePipes, ValidationPipe } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { RegisterLabDto } from './dto/register-lab.dto.js';
@@ -78,5 +78,20 @@ export class LabsController {
     getLabDetails(@Param('id') id: string) {
       return this.labsService.getLabDetails(id);
     }
+
+  @Get('admin/labs/catalog-exclusions/:id')
+  getCatalogExclusionDetails(@Param('id') id: string) {
+    return this.labsService.getCatalogExclusionDetails(id);
+  }
+
+  @Patch('admin/labs/catalog-exclusions/:id/tests')
+  updateMasterPackageTests(@Param('id') id: string, @Body() body: { testsIncluded: string[] }) {
+    return this.labsService.updateMasterPackageTests(id, body.testsIncluded);
+  }
+
+  @Delete('admin/labs/catalog-exclusions/:id')
+  deleteMasterPackage(@Param('id') id: string) {
+    return this.labsService.deleteMasterPackage(id);
+  }
 }
 
