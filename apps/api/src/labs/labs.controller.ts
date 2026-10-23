@@ -38,6 +38,11 @@ export class LabsController {
     return this.labsService.updateLabStatus(id, body);
   }
 
+  @Patch('admin/labs/:id/document-verification')
+  updateDocumentVerification(@Param('id') id: string, @Body() body: { documentVerified: boolean }) {
+    return this.labsService.updateDocumentVerification(id, body.documentVerified);
+  }
+
   /**
    * POST /labs/register   (multipart/form-data, Authorization: Bearer <lab_token> from /labs/auth/verify-otp)
    *   name, email, phone (primary login phone, must be the verified one),

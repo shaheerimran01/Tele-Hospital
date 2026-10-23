@@ -91,6 +91,7 @@ export class LabsService {
           licenseDocUrl,
           verificationStatus: 'PENDING',
           isVerified: false,
+          documentVerified: false,
           branches: { create: branches },
         },
         include: { branches: { orderBy: [{ isMainCenter: 'desc' }, { createdAt: 'asc' }] } },
@@ -231,6 +232,7 @@ export class LabsService {
         regulatoryBody: lab.regulatoryBody,
         verificationStatus: lab.verificationStatus,
         isVerified: lab.isVerified,
+        documentVerified: lab.documentVerified,
         rejectionReason: lab.rejectionReason,
         createdAt: lab.createdAt,
         branchesCount: lab.branches.length,
@@ -264,6 +266,17 @@ export class LabsService {
       success: true,
       data: lab,
     };
+  }
+
+  /** Records that the currently uploaded healthcare license was manually reviewed. */
+  async updateDocumentVerification(id: string, documentVerified: boolean) {
+    const lab = await this.prisma.laboratory.update({
+      where: { id },
+      data: { documentVerified: Boolean(documentVerified) },
+      include: { branches: true },
+    });
+
+    return { success: true, data: lab };
   }
 
   async getLabDetails(id: string) {

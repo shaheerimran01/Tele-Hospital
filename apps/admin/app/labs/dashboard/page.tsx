@@ -285,7 +285,7 @@ export default function LabDashboardPage() {
             </div>
             <div className="mt-6">
               <Link
-                href="/admin/catalog"
+                href="/labs/catalog"
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
               >
                 Manage Master Items <ChevronRight className="h-4 w-4" />

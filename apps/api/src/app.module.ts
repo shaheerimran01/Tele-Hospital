@@ -23,6 +23,7 @@ import { ConsultationsModule } from './consultations/consultations.module.js';
 import { HospitalsModule } from './hospitals/hospitals.module.js';
 import { LabTestsModule } from './lab-tests/lab-tests.module.js';
 import { LabsModule } from './labs/labs.module.js';
+import { CatalogModule } from './catalog/catalog.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -49,6 +50,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     HospitalsModule,
     LabTestsModule,
     LabsModule,
+    CatalogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

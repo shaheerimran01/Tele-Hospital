@@ -16,6 +16,7 @@ const LAB_SELECT = {
   licenseDocUrl: true,
   verificationStatus: true,
   isVerified: true,
+  documentVerified: true,
   rejectionReason: true,
   hasHomeSample: true,
   homeSampleFee: true,
@@ -79,8 +80,11 @@ export class LabPortalService {
   }
 
   /** Credential changes on a verified lab send it back for review */
-  private reReview(lab: { verificationStatus: string }) {
-    return lab.verificationStatus === 'APPROVED' ? { verificationStatus: 'PENDING' as const, isVerified: false } : {};
+  private reReview(lab: { verificationStatus: string }, resetDocumentVerification = false) {
+    return {
+      ...(lab.verificationStatus === 'APPROVED' ? { verificationStatus: 'PENDING' as const, isVerified: false } : {}),
+      ...(resetDocumentVerification ? { documentVerified: false } : {}),
+    };
   }
 
   /** GET /labs/me/overview */
@@ -167,7 +171,7 @@ export class LabPortalService {
           ...(licenseDocUrl && { licenseDocUrl }),
           ...(licenseChanged && { licenseNumber: dto.licenseNumber }),
           ...(bodyChanged && { regulatoryBody: dto.regulatoryBody }),
-          ...(credentials ? this.reReview(lab) : {}),
+          ...(credentials ? this.reReview(lab, Boolean(licenseDoc)) : {}),
         },
         select: LAB_SELECT,
       });

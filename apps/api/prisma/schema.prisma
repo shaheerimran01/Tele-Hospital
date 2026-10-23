@@ -921,6 +921,7 @@ model Laboratory {
   // Admin Verification Status (Admin approval ke lye)
   verificationStatus  LabVerificationStatus @default(PENDING)
   isVerified          Boolean               @default(false)
+  documentVerified    Boolean               @default(false) // Admin has reviewed the current license file
   rejectionReason     String?               @db.Text
   
   hasHomeSample       Boolean               @default(true) // 👈 Home Sample Collection available or not

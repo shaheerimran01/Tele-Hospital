@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
+  ExternalLink,
   MapPin,
   User,
   ShieldCheck,
@@ -43,6 +44,7 @@ interface LabDetails {
   homeSampleFee: number;
   verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
   isVerified: boolean;
+  documentVerified: boolean;
   rejectionReason?: string;
   createdAt: string;
   branches: LabBranch[];
@@ -58,6 +60,10 @@ export default function LabDetailsPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  const documentUrl = (url: string) => (url.startsWith('http') ? url : `${API_BASE.replace('/api', '')}${url}`);
+  const isPdf = /\.pdf(?:$|[?#])/i.test(lab?.licenseDocUrl ?? '');
+  const isImage = /\.(?:jpe?g|png|webp)(?:$|[?#])/i.test(lab?.licenseDocUrl ?? '');
 
   const fetchLabDetails = async () => {
     try {
@@ -115,6 +121,23 @@ export default function LabDetailsPage() {
       }
     } catch (error) {
       console.error('Failed to reject lab:', error);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDocumentVerification = async () => {
+    if (!lab) return;
+    try {
+      setUpdating(true);
+      const res = await fetch(`${API_BASE}/labs/admin/labs/${lab.id}/document-verification`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentVerified: !lab.documentVerified }),
+      });
+      if (res.ok) await fetchLabDetails();
+    } catch (error) {
+      console.error('Failed to update document verification:', error);
     } finally {
       setUpdating(false);
     }
@@ -272,14 +295,71 @@ export default function LabDetailsPage() {
                     <span className="text-[10px] bg-slate-200 px-2 py-0.5 rounded font-medium">Doc</span>
                   </div>
                   <p className="text-xs text-slate-500 mb-3">License No: {lab.licenseNumber}</p>
-                  <a
-                    href={`${API_BASE.replace('/api', '')}${lab.licenseDocUrl}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex w-full items-center justify-center gap-1 rounded bg-white border border-slate-300 py-1.5 text-xs font-semibold text-violet-600 hover:bg-slate-100"
+                  {isImage ? (
+                    <>
+                      <a
+                        href={documentUrl(lab.licenseDocUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group mb-3 block overflow-hidden rounded-lg border border-slate-200 bg-white"
+                        aria-label="View full license image"
+                      >
+                        <img
+                          src={documentUrl(lab.licenseDocUrl)}
+                          alt={`Healthcare license for ${lab.name}`}
+                          className="h-48 w-full object-contain transition duration-200 group-hover:scale-[1.02]"
+                        />
+                      </a>
+                      <a
+                        href={documentUrl(lab.licenseDocUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex w-full items-center justify-center gap-1 rounded border border-slate-300 bg-white py-1.5 text-xs font-semibold text-violet-600 hover:bg-slate-100"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> View Full Image / Zoom
+                      </a>
+                    </>
+                  ) : isPdf ? (
+                    <>
+                      <div className="mb-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                        <iframe
+                          title={`Healthcare license PDF for ${lab.name}`}
+                          src={documentUrl(lab.licenseDocUrl)}
+                          className="h-48 w-full"
+                        />
+                      </div>
+                      <a
+                        href={documentUrl(lab.licenseDocUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex w-full items-center justify-center gap-1 rounded border border-slate-300 bg-white py-1.5 text-xs font-semibold text-violet-600 hover:bg-slate-100"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> Open PDF in New Tab
+                      </a>
+                    </>
+                  ) : (
+                    <a
+                      href={documentUrl(lab.licenseDocUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex w-full items-center justify-center gap-1 rounded border border-slate-300 bg-white py-1.5 text-xs font-semibold text-violet-600 hover:bg-slate-100"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Open Document
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    disabled={updating}
+                    onClick={handleDocumentVerification}
+                    className={`mt-3 inline-flex w-full items-center justify-center gap-1 rounded border py-1.5 text-xs font-bold disabled:opacity-50 ${
+                      lab.documentVerified
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100'
+                    }`}
                   >
-                    <FileText className="h-3.5 w-3.5" /> View Full Document
-                  </a>
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {lab.documentVerified ? 'Verified — click to undo' : 'Mark Document as Verified'}
+                  </button>
                 </div>
 
                 {/* Logo Card */}
