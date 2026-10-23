@@ -18,6 +18,7 @@ import {
   Mail,
   MapPin,
   User,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -182,6 +183,10 @@ export default function LabVerificationPage() {
             <Link href="/labs/catalog" className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
               <FlaskConical className="h-5 w-5" />
               Master Catalog
+            </Link>
+            <Link href="/labs/exclusions" className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900">
+              <SlidersHorizontal className="h-5 w-5" />
+              Exclusions Manager
             </Link>
           </nav>
         </div>

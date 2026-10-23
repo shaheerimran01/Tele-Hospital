@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   FileCheck2,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -127,15 +128,15 @@ export default function LabDashboardPage() {
             </Link>
 
             <Link
-              href="/orders"
+              href="/labs/exclusions"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
-              <ShoppingBag className="h-5 w-5" />
-              Orders & Bookings
+              <SlidersHorizontal className="h-5 w-5" />
+              Exclusions Manager
             </Link>
 
             <Link
-              href="/catalog"
+              href="/labs/catalog"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <FlaskConical className="h-5 w-5" />
@@ -289,6 +290,12 @@ export default function LabDashboardPage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
               >
                 Manage Master Items <ChevronRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/labs/exclusions"
+                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100"
+              >
+                Manage Exclusions <SlidersHorizontal className="h-4 w-4" />
               </Link>
             </div>
           </div>

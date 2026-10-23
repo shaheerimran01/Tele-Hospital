@@ -177,7 +177,7 @@ export default function CatalogExclusionsPage() {
             </Link>
 
             <Link
-              href="/global-catalog"
+              href="/labs/catalog"
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
             >
               <FlaskConical className="h-5 w-5" />
@@ -185,7 +185,7 @@ export default function CatalogExclusionsPage() {
             </Link>
 
             <Link
-              href="/global-catalog/exclusions"
+              href="/labs/exclusions"
               className="flex w-full items-center justify-between rounded-lg bg-violet-50 px-3 py-2.5 text-sm font-medium text-violet-700 transition-colors"
             >
               <div className="flex items-center gap-3">
