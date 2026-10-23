@@ -386,14 +386,16 @@ export class LabsService {
     const testsIncluded = pkg.testsIncluded || [];
     const labOfferings = (pkg.labPrices || []).map((p) => {
       const disabledTests = p.disabledSubTests || [];
+      const isAvailable = p.isAvailable ?? true;
+
       return {
         labId: p.laboratory.id,
         labName: p.laboratory.name,
         labPhone: p.laboratory.phone,
-        isAvailable: p.isAvailable,
+        isAvailable,
         customPrice: p.customDiscountPrice ?? p.customBasePrice ?? pkg.discountPrice ?? pkg.basePrice,
         disabledTests,
-        offeredTestsCount: Math.max(0, testsIncluded.length - disabledTests.length),
+        offeredTestsCount: isAvailable ? Math.max(0, testsIncluded.length - disabledTests.length) : 0,
       };
     });
 
