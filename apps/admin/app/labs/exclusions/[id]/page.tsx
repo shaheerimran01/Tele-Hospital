@@ -26,7 +26,9 @@ interface LabOffering {
   labName: string;
   labPhone: string;
   isAvailable: boolean;
+  hasCustomPrice: boolean;
   customPrice: number;
+  masterPrice: number;
   disabledTests: string[];
   offeredTestsCount: number;
 }
@@ -434,6 +436,9 @@ export default function ExclusionsDetailsPage() {
                 ) : (
                   item.labOfferings.map((lab) => {
                     const isUnavailable = lab.isAvailable === false;
+                    const displayPrice = lab.hasCustomPrice
+                      ? (lab.customPrice ? Number(lab.customPrice).toLocaleString() : '0')
+                      : (lab.masterPrice ? Number(lab.masterPrice).toLocaleString() : '0');
 
                     return (
                       <div
@@ -461,19 +466,32 @@ export default function ExclusionsDetailsPage() {
 
                           <div className="text-right shrink-0">
                             <span className={`font-extrabold ${isUnavailable ? 'text-slate-400 line-through text-[11px]' : 'text-violet-700'}`}>
-                              Rs. {lab.customPrice ? Number(lab.customPrice).toLocaleString() : '0'}
+                              Rs. {displayPrice}
                             </span>
+                            {!lab.hasCustomPrice && (
+                              <p className="text-[10px] text-slate-400 italic">No custom price updated by this lab</p>
+                            )}
                           </div>
                         </div>
 
-                        {/* Status Badge when Unavailable */}
-                        {isUnavailable && (
-                          <div className="pt-0.5">
+                        {/* Status Badges Row */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                          {isUnavailable && (
                             <span className="rounded-full bg-red-100 border border-red-200 px-2.5 py-0.5 text-[10px] font-bold text-red-700 inline-block">
                               Package Not Offered / Marked Unavailable
                             </span>
-                          </div>
-                        )}
+                          )}
+
+                          {lab.hasCustomPrice ? (
+                            <span className="rounded-full bg-violet-100 border border-violet-200 px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                              Custom Price Set
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                              Using Default Master Price
+                            </span>
+                          )}
+                        </div>
 
                         {/* Offered Tests Row */}
                         <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
