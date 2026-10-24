@@ -60,6 +60,7 @@ model User {
   consultationIntakes ConsultationIntake[]
   doctor              Doctor?
   appointments        Appointment[]
+  labOrders LabOrder[]
 }
 
 model Address {
@@ -878,6 +879,7 @@ model LabPackage {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   labPrices       LabPackagePrice[]
+  orderItems LabOrderItem[]
 
   @@index([category])
   @@index([itemType])
@@ -929,6 +931,7 @@ model Laboratory {
   // Relations
   branches            LabBranch[]
   prices LabPackagePrice[]
+  orders LabOrder[]
   
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
@@ -986,4 +989,88 @@ model LabPackagePrice {
 
   @@unique([laboratoryId, labPackageId])
   @@map("lab_package_prices")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SAMPLE_COLLECTION_PENDING
+  SAMPLE_COLLECTED
+  PROCESSING
+  REPORT_UPLOADED
+  COMPLETED
+  CANCELLED
+}
+
+
+enum CollectionType {
+  HOME_COLLECTION
+  LAB_WALK_IN
+}
+
+model LabOrder {
+  id                  String         @id @default(uuid())
+  orderNumber         String         @unique // e.g. "ORD-2026-1001"
+  
+  userId              String
+  user                User           @relation(fields: [userId], references: [id])
+  
+  laboratoryId        String
+  laboratory          Laboratory     @relation(fields: [laboratoryId], references: [id])
+  
+  collectionType      CollectionType @default(HOME_COLLECTION)
+  status              OrderStatus    @default(PENDING)
+  paymentStatus       PaymentStatus  @default(PENDING)
+  paymentMethod       String         @default("CASH_ON_COLLECTION") // CASH, CARD, EASYPAISA, JAZZCASH
+  
+  // Pricing Breakdown
+  subTotal            Float
+  homeSampleFee       Float          @default(0)
+  discount            Float          @default(0)
+  totalAmount         Float
+  
+  // Schedule
+  scheduledDate       DateTime
+  timeSlot            String         // e.g. "08:00 AM - 10:00 AM"
+  
+  // Patient & Location Details
+  patientName         String
+  patientPhone        String
+  patientAge          Int?
+  patientGender       String?        // MALE, FEMALE, OTHER
+  address             String
+  city                String         @default("Rawalpindi/Islamabad")
+  latitude            Float?
+  longitude           Float?
+  specialInstructions String?
+  
+  // Lab Result / Report File
+  reportFileUrl       String?
+  reportUploadedAt    DateTime?
+  
+  // Items
+  items               LabOrderItem[]
+  
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([laboratoryId])
+  @@index([userId])
+  @@index([status])
+}
+
+model LabOrderItem {
+  id            String      @id @default(uuid())
+  labOrderId    String
+  labOrder      LabOrder    @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+  
+  labPackageId  String?
+  labPackage    LabPackage? @relation(fields: [labPackageId], references: [id])
+  
+  itemTitle     String      // Snapshot title at order time
+  itemCode      String?
+  itemType      String      // PACKAGE | INDIVIDUAL_TEST
+  price         Float       // Agreed price at order time
+  
+  createdAt     DateTime    @default(now())
 }

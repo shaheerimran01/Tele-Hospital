@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, BadgeCheck, Building2, CircleAlert, Clock, FileText, FlaskConical, LoaderCircle, Settings, ShieldAlert, Tag, Wallet } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Building2, CircleAlert, Clock, FileText, FlaskConical, LoaderCircle, Settings, ShieldAlert, ShoppingBag, Tag, Wallet } from 'lucide-react';
 import { formatPkr } from '@/app/lib/api/lab-tests';
 import { resubmitLabApi, type FixTarget } from '@/app/lib/api/lab-portal';
 import { useLabPortal } from './LabPortalShell';
@@ -132,7 +132,8 @@ export default function LabOverviewPage() {
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <QuickLink href={href('/lab-dashboard/orders')} Icon={ShoppingBag} title="Patient Orders" text="Incoming bookings & reports" />
         <QuickLink href={href('/lab-dashboard/manage-tests')} Icon={FlaskConical} title="Set prices & availability" text="Manage your tests and packages" />
         <QuickLink href={href('/lab-dashboard/branches')} Icon={Building2} title="Branches" text="Medical staff, phones and addresses" />
         <QuickLink href={href('/lab-dashboard/documents')} Icon={FileText} title="Documents & licensing" text="License number and document" />

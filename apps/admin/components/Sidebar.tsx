@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { FileCheck2, FlaskConical, LayoutDashboard, SlidersHorizontal } from 'lucide-react';
+import { FileCheck2, FileText, FlaskConical, LayoutDashboard, ShoppingBag, SlidersHorizontal } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 const items = [
   { href: '/labs/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/orders', label: 'Pharmacy Orders', icon: ShoppingBag },
+  { href: '/labs/orders', label: 'Lab Orders', icon: FileText },
   { href: '/labs/verification', label: 'Lab Verification', icon: FileCheck2 },
-  { href: '/labs/catalog', label: 'Catalog', icon: FlaskConical },
+  { href: '/labs/catalog', label: 'Master Catalog', icon: FlaskConical },
   { href: '/labs/exclusions', label: 'Exclusions Manager', icon: SlidersHorizontal },
 ];
 

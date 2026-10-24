@@ -181,3 +181,69 @@ export const REGULATORY_LABELS: Record<RegulatoryBodyCode, string> = {
   FEDERAL: 'Federal Regulatory Authority',
   OTHER: 'Other',
 };
+
+// ---------------------------------------------------------------------------
+// Lab Orders & Diagnostic Reports
+// ---------------------------------------------------------------------------
+
+export interface LabOrderSummary {
+  id: string;
+  orderNumber: string;
+  userId: string;
+  laboratoryId: string;
+  collectionType: 'HOME_COLLECTION' | 'LAB_WALK_IN';
+  status:
+    | 'PENDING'
+    | 'CONFIRMED'
+    | 'SAMPLE_COLLECTION_PENDING'
+    | 'SAMPLE_COLLECTED'
+    | 'PROCESSING'
+    | 'REPORT_UPLOADED'
+    | 'COMPLETED'
+    | 'CANCELLED';
+  paymentStatus: 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+  paymentMethod: string;
+  subTotal: number;
+  homeSampleFee: number;
+  discount: number;
+  totalAmount: number;
+  scheduledDate: string;
+  timeSlot: string;
+  patientName: string;
+  patientPhone: string;
+  patientAge?: number | null;
+  patientGender?: string | null;
+  address: string;
+  city: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  specialInstructions?: string | null;
+  reportFileUrl?: string | null;
+  reportUploadedAt?: string | null;
+  items: Array<{
+    id: string;
+    itemTitle: string;
+    itemCode?: string | null;
+    itemType: string;
+    price: number;
+  }>;
+  createdAt: string;
+}
+
+export const getLabOrdersApi = () => request<LabOrderSummary[]>('/lab/orders');
+
+export const updateLabOrderStatusApi = (orderId: string, status: string) =>
+  request<LabOrderSummary>(`/lab/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+
+export const uploadLabReportApi = (orderId: string, file: File) => {
+  const form = new FormData();
+  form.append('report', file);
+  return request<LabOrderSummary>(`/lab/orders/${encodeURIComponent(orderId)}/upload-report`, {
+    method: 'POST',
+    body: form,
+  });
+};

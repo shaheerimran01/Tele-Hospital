@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   FileCheck2,
+  FileText,
   SlidersHorizontal,
 } from 'lucide-react';
 
@@ -110,6 +111,22 @@ export default function LabDashboardPage() {
             >
               <LayoutDashboard className="h-5 w-5" />
               Dashboard
+            </Link>
+
+            <Link
+              href="/orders"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              <ShoppingBag className="h-5 w-5" />
+              Pharmacy Orders
+            </Link>
+
+            <Link
+              href="/labs/orders"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            >
+              <FileText className="h-5 w-5" />
+              Lab Orders
             </Link>
 
             <Link
