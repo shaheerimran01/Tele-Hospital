@@ -84,6 +84,18 @@ export class LabOrdersController {
   }
 
   /**
+   * GET /orders/lab-orders?userId=...
+   * Fetch lab orders for the logged-in user
+   */
+  @Get()
+  getUserOrders(@Query('userId') userId?: string) {
+    if (userId) {
+      return this.labOrdersService.getUserLabOrders(userId);
+    }
+    return [];
+  }
+
+  /**
    * GET /orders/lab-orders/:id
    * Fetch lab order details by ID or orderNumber
    */

@@ -80,6 +80,7 @@ export default function LabCheckout() {
   // Order Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Autofill user details from existing patient session / storage
   useEffect(() => {
@@ -243,13 +244,25 @@ export default function LabCheckout() {
       // Clear lab cart items on success
       cart.clear();
 
-      // Redirect to Order tracking / details view
-      const targetId = orderData?.id || orderData?.orderNumber;
-      if (targetId) {
-        router.push(`/orders/${targetId}`);
-      } else {
-        router.push('/my-orders');
-      }
+      const orderNumber = orderData?.orderNumber || orderData?.id || 'ORD-2026';
+      setSuccessToast(`Your lab order #${orderNumber} has been placed successfully!`);
+
+      // Build query string with order details for confirmation UI
+      const query = new URLSearchParams({
+        orderNumber: String(orderNumber),
+        patientName: payload.patientName,
+        date: payload.scheduledDate,
+        slot: payload.timeSlot,
+        collectionType: payload.collectionType,
+        address: payload.address,
+        total: String(payload.totalAmount),
+        labName: lab?.labName || items[0]?.labName || 'Partner Laboratory',
+      });
+
+      // Redirect to Order Success / Confirmation screen
+      setTimeout(() => {
+        router.push(`/labs/orders/success?${query.toString()}`);
+      }, 750);
     } catch (err: any) {
       console.error('Lab booking error:', err);
       setSubmitError(err.message || 'Something went wrong while confirming your booking. Please try again.');
@@ -704,6 +717,14 @@ export default function LabCheckout() {
           </p>
         </aside>
       </div>
+
+      {/* Success Notification Toast */}
+      {successToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl bg-emerald-600 px-4 py-3.5 text-sm font-semibold text-white shadow-2xl shadow-emerald-950/20">
+          <CheckCircle2 className="h-5 w-5 shrink-0" />
+          <span>{successToast}</span>
+        </div>
+      )}
     </div>
   );
 }

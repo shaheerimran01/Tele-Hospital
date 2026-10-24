@@ -175,10 +175,44 @@ export class LabOrdersService {
         },
       });
 
+      // Insert UserNotification for the patient
+      await tx.userNotification.create({
+        data: {
+          userId: created.userId,
+          title: 'Order Placed Successfully',
+          message: `Your lab order #${created.orderNumber} has been placed. We will collect the sample as per your scheduled slot.`,
+          type: 'LAB_ORDER_PLACED',
+          isRead: false,
+        },
+      });
+
       return created;
     });
 
     return order;
+  }
+
+  /**
+   * GET /labs/orders?userId=...
+   * Retrieve orders for a specific user
+   */
+  async getUserLabOrders(userId: string) {
+    if (!userId) return [];
+    return this.prisma.labOrder.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: true,
+        laboratory: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            logoUrl: true,
+          },
+        },
+      },
+    });
   }
 
   /**
