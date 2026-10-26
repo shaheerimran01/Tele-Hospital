@@ -61,6 +61,7 @@ model User {
   doctor              Doctor?
   appointments        Appointment[]
   labOrders LabOrder[]
+  labPrescriptions LabPrescription[]
 }
 
 model Address {
@@ -932,6 +933,7 @@ model Laboratory {
   branches            LabBranch[]
   prices LabPackagePrice[]
   orders LabOrder[]
+  labPrescriptions LabPrescription[]
   
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
@@ -1053,6 +1055,7 @@ model LabOrder {
   
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
+  labPrescription LabPrescription?
 
   @@index([laboratoryId])
   @@index([userId])
@@ -1073,4 +1076,46 @@ model LabOrderItem {
   price         Float       // Agreed price at order time
   
   createdAt     DateTime    @default(now())
+}
+
+model LabPrescription {
+  id            String     @id @default(uuid())
+
+  // Linked Lab Order (One-to-One with LabOrder)
+  labOrderId    String     @unique
+  labOrder      LabOrder   @relation(fields: [labOrderId], references: [id], onDelete: Cascade)
+
+  // Linked Lab & Patient
+  laboratoryId  String
+  laboratory    Laboratory @relation(fields: [laboratoryId], references: [id], onDelete: Cascade)
+
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Doctor / Pathologist Info
+  pathologistName   String?  // e.g. "Dr. Asad Malik (Pathologist)"
+  pathologistSignUrl String? // Digital signature / Stamp image URL
+
+  // Patient Info Snapshot
+  patientName   String
+  patientAge    Int?
+  patientGender String?
+
+  // Structured Lab Results (JSON Array)
+  // Format: [{ testName: "CBC", parameter: "Hemoglobin", result: "14.2", unit: "g/dL", referenceRange: "13.5 - 17.5", flag: "NORMAL" }]
+  testResults   Json
+
+  // Notes & Diagnosis
+  remarks       String?    @db.Text
+  instructions  String?    @db.Text
+
+  // Generated PDF Storage
+  pdfUrl        String?    // Cloudinary / AWS S3 / Local storage URL for PDF
+
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([laboratoryId])
+  @@index([userId])
+  @@map("lab_prescriptions")
 }

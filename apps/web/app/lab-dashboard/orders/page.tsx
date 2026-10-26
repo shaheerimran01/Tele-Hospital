@@ -30,6 +30,7 @@ import {
   uploadLabReportApi,
   type LabOrderSummary,
 } from '@/app/lib/api/lab-portal';
+import CreateLabPrescriptionModal from '@/app/components/lab-dashboard/CreateLabPrescriptionModal';
 
 export default function LabPortalOrdersPage() {
   const [orders, setOrders] = useState<LabOrderSummary[]>([]);
@@ -40,6 +41,10 @@ export default function LabPortalOrdersPage() {
 
   // Updating status state
   const [processingId, setProcessingId] = useState<string | null>(null);
+
+  // Prescription creation modal state
+  const [prescriptionModalOrder, setPrescriptionModalOrder] = useState<LabOrderSummary | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Upload modal state
   const [uploadModalOrder, setUploadModalOrder] = useState<LabOrderSummary | null>(null);
@@ -457,19 +462,28 @@ export default function LabPortalOrdersPage() {
                       </button>
                     )}
 
-                    {/* Report Upload Trigger Modal */}
+                    {/* PRIMARY ACTION: CREATE / UPDATE LAB PRESCRIPTION */}
+                    {order.status !== 'CANCELLED' && (
+                      <button
+                        type="button"
+                        onClick={() => setPrescriptionModalOrder(order)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                      >
+                        <FileCheck2 className="h-3.5 w-3.5" />
+                        {order.reportFileUrl ? 'Update Prescription' : 'Create Lab Prescription'}
+                      </button>
+                    )}
+
+                    {/* Secondary Option: Manual File Upload */}
                     {order.status !== 'CANCELLED' && (
                       <button
                         type="button"
                         onClick={() => handleOpenUploadModal(order)}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-bold shadow-xs transition ${
-                          order.reportFileUrl
-                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                            : 'border-violet-300 bg-white text-violet-700 hover:bg-violet-50'
-                        }`}
+                        title="Upload existing PDF report"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-2xs hover:bg-slate-50 transition"
                       >
-                        <FileUp className="h-3.5 w-3.5" />
-                        {order.reportFileUrl ? 'Re-Upload Report PDF' : 'Upload Report PDF'}
+                        <FileUp className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Upload PDF</span>
                       </button>
                     )}
 
@@ -568,6 +582,35 @@ export default function LabPortalOrdersPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* CREATE LAB PRESCRIPTION MODAL */}
+      {prescriptionModalOrder && (
+        <CreateLabPrescriptionModal
+          order={prescriptionModalOrder}
+          onClose={() => setPrescriptionModalOrder(null)}
+          onSuccess={(prescription) => {
+            setPrescriptionModalOrder(null);
+            setSuccessBanner(`Diagnostic report successfully generated for Order #${prescription.labOrder?.orderNumber || ''}! Report PDF is now attached.`);
+            fetchOrders(true);
+            setTimeout(() => setSuccessBanner(null), 6000);
+          }}
+        />
+      )}
+
+      {/* SUCCESS TOAST BANNER */}
+      {successBanner && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl bg-emerald-700 px-5 py-3.5 text-xs font-bold text-white shadow-2xl shadow-emerald-950/25">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span>{successBanner}</span>
+          <button
+            type="button"
+            onClick={() => setSuccessBanner(null)}
+            className="ml-2 rounded p-1 hover:bg-emerald-800 transition text-emerald-200 hover:text-white"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       )}
     </div>

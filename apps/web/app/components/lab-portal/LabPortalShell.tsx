@@ -7,7 +7,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Building2, CircleAlert, FileText, FlaskConical, LayoutDashboard, LoaderCircle, LogOut, Menu, Settings, ShoppingBag, X } from 'lucide-react';
+import { Building2, CircleAlert, FileCheck, FileText, FlaskConical, LayoutDashboard, LoaderCircle, LogOut, Menu, Settings, ShoppingBag, X } from 'lucide-react';
 import { LabPortalError, clearLabSession, getLabOverviewApi, getLabSession, labFileUrl, type LabOverview, type LabVerificationStatus } from '@/app/lib/api/lab-portal';
 
 interface LabPortalValue {
@@ -36,6 +36,7 @@ export const STATUS_BADGE: Record<LabVerificationStatus, { label: string; cls: s
 const NAV = [
   { path: '/lab-dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { path: '/lab-dashboard/orders', label: 'Patient Orders', Icon: ShoppingBag },
+  { path: '/lab-dashboard/prescriptions', label: 'Lab Prescriptions', Icon: FileCheck },
   { path: '/lab-dashboard/manage-tests', label: 'Tests & Package Inventory', Icon: FlaskConical },
   { path: '/lab-dashboard/branches', label: 'Branches', Icon: Building2 },
   { path: '/lab-dashboard/documents', label: 'Documents & Licensing', Icon: FileText },

@@ -1,0 +1,86 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents 6 0 R /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Length 3716 >>
+stream
+0.063 0.431 0.314 rg 0.00 833.89 595.28 8.00 re f
+BT /F2 16 Tf 0.078 0.106 0.204 rg 36.00 796.89 Td (IDC) Tj ET
+BT /F2 11 Tf 0.063 0.431 0.314 rg 387.55 796.89 Td (OFFICIAL DIAGNOSTIC REPORT) Tj ET
+BT /F1 8.5 Tf 0.392 0.455 0.545 rg 36.00 781.89 Td (Ph: +923120394223 | Clinical Diagnostic Center) Tj ET
+BT /F1 8 Tf 0.392 0.455 0.545 rg 444.99 781.89 Td (Report Generated: Oct 24, 2026) Tj ET
+0.886 0.910 0.941 RG 1 w 36.00 769.89 m 559.28 769.89 l S
+0.973 0.980 0.988 rg 0.886 0.910 0.941 RG 0.75 w 36.00 703.89 523.28 58.00 re B
+BT /F1 8 Tf 0.392 0.455 0.545 rg 48.00 743.89 Td (Patient Name:) Tj ET
+BT /F2 9 Tf 0.118 0.161 0.231 rg 108.00 743.89 Td (Shaheer Rao) Tj ET
+BT /F1 8 Tf 0.392 0.455 0.545 rg 216.00 743.89 Td (Order Number:) Tj ET
+BT /F2 9 Tf 0.118 0.161 0.231 rg 281.00 743.89 Td (ORD-2026-6164) Tj ET
+BT /F1 8 Tf 0.392 0.455 0.545 rg 386.00 743.89 Td (Pathologist:) Tj ET
+BT /F2 9 Tf 0.118 0.161 0.231 rg 441.00 743.89 Td (Dr. Asad Malik \(Consultant Pathologist\)) Tj ET
+BT /F1 8 Tf 0.392 0.455 0.545 rg 48.00 725.89 Td (Age / Gender:) Tj ET
+BT /F1 9 Tf 0.118 0.161 0.231 rg 108.00 725.89 Td (N/A / MALE) Tj ET
+BT /F1 8 Tf 0.392 0.455 0.545 rg 216.00 725.89 Td (Contact:) Tj ET
+BT /F1 9 Tf 0.118 0.161 0.231 rg 281.00 725.89 Td (+923009876543) Tj ET
+BT /F1 8 Tf 0.392 0.455 0.545 rg 386.00 725.89 Td (Status:) Tj ET
+BT /F2 8.5 Tf 0.063 0.431 0.314 rg 441.00 725.89 Td (VERIFIED & RELEASED) Tj ET
+BT /F2 10 Tf 0.078 0.106 0.204 rg 36.00 679.89 Td (STRUCTURED DIAGNOSTIC TEST RESULTS) Tj ET
+0.063 0.431 0.314 rg 36.00 647.89 523.28 20.00 re f
+BT /F2 7.5 Tf 1.000 1.000 1.000 rg 42.00 653.89 Td (TEST NAME) Tj ET
+BT /F2 7.5 Tf 1.000 1.000 1.000 rg 182.00 653.89 Td (PARAMETER) Tj ET
+BT /F2 7.5 Tf 1.000 1.000 1.000 rg 322.00 653.89 Td (RESULT) Tj ET
+BT /F2 7.5 Tf 1.000 1.000 1.000 rg 402.00 653.89 Td (UNIT) Tj ET
+BT /F2 7.5 Tf 1.000 1.000 1.000 rg 462.00 653.89 Td (REFERENCE) Tj ET
+BT /F2 7.5 Tf 1.000 1.000 1.000 rg 525.00 653.89 Td (FLAG) Tj ET
+0.886 0.910 0.941 RG 0.5 w 36.00 627.89 m 559.28 627.89 l S
+BT /F2 8 Tf 0.118 0.161 0.231 rg 42.00 633.89 Td (Glucose-6-Phosphate Dehydrogenase \(G-6-PD\),Qualitative) Tj ET
+BT /F1 8 Tf 0.118 0.161 0.231 rg 182.00 633.89 Td (Glucose-6-Phosphate Dehydrogenase \(G-6-PD\),Qualitative Index) Tj ET
+BT /F2 8.5 Tf 0.118 0.161 0.231 rg 322.00 633.89 Td (Normal) Tj ET
+BT /F1 7.5 Tf 0.392 0.455 0.545 rg 402.00 633.89 Td (150) Tj ET
+BT /F1 7.5 Tf 0.392 0.455 0.545 rg 462.00 633.89 Td (250) Tj ET
+BT /F2 7.5 Tf 0.063 0.431 0.314 rg 525.00 633.89 Td (NORMAL) Tj ET
+0.886 0.910 0.941 RG 1 w 36.00 627.89 m 559.28 627.89 l S
+BT /F2 9 Tf 0.078 0.106 0.204 rg 36.00 603.89 Td (PATHOLOGIST REMARKS & CLINICAL INTERPRETATION) Tj ET
+0.973 0.980 0.988 rg 0.886 0.910 0.941 RG 0.5 w 36.00 557.89 523.28 34.00 re B
+BT /F1 8 Tf 0.118 0.161 0.231 rg 44.00 579.89 Td (All analyzed diagnostic parameters documented above. Clinical correlation advised.) Tj ET
+BT /F2 8.5 Tf 0.078 0.106 0.204 rg 36.00 539.89 Td (PATIENT INSTRUCTIONS & FOLLOW-UP) Tj ET
+BT /F1 7.5 Tf 0.392 0.455 0.545 rg 44.00 517.89 Td (\225 Maintain regular hydration. Follow-up consultation with physician recommended.) Tj ET
+0.078 0.106 0.204 RG 1 w 379.28 93.00 m 559.28 93.00 l S
+BT /F2 9 Tf 0.078 0.106 0.204 rg 390.26 81.00 Td (Dr. Asad Malik \(Consultant Pathologist\)) Tj ET
+BT /F1 7.5 Tf 0.392 0.455 0.545 rg 457.99 70.00 Td (Consultant Clinical Pathologist) Tj ET
+BT /F2 7.5 Tf 0.063 0.431 0.314 rg 36.00 85.00 Td (Electronically signed and verified by Tabibistan Medical Laboratory Diagnostic Network.) Tj ET
+BT /F1 7 Tf 0.392 0.455 0.545 rg 36.00 74.00 Td (This report is valid without physical signature when verified via Tabibistan portal.) Tj ET
+0.078 0.106 0.204 rg 0.00 0.00 595.28 6.00 re f
+endstream
+endobj
+7 0 obj
+<< /Title (Lab Report - ORD-2026-6164) /Producer (Tabibistan Laboratory Systems) >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000121 00000 n 
+0000000263 00000 n 
+0000000360 00000 n 
+0000000462 00000 n 
+0000004230 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R /Info 7 0 R >>
+startxref
+4329
+%%EOF

@@ -247,3 +247,83 @@ export const uploadLabReportApi = (orderId: string, file: File) => {
     body: form,
   });
 };
+
+// ---------------------------------------------------------------------------
+// Lab Prescriptions / Diagnostic Reports API
+// ---------------------------------------------------------------------------
+
+export interface TestResultItem {
+  testName: string;
+  parameter: string;
+  result: string;
+  unit?: string;
+  referenceRange?: string;
+  flag?: 'NORMAL' | 'HIGH' | 'LOW' | 'CRITICAL' | string;
+}
+
+export interface CreateLabPrescriptionPayload {
+  labOrderId: string;
+  laboratoryId: string;
+  userId: string;
+  pathologistName?: string;
+  pathologistSignUrl?: string;
+  patientName: string;
+  patientAge?: number;
+  patientGender?: string;
+  testResults: TestResultItem[];
+  remarks?: string;
+  instructions?: string;
+}
+
+export interface LabPrescriptionSummary {
+  id: string;
+  labOrderId: string;
+  laboratoryId: string;
+  userId: string;
+  pathologistName: string | null;
+  pathologistSignUrl: string | null;
+  patientName: string;
+  patientAge: number | null;
+  patientGender: string | null;
+  testResults: TestResultItem[];
+  remarks: string | null;
+  instructions: string | null;
+  pdfUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  labOrder?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    scheduledDate: string;
+    timeSlot: string;
+    totalAmount: number;
+    items?: { id: string; itemTitle: string; price: number }[];
+  };
+  user?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    phone: string | null;
+    email: string | null;
+  };
+}
+
+export const createLabPrescriptionApi = (payload: CreateLabPrescriptionPayload) =>
+  request<LabPrescriptionSummary>('/lab-prescriptions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const getLabPrescriptionsByLabApi = (laboratoryId: string, page = 1, search = '') => {
+  const q = new URLSearchParams({ page: String(page) });
+  if (search.trim()) q.set('search', search.trim());
+  return request<{ items: LabPrescriptionSummary[]; total: number; page: number; limit: number; totalPages: number }>(
+    `/lab-prescriptions/lab/${encodeURIComponent(laboratoryId)}?${q.toString()}`,
+  );
+};
+
+export const getLabPrescriptionByIdApi = (id: string) =>
+  request<LabPrescriptionSummary>(`/lab-prescriptions/${encodeURIComponent(id)}`);
+
