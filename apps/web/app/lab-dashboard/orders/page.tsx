@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
   Building2,
@@ -30,7 +32,7 @@ import {
   uploadLabReportApi,
   type LabOrderSummary,
 } from '@/app/lib/api/lab-portal';
-import CreateLabPrescriptionModal from '@/app/components/lab-dashboard/CreateLabPrescriptionModal';
+import { useLabPortal } from '@/app/components/lab-portal/LabPortalShell';
 
 export default function LabPortalOrdersPage() {
   const [orders, setOrders] = useState<LabOrderSummary[]>([]);
@@ -42,9 +44,22 @@ export default function LabPortalOrdersPage() {
   // Updating status state
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  // Prescription creation modal state
-  const [prescriptionModalOrder, setPrescriptionModalOrder] = useState<LabOrderSummary | null>(null);
+  // Lab report form: /lab-dashboard/orders/[id]/create-prescription (returns with ?issued=<order #>)
+  const { href } = useLabPortal();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const issuedOrder = searchParams.get('issued');
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  useEffect(() => {
+    if (!issuedOrder) return;
+    setSuccessBanner(`Diagnostic report issued for Order #${issuedOrder}. The Tabibistan PDF is attached and the patient has been notified.`);
+    router.replace(href('/lab-dashboard/orders'), { scroll: false });
+  }, [issuedOrder, href, router]);
+  useEffect(() => {
+    if (!successBanner) return;
+    const t = setTimeout(() => setSuccessBanner(null), 7000);
+    return () => clearTimeout(t);
+  }, [successBanner]);
 
   // Upload modal state
   const [uploadModalOrder, setUploadModalOrder] = useState<LabOrderSummary | null>(null);
@@ -464,14 +479,13 @@ export default function LabPortalOrdersPage() {
 
                     {/* PRIMARY ACTION: CREATE / UPDATE LAB PRESCRIPTION */}
                     {order.status !== 'CANCELLED' && (
-                      <button
-                        type="button"
-                        onClick={() => setPrescriptionModalOrder(order)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition"
+                      <Link
+                        href={href(`/lab-dashboard/orders/${encodeURIComponent(order.id)}/create-prescription`)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-teal-700 transition"
                       >
                         <FileCheck2 className="h-3.5 w-3.5" />
-                        {order.reportFileUrl ? 'Update Prescription' : 'Create Lab Prescription'}
-                      </button>
+                        {order.reportFileUrl ? 'Update Lab Report' : 'Create Lab Report'}
+                      </Link>
                     )}
 
                     {/* Secondary Option: Manual File Upload */}
@@ -583,20 +597,6 @@ export default function LabPortalOrdersPage() {
             </form>
           </div>
         </div>
-      )}
-
-      {/* CREATE LAB PRESCRIPTION MODAL */}
-      {prescriptionModalOrder && (
-        <CreateLabPrescriptionModal
-          order={prescriptionModalOrder}
-          onClose={() => setPrescriptionModalOrder(null)}
-          onSuccess={(prescription) => {
-            setPrescriptionModalOrder(null);
-            setSuccessBanner(`Diagnostic report successfully generated for Order #${prescription.labOrder?.orderNumber || ''}! Report PDF is now attached.`);
-            fetchOrders(true);
-            setTimeout(() => setSuccessBanner(null), 6000);
-          }}
-        />
       )}
 
       {/* SUCCESS TOAST BANNER */}

@@ -2,12 +2,20 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Post,
   Query,
+  StreamableFile,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { CurrentLab, LabAuthGuard, type LabTokenPayload } from '../labs/lab-auth.js';
 import {
   CreateLabPrescriptionDto,
   LabPrescriptionQueryDto,
@@ -22,12 +30,38 @@ export class LabPrescriptionsController {
   constructor(private readonly labPrescriptionsService: LabPrescriptionsService) {}
 
   /**
-   * POST /lab-prescriptions
-   * Create a new lab prescription / diagnostic report and generate PDF
+   * POST /lab-prescriptions   (Authorization: Bearer <lab_token>)
+   * Issue the diagnostic report: saves the results, generates the Tabibistan
+   * PDF, sets the order to REPORT_UPLOADED and notifies the patient.
    */
   @Post()
-  createLabPrescription(@Body() dto: CreateLabPrescriptionDto) {
-    return this.labPrescriptionsService.createLabPrescription(dto);
+  @UseGuards(LabAuthGuard)
+  createLabPrescription(@CurrentLab() lab: LabTokenPayload, @Body() dto: CreateLabPrescriptionDto) {
+    return this.labPrescriptionsService.createLabPrescription(dto, lab.phone);
+  }
+
+  /**
+   * POST /lab-prescriptions/preview   (Authorization: Bearer <lab_token>)
+   * Same body as POST /lab-prescriptions -> application/pdf with a PREVIEW
+   * watermark. Nothing is saved.
+   */
+  @Post('preview')
+  @HttpCode(200)
+  @UseGuards(LabAuthGuard)
+  async previewLabPrescription(@CurrentLab() lab: LabTokenPayload, @Body() dto: CreateLabPrescriptionDto) {
+    const pdf = await this.labPrescriptionsService.previewLabPrescription(dto, lab.phone);
+    return new StreamableFile(pdf, { type: 'application/pdf', disposition: 'inline; filename="report-preview.pdf"' });
+  }
+
+  /**
+   * POST /lab-prescriptions/signature   (multipart: signature = PNG / JPG, max 2 MB)
+   * -> { url } for pathologistSignUrl
+   */
+  @Post('signature')
+  @UseGuards(LabAuthGuard)
+  @UseInterceptors(FileInterceptor('signature', { storage: memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 1 } }))
+  uploadSignature(@CurrentLab() lab: LabTokenPayload, @UploadedFile() file: { buffer: Buffer; size: number; mimetype?: string }) {
+    return this.labPrescriptionsService.uploadSignature(lab.phone, file);
   }
 
   /**
