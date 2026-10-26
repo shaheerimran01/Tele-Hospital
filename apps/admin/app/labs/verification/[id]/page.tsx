@@ -16,9 +16,37 @@ import {
   Phone,
   Mail,
   Home,
+  Send,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
+/** Quick-select issues for "Send Issue / Request Revision" (each becomes one line of the note) */
+const QUICK_ISSUES = [
+  {
+    id: 'license-doc',
+    icon: '📄',
+    label: 'Licence Document Unclear or Expired',
+    message: 'Licence Document Unclear or Expired: Please re-upload a clear, valid scanned copy of your healthcare licence (e.g. PHC licence).',
+  },
+  {
+    id: 'council-license',
+    icon: '🏥',
+    label: 'Medical Council License Number Mismatch',
+    message:
+      'Medical Council License Number Mismatch: The PMDC / PMC license number of your medical director does not match our records. Please correct it in your branch details.',
+  },
+  {
+    id: 'contact',
+    icon: '📞',
+    label: 'Invalid Contact / WhatsApp Number',
+    message: 'Invalid Contact / WhatsApp Number: Please update a working contact WhatsApp number in your lab profile.',
+  },
+] as const;
+
+const ISSUE_MAX_LENGTH = 2000;
 
 interface LabBranch {
   id: string;
@@ -60,6 +88,69 @@ export default function LabDetailsPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Send Issue / Request Revision
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [selectedIssues, setSelectedIssues] = useState<string[]>([]);
+  const [customIssueOpen, setCustomIssueOpen] = useState(false);
+  const [customIssue, setCustomIssue] = useState('');
+  const [issueStatus, setIssueStatus] = useState<'PENDING' | 'REJECTED'>('PENDING');
+  const [issueError, setIssueError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const issueMessage = [
+    ...QUICK_ISSUES.filter((q) => selectedIssues.includes(q.id)).map((q) => q.message),
+    ...(customIssueOpen && customIssue.trim() ? [customIssue.trim()] : []),
+  ].join('\n');
+
+  const toggleIssue = (id: string) =>
+    setSelectedIssues((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
+
+  const closeIssueModal = () => {
+    setShowIssueModal(false);
+    setIssueError(null);
+  };
+
+  const handleSendIssue = async () => {
+    if (!lab || !issueMessage.trim()) return;
+    if (issueMessage.length > ISSUE_MAX_LENGTH) {
+      setIssueError(`The note is too long. Keep it under ${ISSUE_MAX_LENGTH} characters.`);
+      return;
+    }
+    try {
+      setUpdating(true);
+      setIssueError(null);
+      const res = await fetch(`${API_BASE}/labs/admin/labs/${lab.id}/issue`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: issueMessage, status: issueStatus }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = Array.isArray(json?.message) ? json.message[0] : json?.message;
+        setIssueError(msg || 'Could not send the issue notice. Please try again.');
+        return;
+      }
+      setShowIssueModal(false);
+      setSelectedIssues([]);
+      setCustomIssue('');
+      setCustomIssueOpen(false);
+      setIssueStatus('PENDING');
+      setToast({ tone: 'ok', text: 'Issue notice sent to Lab successfully.' });
+      await fetchLabDetails();
+    } catch (error) {
+      console.error('Failed to send lab issue:', error);
+      setIssueError('Could not reach the server. Check the API and try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const documentUrl = (url: string) => (url.startsWith('http') ? url : `${API_BASE.replace('/api', '')}${url}`);
   const isPdf = /\.pdf(?:$|[?#])/i.test(lab?.licenseDocUrl ?? '');
@@ -148,7 +239,7 @@ export default function LabDetailsPage() {
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-3">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-violet-600 border-t-transparent"></div>
-          <p className="text-sm font-medium text-slate-600">Lab Details Load Ho Rahi Hain...</p>
+          <p className="text-sm font-medium text-slate-600">Loading lab details...</p>
         </div>
       </div>
     );
@@ -158,7 +249,7 @@ export default function LabDetailsPage() {
     return (
       <div className="min-h-screen bg-slate-50 p-8">
         <div className="mx-auto max-w-4xl text-center">
-          <p className="text-slate-600">Laboratory record nahi mila.</p>
+          <p className="text-slate-600">Laboratory record not found.</p>
           <Link href="/labs/verification" className="mt-4 inline-block text-violet-600 font-semibold">
             ← Back to Verification List
           </Link>
@@ -210,7 +301,17 @@ export default function LabDetailsPage() {
           </div>
 
           {/* ACTION BUTTONS */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => {
+                setIssueError(null);
+                setShowIssueModal(true);
+              }}
+              disabled={updating}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs font-bold text-amber-800 shadow-sm transition hover:bg-amber-100 disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" /> Send Issue / Request Revision
+            </button>
             <button
               onClick={() => setShowRejectModal(true)}
               disabled={updating}
@@ -450,18 +551,195 @@ export default function LabDetailsPage() {
               </ul>
             </div>
 
-            {/* REJECTION REASON DISPLAY */}
-            {lab.verificationStatus === 'REJECTED' && lab.rejectionReason && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-6">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-red-800 mb-2">
-                  Rejection Reason / Admin Notes
+            {/* OPEN ISSUE NOTICE / REJECTION REASON (shown to the lab on its dashboard) */}
+            {lab.rejectionReason && (
+              <div
+                className={`rounded-xl border p-6 ${
+                  lab.verificationStatus === 'REJECTED' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'
+                }`}
+              >
+                <h3
+                  className={`text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1.5 ${
+                    lab.verificationStatus === 'REJECTED' ? 'text-red-800' : 'text-amber-800'
+                  }`}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {lab.verificationStatus === 'REJECTED' ? 'Rejection Reason / Admin Notes' : 'Open Issue Notice (sent to lab)'}
                 </h3>
-                <p className="text-xs text-red-700 leading-relaxed">{lab.rejectionReason}</p>
+                <p
+                  className={`text-xs leading-relaxed whitespace-pre-line ${
+                    lab.verificationStatus === 'REJECTED' ? 'text-red-700' : 'text-amber-900'
+                  }`}
+                >
+                  {lab.rejectionReason}
+                </p>
+                <p className="mt-3 text-[11px] text-slate-500">
+                  The lab sees this note on its dashboard with a Fix Now button. It clears when the lab re-uploads its documents or resubmits for review.
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* SEND ISSUE / REQUEST REVISION MODAL */}
+      {showIssueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="issue-modal-title">
+          <div className="fixed inset-0 bg-black/50" onClick={closeIssueModal} />
+          <div className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
+              <div>
+                <h3 id="issue-modal-title" className="text-base font-bold text-slate-900">
+                  Send Issue / Request Revision
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Choose what {lab.name} needs to fix. The note appears on the lab&apos;s dashboard with a Fix Now button.
+                </p>
+              </div>
+              <button type="button" onClick={closeIssueModal} aria-label="Close" className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Quick select issues</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {QUICK_ISSUES.map((q) => {
+                    const on = selectedIssues.includes(q.id);
+                    return (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => toggleIssue(q.id)}
+                        aria-pressed={on}
+                        className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition ${
+                          on ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500' : 'border-slate-200 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-base leading-none" aria-hidden>
+                          {q.icon}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-bold text-slate-900">{q.label}</span>
+                          <span className="mt-0.5 block text-slate-500">{q.message.split(': ').slice(1).join(': ')}</span>
+                        </span>
+                        {on && <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-600" />}
+                      </button>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => setCustomIssueOpen((o) => !o)}
+                    aria-pressed={customIssueOpen}
+                    className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition ${
+                      customIssueOpen ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500' : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-base leading-none" aria-hidden>
+                      ✍️
+                    </span>
+                    <span className="flex-1 font-bold text-slate-900">Custom Issue Note</span>
+                    {customIssueOpen && <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-600" />}
+                  </button>
+                  {customIssueOpen && (
+                    <textarea
+                      value={customIssue}
+                      onChange={(e) => setCustomIssue(e.target.value)}
+                      rows={3}
+                      autoFocus
+                      maxLength={ISSUE_MAX_LENGTH}
+                      aria-label="Custom issue note"
+                      className="w-full rounded-lg border border-slate-300 p-3 text-xs focus:border-violet-500 focus:outline-none"
+                      placeholder="Describe what the lab needs to correct, e.g. The address of your main center is incomplete."
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Registration status after sending</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {(
+                    [
+                      { value: 'PENDING', title: 'Keep as Pending', note: 'Revision requested' },
+                      { value: 'REJECTED', title: 'Mark as Rejected', note: 'Registration declined' },
+                    ] as const
+                  ).map((o) => (
+                    <label
+                      key={o.value}
+                      className={`cursor-pointer rounded-lg border px-3 py-2 ${
+                        issueStatus === o.value ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500' : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="issue-status"
+                        value={o.value}
+                        checked={issueStatus === o.value}
+                        onChange={() => setIssueStatus(o.value)}
+                        className="sr-only"
+                      />
+                      <span className="block font-bold text-slate-900">{o.title}</span>
+                      <span className="block text-slate-500">{o.note}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] text-slate-500">The license document is also marked as not verified until the lab re-uploads it.</p>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">Message the lab will see</p>
+                {issueMessage ? (
+                  <p className="whitespace-pre-line rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">{issueMessage}</p>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-slate-300 p-3 text-xs text-slate-400">Select at least one issue or write a custom note.</p>
+                )}
+              </div>
+
+              {issueError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700" role="alert">
+                  {issueError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 border-t border-slate-100 px-6 py-4">
+              <button
+                type="button"
+                onClick={closeIssueModal}
+                className="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendIssue}
+                disabled={!issueMessage.trim() || updating}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                <Send className="h-3.5 w-3.5" /> {updating ? 'Sending...' : 'Send Issue to Lab'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST */}
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-6 right-6 z-[60] flex max-w-sm items-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold text-white shadow-lg ${
+            toast.tone === 'ok' ? 'bg-emerald-600' : 'bg-red-600'
+          }`}
+        >
+          {toast.tone === 'ok' ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+          {toast.text}
+          <button type="button" onClick={() => setToast(null)} aria-label="Dismiss" className="ml-2 rounded p-0.5 hover:bg-white/20">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* REJECT MODAL */}
       {showRejectModal && (

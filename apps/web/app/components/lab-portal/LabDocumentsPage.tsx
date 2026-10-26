@@ -4,13 +4,13 @@
 // and the lab logo. New license details on a verified lab go back for review.
 
 import { useState } from 'react';
-import { CircleAlert, ExternalLink, FileText, ImageOff, LoaderCircle, ShieldAlert } from 'lucide-react';
+import { ExternalLink, FileText, ImageOff, LoaderCircle } from 'lucide-react';
 import { Field, inputClass, inputErrorClass } from '../consult-doctors/join-now/ui';
 import FileUploadField from '../lab-registration/FileUploadField';
 import { LICENSE_MAX_BYTES, LICENSE_TYPES, LOGO_MAX_BYTES, LOGO_TYPES, type PickedFile } from '../lab-registration/form-model';
-import { REGULATORY_LABELS, labFileUrl, resubmitLabApi, updateLabDocumentsApi, type RegulatoryBodyCode } from '@/app/lib/api/lab-portal';
+import { REGULATORY_LABELS, labFileUrl, updateLabDocumentsApi, type RegulatoryBodyCode } from '@/app/lib/api/lab-portal';
 import { useLabPortal } from './LabPortalShell';
-import { PageTitle, SaveMessage, cardClass } from './portal-ui';
+import { FixNotice, PageTitle, SaveMessage, cardClass, fixHighlightClass, useFixFocus } from './portal-ui';
 
 const LICENSE_RE = /^[A-Za-z0-9][A-Za-z0-9\-/. ]{1,38}[A-Za-z0-9]$/;
 
@@ -86,7 +86,11 @@ export default function LabDocumentsPage() {
   const { overview, refresh } = useLabPortal();
   const lab = overview.laboratory;
   const needsFix = lab.verificationStatus === 'REJECTED' || Boolean(lab.rejectionReason?.trim());
-  const [resubmitting, setResubmitting] = useState(false);
+  // "Fix Now" (?focus=...) -> scroll to, focus and highlight the field
+  const licenseHl = useFixFocus('license', 'field-licenseDoc');
+  const numberHl = useFixFocus('licenseNumber', 'licenseNumber');
+  const bodyHl = useFixFocus('regulatoryBody', 'regulatoryBody');
+  const logoHl = useFixFocus('logo', 'field-logo');
   const [licenseNumber, setLicenseNumber] = useState(lab.licenseNumber);
   const [body, setBody] = useState<RegulatoryBodyCode>(lab.regulatoryBody);
   const [licenseDoc, setLicenseDoc] = useState<PickedFile | null>(null);
@@ -117,10 +121,13 @@ export default function LabDocumentsPage() {
       await refresh();
       setMessage({
         tone: 'ok',
-        text:
-          credentialsChanged && lab.verificationStatus === 'APPROVED' && updated.verificationStatus === 'PENDING'
-            ? 'Saved. Your updated license will be checked by our medical board.'
-            : 'Documents saved.',
+        text: updated.resubmitted
+          ? 'Thank you. Your corrected documents were submitted for re-review. Our medical board will check them again.'
+          : credentialsChanged && needsFix
+            ? 'Documents saved. Fix the remaining items in the notice above, then choose Resubmit for Review.'
+            : credentialsChanged && lab.verificationStatus === 'APPROVED' && updated.verificationStatus === 'PENDING'
+              ? 'Saved. Your updated license will be checked by our medical board.'
+              : 'Documents saved.',
       });
     } catch (e) {
       setMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Could not save the documents.' });
@@ -135,48 +142,14 @@ export default function LabDocumentsPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 sm:px-6 sm:py-8">
       <PageTitle title="Documents & Licensing" subtitle="Your healthcare license and the documents our medical board reviews." />
-      {needsFix && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 sm:px-5" role="alert">
-          <p className="flex items-center gap-2 text-sm font-semibold text-red-800">
-            <ShieldAlert className="h-4 w-4" /> Changes requested by our medical board
-          </p>
-          <p className="mt-1 whitespace-pre-line text-sm text-red-800">
-            {lab.rejectionReason?.trim() || 'Please review your license document and details.'}
-          </p>
-          <div className="mt-3 flex flex-col gap-2 border-t border-red-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="flex items-start gap-1.5 text-xs text-red-700">
-              <CircleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Upload the corrected document and save, then send your lab back for review.
-            </p>
-            <button
-              type="button"
-              disabled={resubmitting || saving}
-              onClick={async () => {
-                setResubmitting(true);
-                setMessage(null);
-                try {
-                  await resubmitLabApi();
-                  await refresh();
-                  setMessage({ tone: 'ok', text: 'Thank you. Your lab was sent back to our medical board for review.' });
-                } catch (e) {
-                  setMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Could not resubmit. Please try again.' });
-                } finally {
-                  setResubmitting(false);
-                }
-              }}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#141b34] px-4 py-2 text-sm font-semibold text-white hover:bg-[#232c4f] disabled:opacity-60"
-            >
-              {resubmitting && <LoaderCircle className="h-4 w-4 animate-spin" />} Resubmit for Review
-            </button>
-          </div>
-        </div>
-      )}
+      <FixNotice target="documents" />
 
       <section className={cardClass} aria-labelledby="license-title">
         <h2 id="license-title" className="text-base font-semibold text-[#141b34]">
           Healthcare license
         </h2>
         <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          <Field id="licenseNumber" label="Healthcare License Number" required error={numberError ?? undefined}>
+          <Field id="licenseNumber" label="Healthcare License Number" required error={numberError ?? undefined} className={numberHl ? fixHighlightClass : ''}>
             <input
               id="licenseNumber"
               value={licenseNumber}
@@ -186,7 +159,7 @@ export default function LabDocumentsPage() {
               className={`${inputClass} ${numberError ? inputErrorClass : ''}`}
             />
           </Field>
-          <Field id="regulatoryBody" label="Issuing Regulatory Body" required>
+          <Field id="regulatoryBody" label="Issuing Regulatory Body" required className={bodyHl ? fixHighlightClass : ''}>
             <select id="regulatoryBody" value={body} onChange={(e) => setBody(e.target.value as RegulatoryBodyCode)} className={inputClass}>
               {(Object.keys(REGULATORY_LABELS) as RegulatoryBodyCode[]).map((k) => (
                 <option key={k} value={k}>
@@ -203,7 +176,12 @@ export default function LabDocumentsPage() {
               <p className="text-sm text-[#8a8d99]">No document on file.</p>
             )}
           </div>
-          <div className="sm:col-span-2">
+          <div id="license" className={`scroll-mt-40 sm:col-span-2 ${licenseHl ? fixHighlightClass : ''}`}>
+            {needsFix && (
+              <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+                Upload a clear, valid copy of your license here and choose Save Documents to send it for re-review.
+              </p>
+            )}
             <FileUploadField
               id="licenseDoc"
               label="Upload a new license document"
@@ -231,7 +209,7 @@ export default function LabDocumentsPage() {
               <span className="flex h-24 w-24 items-center justify-center rounded-xl bg-[#f3f1ec] text-xs text-[#8a8d99]">No logo</span>
             )}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className={`min-w-0 flex-1 ${logoHl ? fixHighlightClass : ''}`}>
             <FileUploadField id="logo" label="Upload a new logo" hint="(square image works best)" value={logo} onChange={setLogo} types={LOGO_TYPES} maxBytes={LOGO_MAX_BYTES} kind="logo" />
           </div>
         </div>
@@ -249,7 +227,7 @@ export default function LabDocumentsPage() {
             disabled={!changed || !!numberError || saving}
             className="inline-flex items-center gap-2 rounded-xl bg-[#141b34] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#232c4f] disabled:opacity-50"
           >
-            {saving && <LoaderCircle className="h-4 w-4 animate-spin" />} Save Documents
+            {saving && <LoaderCircle className="h-4 w-4 animate-spin" />} {needsFix && credentialsChanged ? 'Save & Submit for Re-review' : 'Save Documents'}
           </button>
         </div>
       </div>

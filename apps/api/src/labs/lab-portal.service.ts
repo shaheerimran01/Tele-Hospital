@@ -164,7 +164,14 @@ export class LabPortalService {
       const logoUrl = logo ? await this.labs.saveFile(logo, logoKind!, LOGO_DIR, written) : undefined;
       const licenseDocUrl = licenseDoc ? await this.labs.saveFile(licenseDoc, licenseKind!, LICENSE_DIR, written) : undefined;
       const credentials = Boolean(licenseDoc) || licenseChanged || bodyChanged;
-      return await this.prisma.laboratory.update({
+      // An open admin issue is answered by the new credentials: clear the
+      // notice and send the lab straight back to the review queue
+      // (only when every open note is about documents; otherwise the lab fixes
+      // the rest and resubmits itself, so no note gets lost)
+      const issueOpen = lab.verificationStatus === 'REJECTED' || Boolean(lab.rejectionReason?.trim());
+      const onlyDocumentIssues = parseReviewIssues(lab.rejectionReason).every((i) => i.target === 'documents');
+      const resubmitted = credentials && issueOpen && onlyDocumentIssues;
+      const updated = await this.prisma.laboratory.update({
         where: { id: lab.id },
         data: {
           ...(logoUrl && { logoUrl }),
@@ -172,9 +179,11 @@ export class LabPortalService {
           ...(licenseChanged && { licenseNumber: dto.licenseNumber }),
           ...(bodyChanged && { regulatoryBody: dto.regulatoryBody }),
           ...(credentials ? this.reReview(lab, Boolean(licenseDoc)) : {}),
+          ...(resubmitted && { verificationStatus: 'PENDING' as const, isVerified: false, documentVerified: false, rejectionReason: null }),
         },
         select: LAB_SELECT,
       });
+      return { ...updated, resubmitted };
     } catch (err) {
       await Promise.all(written.map((p) => unlink(p).catch(() => undefined)));
       if ((err as { code?: string })?.code === 'P2002') throw new ConflictException('Another laboratory is already registered with this license number.');

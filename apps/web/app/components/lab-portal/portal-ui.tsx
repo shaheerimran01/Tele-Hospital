@@ -2,11 +2,56 @@
 
 // Small pieces shared by the lab dashboard pages.
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import type { FixTarget } from '@/app/lib/api/lab-portal';
+import type { FixFocus } from './fix-routing';
 import { useLabPortal } from './LabPortalShell';
+
+/** The field "Fix Now" asked for (?focus=...), or null */
+export function useFixFocusParam(): { focus: FixFocus | null; nonce: string } {
+  const params = useSearchParams();
+  return { focus: (params.get('focus') as FixFocus | null) ?? null, nonce: params.get('ft') ?? '' };
+}
+
+/**
+ * Opened from "Fix Now" with ?focus=<key>: scrolls the element with `elementId`
+ * into view, focuses its first field and highlights it for a few seconds.
+ * Returns true while the highlight is on.
+ */
+export function useFixFocus(key: FixFocus | FixFocus[], elementId: string, ready = true): boolean {
+  const { focus, nonce } = useFixFocusParam();
+  const keys = Array.isArray(key) ? key : [key];
+  const wanted = focus !== null && keys.includes(focus) && ready;
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    if (!wanted) return;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const run = () => {
+      const el = document.getElementById(elementId);
+      if (!el) {
+        if (tries++ < 40) timer = setTimeout(run, 50);
+        return;
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const field = el.matches('input, select, textarea') ? el : el.querySelector<HTMLElement>('input:not([type="hidden"]), select, textarea');
+      field?.focus({ preventScroll: true });
+      setActive(true);
+      timer = setTimeout(() => setActive(false), 4500);
+    };
+    timer = setTimeout(run, 60);
+    return () => clearTimeout(timer);
+  }, [wanted, elementId, nonce]);
+
+  return active;
+}
+
+/** Ring shown around the field opened from "Fix Now" */
+export const fixHighlightClass = 'rounded-2xl ring-4 ring-amber-400/80 ring-offset-4 ring-offset-white transition-shadow duration-300';
 
 export function PageTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -37,11 +82,19 @@ export function FixNotice({ target }: { target: FixTarget }) {
         ))}
       </ul>
       <p className="mt-2 text-xs text-red-700">
-        After saving your changes, go to the{' '}
-        <Link href={href('/lab-dashboard')} className="font-semibold underline">
-          Dashboard
-        </Link>{' '}
-        and choose <span className="font-semibold">Resubmit for Review</span>.
+        {target === 'documents' ? (
+          <>
+            Upload the corrected document and choose <span className="font-semibold">Save Documents</span>. Your lab is sent back for review automatically.
+          </>
+        ) : (
+          <>
+            After saving your changes, choose <span className="font-semibold">Resubmit for Review</span> in the notice above or on the{' '}
+            <Link href={href('/lab-dashboard')} className="font-semibold underline">
+              Dashboard
+            </Link>
+            .
+          </>
+        )}
       </p>
     </div>
   );

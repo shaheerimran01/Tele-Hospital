@@ -4,15 +4,24 @@
 // address; each can be edited. Changing the director or council license of a
 // verified lab sends it back for review.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2, ExternalLink, LoaderCircle, MapPin, Pencil, Phone, Stethoscope } from 'lucide-react';
 import { Field, inputClass, inputErrorClass } from '../consult-doctors/join-now/ui';
 import { updateLabBranchApi, type LabBranchInfo } from '@/app/lib/api/lab-portal';
 import { useLabPortal } from './LabPortalShell';
-import { FixNotice, PageTitle, SaveMessage, cardClass } from './portal-ui';
+import { FixNotice, PageTitle, SaveMessage, cardClass, fixHighlightClass, useFixFocus, useFixFocusParam } from './portal-ui';
+import type { FixFocus } from './fix-routing';
 
 const COUNCIL_RE = /^[A-Za-z0-9][A-Za-z0-9\-/ ]{1,18}[A-Za-z0-9]$/;
 const PHONE_RE = /^\+?[0-9][0-9\s\-()]{6,19}$/;
+
+/** "Fix Now" focus key -> branch field */
+const FOCUS_FIELD: Partial<Record<FixFocus, 'medicalCouncilLicenseNo' | 'medicalDirectorName' | 'address' | 'phone'>> = {
+  council: 'medicalCouncilLicenseNo',
+  director: 'medicalDirectorName',
+  address: 'address',
+  branchPhone: 'phone',
+};
 
 export default function LabBranchesPage() {
   const { overview } = useLabPortal();
@@ -41,6 +50,16 @@ function BranchItem({ branch, index }: { branch: LabBranchInfo; index: number })
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const idp = `branch-${branch.id}`;
+  const needsFix = overview.laboratory.verificationStatus === 'REJECTED' || Boolean(overview.laboratory.rejectionReason?.trim());
+
+  // "Fix Now" from a medical council / director / address note opens the
+  // main center (first branch) for editing and highlights that field
+  const { focus, nonce } = useFixFocusParam();
+  const focusField = index === 0 && focus ? FOCUS_FIELD[focus] : undefined;
+  useEffect(() => {
+    if (focusField) setEditing(true);
+  }, [focusField, nonce]);
+  const highlighted = useFixFocus(['council', 'director', 'address', 'branchPhone'], `${idp}-${focusField ?? 'medicalCouncilLicenseNo'}`, Boolean(focusField) && editing);
 
   const errors: Record<string, string> = {};
   if (!draft.name.trim()) errors.name = 'Enter a branch name.';
@@ -65,13 +84,22 @@ function BranchItem({ branch, index }: { branch: LabBranchInfo; index: number })
       });
       await refresh();
       setEditing(false);
-      setMessage({ tone: 'ok', text: res.sentForReview ? 'Saved. Your lab was sent for a quick review because the medical director details changed.' : 'Branch details saved.' });
+      setMessage({
+        tone: 'ok',
+        text: needsFix
+          ? 'Branch details saved. When everything in the notice above is fixed, choose Resubmit for Review.'
+          : res.sentForReview
+            ? 'Saved. Your lab was sent for a quick review because the medical director details changed.'
+            : 'Branch details saved.',
+      });
     } catch (e) {
       setMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Could not save the branch.' });
     } finally {
       setSaving(false);
     }
   };
+
+  const hl = (key: keyof typeof draft) => (highlighted && focusField === key ? fixHighlightClass : '');
 
   const input = (key: keyof typeof draft, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <input
@@ -87,7 +115,7 @@ function BranchItem({ branch, index }: { branch: LabBranchInfo; index: number })
   const mapUrl = branch.latitude != null && branch.longitude != null ? `https://www.openstreetmap.org/?mlat=${branch.latitude}&mlon=${branch.longitude}#map=17/${branch.latitude}/${branch.longitude}` : null;
 
   return (
-    <article className={cardClass} aria-labelledby={`${idp}-title`}>
+    <article id={idp} className={`${cardClass} scroll-mt-40 ${highlighted ? 'ring-4 ring-amber-400/80' : ''}`} aria-labelledby={`${idp}-title`}>
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2 id={`${idp}-title`} className="flex items-center gap-2 text-base font-semibold text-[#141b34]">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#141b34] text-white">
@@ -116,16 +144,16 @@ function BranchItem({ branch, index }: { branch: LabBranchInfo; index: number })
           <Field id={`${idp}-name`} label="Branch Name / Identifier" required error={errors.name} className="sm:col-span-2">
             {input('name')}
           </Field>
-          <Field id={`${idp}-medicalDirectorName`} label="Medical Director / Pathologist Name" required error={errors.medicalDirectorName}>
+          <Field id={`${idp}-medicalDirectorName`} label="Medical Director / Pathologist Name" required error={errors.medicalDirectorName} className={hl('medicalDirectorName')}>
             {input('medicalDirectorName')}
           </Field>
-          <Field id={`${idp}-medicalCouncilLicenseNo`} label="Medical Council License Number" hint="(PMDC / PMC)" required error={errors.medicalCouncilLicenseNo}>
+          <Field id={`${idp}-medicalCouncilLicenseNo`} label="Medical Council License Number" hint="(PMDC / PMC)" required error={errors.medicalCouncilLicenseNo} className={hl('medicalCouncilLicenseNo')}>
             {input('medicalCouncilLicenseNo', { autoCapitalize: 'characters' })}
           </Field>
-          <Field id={`${idp}-phone`} label="Branch Phone Number / Helpline" hint="(optional)" error={errors.phone}>
+          <Field id={`${idp}-phone`} label="Branch Phone Number / Helpline" hint="(optional)" error={errors.phone} className={hl('phone')}>
             {input('phone', { type: 'tel', inputMode: 'tel', placeholder: 'e.g. 042 35761234' })}
           </Field>
-          <Field id={`${idp}-address`} label="Branch Address" required error={errors.address} className="sm:col-span-2">
+          <Field id={`${idp}-address`} label="Branch Address" required error={errors.address} className={`sm:col-span-2 ${hl('address')}`}>
             {input('address')}
           </Field>
           {credentialsChanged && overview.laboratory.verificationStatus === 'APPROVED' && (

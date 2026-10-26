@@ -451,6 +451,34 @@ export class LabsService {
     return { success: true, data: lab };
   }
 
+  /**
+   * Admin sends a verification issue / revision request to the lab.
+   * The note is shown on the lab dashboard (sticky banner with "Fix Now") until
+   * the lab re-uploads the document or resubmits for review.
+   */
+  async sendLabIssue(id: string, body: { message?: string; status?: string }) {
+    const message = typeof body?.message === 'string' ? body.message.trim() : '';
+    if (!message) throw new BadRequestException('Please select or write at least one issue for the lab.');
+    if (message.length > 2000) throw new BadRequestException('The issue note is too long. Keep it under 2000 characters.');
+    const status = body?.status === 'REJECTED' ? 'REJECTED' : 'PENDING';
+
+    const exists = await this.prisma.laboratory.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new BadRequestException('Laboratory record not found.');
+
+    const lab = await this.prisma.laboratory.update({
+      where: { id },
+      data: {
+        verificationStatus: status,
+        isVerified: false,
+        documentVerified: false,
+        rejectionReason: message,
+      },
+      include: { branches: { orderBy: [{ isMainCenter: 'desc' }, { createdAt: 'asc' }] } },
+    });
+
+    return { success: true, message: 'Issue notice sent to Lab successfully.', data: lab };
+  }
+
   async getLabDetails(id: string) {
     const lab = await this.prisma.laboratory.findUnique({
       where: { id },

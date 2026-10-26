@@ -11,7 +11,7 @@ import { whatsappE164 } from '../lab-registration/form-model';
 import Toggle from '../lab-dashboard/Toggle';
 import { displayPhone, updateLabProfileApi } from '@/app/lib/api/lab-portal';
 import { useLabPortal } from './LabPortalShell';
-import { FixNotice, PageTitle, SaveMessage, cardClass } from './portal-ui';
+import { FixNotice, PageTitle, SaveMessage, cardClass, fixHighlightClass, useFixFocus } from './portal-ui';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
 
@@ -26,6 +26,11 @@ export default function LabProfilePage() {
   const { overview, refresh } = useLabPortal();
   const lab = overview.laboratory;
   const initialWa = splitWhatsapp(lab.whatsappNumber);
+  const needsFix = lab.verificationStatus === 'REJECTED' || Boolean(lab.rejectionReason?.trim());
+  // "Fix Now" (?focus=...) -> scroll to, focus and highlight the field
+  const nameHl = useFixFocus('labName', 'labName');
+  const emailHl = useFixFocus('email', 'email');
+  const whatsappHl = useFixFocus('whatsapp', 'whatsapp');
   const [name, setName] = useState(lab.name);
   const [email, setEmail] = useState(lab.email);
   const [waCountry, setWaCountry] = useState(initialWa.country);
@@ -55,7 +60,10 @@ export default function LabProfilePage() {
         homeSampleFee: homeSample ? Number(fee.trim()) : 0,
       });
       await refresh();
-      setMessage({ tone: 'ok', text: 'Profile saved.' });
+      setMessage({
+        tone: 'ok',
+        text: needsFix ? 'Profile saved. When everything in the notice above is fixed, choose Resubmit for Review.' : 'Profile saved.',
+      });
     } catch (e) {
       setMessage({ tone: 'error', text: e instanceof Error ? e.message : 'Could not save the profile.' });
     } finally {
@@ -73,7 +81,7 @@ export default function LabProfilePage() {
           Profile details
         </h2>
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          <Field id="labName" label="Lab Name" required error={errors.name} className="sm:col-span-2">
+          <Field id="labName" label="Lab Name" required error={errors.name} className={`sm:col-span-2 ${nameHl ? fixHighlightClass : ''}`}>
             <input id="labName" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errors.name} className={`${inputClass} ${errors.name ? inputErrorClass : ''}`} />
           </Field>
           <div>
@@ -83,7 +91,7 @@ export default function LabProfilePage() {
             </p>
             <p className="mt-1 text-[11px] text-[#8a8d99]">Your login number can&apos;t be changed. Contact Tabibistan support if you need a different one.</p>
           </div>
-          <Field id="email" label="Email Address" required error={errors.email}>
+          <Field id="email" label="Email Address" required error={errors.email} className={emailHl ? fixHighlightClass : ''}>
             <input
               id="email"
               type="email"
@@ -94,7 +102,7 @@ export default function LabProfilePage() {
               className={`${inputClass} ${errors.email ? inputErrorClass : ''}`}
             />
           </Field>
-          <Field id="whatsapp" label="WhatsApp Number" hint="(optional, for patient inquiries)" error={errors.whatsapp} className="sm:col-span-2">
+          <Field id="whatsapp" label="WhatsApp Number" hint="(optional, for patient inquiries)" error={errors.whatsapp} className={`sm:col-span-2 ${whatsappHl ? fixHighlightClass : ''}`}>
             <PhoneInput id="whatsapp" country={waCountry} number={waNumber} invalid={!!errors.whatsapp} onCountry={setWaCountry} onNumber={setWaNumber} />
           </Field>
         </div>

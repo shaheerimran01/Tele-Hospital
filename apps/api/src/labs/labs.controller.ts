@@ -49,7 +49,17 @@ export class LabsController {
   }
 
   /**
-   * POST /labs/register   (multipart/form-data, Authorization: Bearer <lab_token> from /labs/auth/verify-otp)
+   * PATCH /labs/admin/labs/:id/issue   body: { message, status?: 'PENDING' | 'REJECTED' }
+   * Sends a verification issue to the lab: sets the status (PENDING by default),
+   * documentVerified = false and rejectionReason = message.
+   */
+  @Patch('admin/labs/:id/issue')
+  sendLabIssue(@Param('id') id: string, @Body() body: { message?: string; status?: 'PENDING' | 'REJECTED' }) {
+    return this.labsService.sendLabIssue(id, body ?? {});
+  }
+
+  /**
+   * POST /labs/register  (multipart/form-data, Authorization: Bearer <lab_token> from /labs/auth/verify-otp)
    *   name, email, phone (primary login phone, must be the verified one),
    *   whatsappNumber? (+923001234567), licenseNumber,
    *   regulatoryBody (PHC | SHC | KPK_HCC | B_HCC | FEDERAL | OTHER),

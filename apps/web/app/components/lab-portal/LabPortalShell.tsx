@@ -7,8 +7,37 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Building2, CircleAlert, FileCheck, FileText, FlaskConical, LayoutDashboard, LoaderCircle, LogOut, Menu, Settings, ShoppingBag, X } from 'lucide-react';
-import { LabPortalError, clearLabSession, getLabOverviewApi, getLabSession, labFileUrl, type LabOverview, type LabVerificationStatus } from '@/app/lib/api/lab-portal';
+import {
+  ArrowRight,
+  Building2,
+  ChevronDown,
+  ChevronUp,
+  CircleAlert,
+  CircleCheck,
+  FileCheck,
+  FileText,
+  FlaskConical,
+  LayoutDashboard,
+  LoaderCircle,
+  LogOut,
+  Menu,
+  Settings,
+  ShoppingBag,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
+import {
+  LabPortalError,
+  clearLabSession,
+  getLabOverviewApi,
+  getLabSession,
+  labFileUrl,
+  resubmitLabApi,
+  type FixTarget,
+  type LabOverview,
+  type LabVerificationStatus,
+} from '@/app/lib/api/lab-portal';
+import { FIX_PAGE, fixHref } from './fix-routing';
 
 interface LabPortalValue {
   overview: LabOverview;
@@ -199,8 +228,9 @@ export default function LabPortalShell({ children }: { children: React.ReactNode
           </div>
         )}
 
-        {/* Top bar */}
-        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-[#e7e2d8] bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
+        {/* Top bar + admin issue notice (both stay on screen while scrolling) */}
+        <div className="sticky top-0 z-20">
+        <header className="flex items-center gap-3 border-b border-[#e7e2d8] bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <button type="button" onClick={() => setMenuOpen(true)} aria-label="Open menu" className="rounded-lg p-1.5 text-[#3a3f52] hover:bg-[#f3f1ec] lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
@@ -221,9 +251,129 @@ export default function LabPortalShell({ children }: { children: React.ReactNode
             <LogOut className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sign out</span>
           </button>
         </header>
+        <VerificationIssueBanner overview={overview} href={href} refresh={load} />
+        </div>
 
         <main className="min-w-0">{children}</main>
       </div>
     </LabPortalContext.Provider>
+  );
+}
+
+/**
+ * Sticky notice when our team sent a verification issue (rejectionReason) and
+ * the lab is pending / rejected or its license file is not verified.
+ * "Fix Now" opens the page and field the (first) note is about.
+ */
+function VerificationIssueBanner({ overview, href, refresh }: { overview: LabOverview; href: (path: string) => string; refresh: () => Promise<void> }) {
+  const router = useRouter();
+  const lab = overview.laboratory;
+  const reason = lab.rejectionReason?.trim() ?? '';
+  const show = reason.length > 0 && (lab.verificationStatus === 'PENDING' || lab.verificationStatus === 'REJECTED' || !lab.documentVerified);
+  const [collapsed, setCollapsed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  // Clear the "submitted" confirmation after a while
+  useEffect(() => {
+    if (note?.tone !== 'ok') return;
+    const t = setTimeout(() => setNote(null), 8000);
+    return () => clearTimeout(t);
+  }, [note]);
+
+  if (!show) {
+    return note?.tone === 'ok' ? (
+      <div className="flex items-center gap-2 border-b border-[#2f7a4b]/20 bg-[#e8f3ec] px-4 py-2.5 text-sm text-[#1f5a35] sm:px-6" role="status">
+        <CircleCheck className="h-4 w-4 shrink-0" /> {note.text}
+      </div>
+    ) : null;
+  }
+
+  const issues = overview.issues.length ? overview.issues : [{ id: 'issue-1', text: reason, target: 'documents' as FixTarget }];
+  const first = issues[0];
+  const otherTargets = [...new Set(issues.map((i) => i.target))].filter((t) => t !== first.target);
+  const fixNow = (issue = first) => router.push(fixHref(href, issue, Date.now().toString(36)));
+
+  const resubmit = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      await resubmitLabApi();
+      await refresh();
+      setNote({ tone: 'ok', text: 'Thank you. Your lab was submitted for re-review by the Tabibistan Medical Board.' });
+    } catch (e) {
+      setNote({ tone: 'error', text: e instanceof Error ? e.message : 'Could not resubmit. Please try again.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="border-b border-amber-300 bg-amber-50 px-4 py-3 sm:px-6" role="alert" aria-labelledby="lab-issue-title">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-white">
+          <TriangleAlert className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p id="lab-issue-title" className="text-sm font-bold text-amber-950">
+              ⚠️ Verification Issue Detected — Action Required
+            </p>
+            <button
+              type="button"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-expanded={!collapsed}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-amber-900 hover:underline"
+            >
+              {collapsed ? (
+                <>
+                  Show details <ChevronDown className="h-3.5 w-3.5" />
+                </>
+              ) : (
+                <>
+                  Hide details <ChevronUp className="h-3.5 w-3.5" />
+                </>
+              )}
+            </button>
+          </div>
+          {!collapsed && (
+            <>
+              <p className="mt-1 max-h-28 overflow-y-auto whitespace-pre-line pr-1 text-sm text-amber-950">{reason}</p>
+              {otherTargets.length > 0 && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-amber-900">
+                  Also fix in:
+                  {otherTargets.map((t) => (
+                    <button key={t} type="button" onClick={() => fixNow(issues.find((i) => i.target === t))} className="font-semibold underline hover:no-underline">
+                      {FIX_PAGE[t].label}
+                    </button>
+                  ))}
+                </p>
+              )}
+              {note?.tone === 'error' && <p className="mt-1.5 text-xs font-medium text-red-700">{note.text}</p>}
+            </>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={() => fixNow()}
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-600/40 focus-visible:ring-offset-2"
+          >
+            Fix Now <ArrowRight className="h-4 w-4" />
+          </button>
+          {!collapsed && overview.canResubmit && (
+            <button
+              type="button"
+              onClick={resubmit}
+              disabled={busy}
+              title="Choose this after fixing everything in the note"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-950 hover:bg-amber-100 disabled:opacity-60"
+            >
+              {busy && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />} Resubmit for Review
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

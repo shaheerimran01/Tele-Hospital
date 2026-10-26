@@ -25,6 +25,8 @@ export interface LabProfile extends LabSummary {
   regulatoryBody: RegulatoryBodyCode;
   licenseDocUrl: string;
   isVerified: boolean;
+  /** an admin has checked the current license file */
+  documentVerified: boolean;
   rejectionReason: string | null;
   hasHomeSample: boolean;
   homeSampleFee: number | null;
@@ -149,7 +151,8 @@ export const getLabOverviewApi = () => request<LabOverview>('/labs/me/overview')
 export const updateLabProfileApi = (body: Partial<Pick<LabProfile, 'name' | 'email' | 'whatsappNumber' | 'hasHomeSample' | 'homeSampleFee'>>) =>
   request<LabProfile>('/labs/me/profile', json('PATCH', body));
 
-export const updateLabDocumentsApi = (body: FormData) => request<LabProfile>('/labs/me/documents', { method: 'POST', body });
+/** `resubmitted`: an open admin issue was cleared and the lab went back for review */
+export const updateLabDocumentsApi = (body: FormData) => request<LabProfile & { resubmitted?: boolean }>('/labs/me/documents', { method: 'POST', body });
 
 export const updateLabBranchApi = (branchId: string, body: Partial<Pick<LabBranchInfo, 'name' | 'medicalDirectorName' | 'medicalCouncilLicenseNo' | 'address' | 'phone'>>) =>
   request<{ branch: LabBranchInfo; sentForReview: boolean }>(`/labs/me/branches/${encodeURIComponent(branchId)}`, json('PATCH', body));
