@@ -29,6 +29,11 @@ export const FIX_PAGE: Record<FixTarget, { path: string; label: string }> = {
 export function fixFocusOf(text: string, target: FixTarget): FixFocus {
   const t = text.toLowerCase();
   if (target === 'documents') {
+    // The note's title ("Healthcare License Number Incorrect: ...") decides first
+    const head = text.split(':')[0].toLowerCase();
+    if (/regulatory body|issuing (body|authority)/.test(head)) return 'regulatoryBody';
+    if (/licen[cs]e (no|number)/.test(head)) return 'licenseNumber';
+    if (/document|scan|copy|photo|upload|unclear|expired/.test(head)) return 'license';
     if (/logo/.test(t)) return 'logo';
     if (/regulat|issuing|commission|authority/.test(t) && !/document|scan|photo|copy|upload|blur|unclear|expired/.test(t)) return 'regulatoryBody';
     if (/licen[cs]e (no|number|#)|number mismatch|wrong number/.test(t) && !/document|scan|photo|copy|upload/.test(t)) return 'licenseNumber';

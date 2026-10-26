@@ -32,6 +32,20 @@ const QUICK_ISSUES = [
     message: 'Licence Document Unclear or Expired: Please re-upload a clear, valid scanned copy of your healthcare licence (e.g. PHC licence).',
   },
   {
+    id: 'license-number',
+    icon: '🔢',
+    label: 'Healthcare License Number Incorrect',
+    message:
+      'Healthcare License Number Incorrect: The healthcare license number entered does not match your licence. Please correct it under Documents & Licensing.',
+  },
+  {
+    id: 'regulatory-body',
+    icon: '🏛️',
+    label: 'Issuing Regulatory Body Incorrect',
+    message:
+      'Issuing Regulatory Body Incorrect: The selected regulatory body (e.g. PHC / SHC) is not the authority that issued your licence. Please select the correct one under Documents & Licensing.',
+  },
+  {
     id: 'council-license',
     icon: '🏥',
     label: 'Medical Council License Number Mismatch',
