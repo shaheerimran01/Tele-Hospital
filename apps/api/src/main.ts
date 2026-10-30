@@ -9,11 +9,27 @@ async function bootstrap() {
     instrument: ObserveInstrument,
   });
 
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://tabibistan.org',
+    'https://tabibistan.org',
+    'http://www.tabibistan.org',
+    'https://www.tabibistan.org',
+    'http://api.tabibistan.org',
+    'https://api.tabibistan.org',
+    'http://admin.tabibistan.org',
+    'https://admin.tabibistan.org',
+  ];
+
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-    ],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.tabibistan.org')) {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   });
 
