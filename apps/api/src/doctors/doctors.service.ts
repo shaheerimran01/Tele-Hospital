@@ -6,8 +6,8 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { randomInt, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { OtpService } from '../otp/otp.service.js';
 import { DoctorStatus } from '../generated/prisma/enums.js';
 import type { Prisma } from '../generated/prisma/client.js';
 import {
@@ -25,9 +25,7 @@ import {
   recordDoctorPortalNotification,
 } from '../doctor-admin/doctor-portal-notifications.js';
 import {
-  doctorOtpKey,
   doctorPhoneVariants,
-  formatDoctorPhone,
   maskEmail,
   signDoctorToken,
   type DoctorTokenPayload,
@@ -36,9 +34,6 @@ import {
 const DEFAULT_LIMIT = 50;
 const DEFAULT_RADIUS_KM = 10;
 
-const OTP_TTL_MINUTES = 5;
-const OTP_RESEND_SECONDS = 30;
-const OTP_MAX_ATTEMPTS = 5;
 
 /** Relations returned with every doctor profile. */
 const DOCTOR_PROFILE_INCLUDE = {
@@ -70,41 +65,20 @@ type DoctorWithRelations = Prisma.DoctorGetPayload<{
 
 @Injectable()
 export class DoctorsService {
-  /** Wrong-OTP counter per phone (in memory; resets when the API restarts). */
-  private readonly otpAttempts = new Map<string, number>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly otp: OtpService,
+  ) {}
 
   // ---------------------------------------------------------------------------
   // Doctor auth: POST /doctors/auth/send-otp
   // ---------------------------------------------------------------------------
 
   async sendOtp(dto: SendDoctorOtpDto) {
-    const phone = formatDoctorPhone(dto.phone);
-    const key = doctorOtpKey(phone);
-
-    // Stop rapid re-sends (and SMS cost later): one OTP per 30 seconds
-    const recent = await this.prisma.otpSession.findFirst({
-      where: { phone: key, createdAt: { gt: new Date(Date.now() - OTP_RESEND_SECONDS * 1000) } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (recent) {
-      const wait = Math.ceil(
-        (recent.createdAt.getTime() + OTP_RESEND_SECONDS * 1000 - Date.now()) / 1000,
-      );
-      throw new BadRequestException(`Please wait ${Math.max(wait, 1)} seconds before requesting a new OTP.`);
-    }
-
-    const otp = randomInt(100000, 1000000).toString();
-    await this.prisma.otpSession.create({
-      data: { phone: key, otp, expiresAt: new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000) },
-    });
-    this.otpAttempts.delete(key);
-
-    // DEV: no SMS provider yet, so the OTP is printed in the API terminal
-    console.log(`\n==============================`);
-    console.log(`🩺 Doctor OTP for ${phone}: ${otp}`);
-    console.log(`==============================\n`);
+    // 6-digit code by WhatsApp (or the API console when ENABLE_WHATSAPP_OTP=false); see OtpService
+    const sent = await this.otp.send('DOCTOR', dto.phone);
+    const phone = sent.phone;
 
     const { registration, doctor } = await this.findDoctorAccount(phone);
     return {
@@ -112,7 +86,9 @@ export class DoctorsService {
       phone,
       exists: Boolean(registration || doctor),
       email: maskEmail(registration?.email ?? doctor?.email),
-      resendAfterSeconds: OTP_RESEND_SECONDS,
+      channel: sent.channel,
+      resendAfterSeconds: sent.resendAfterSeconds,
+      expiresInMinutes: sent.expiresInMinutes,
     };
   }
 
@@ -121,38 +97,7 @@ export class DoctorsService {
   // ---------------------------------------------------------------------------
 
   async verifyOtp(dto: VerifyDoctorOtpDto) {
-    const phone = formatDoctorPhone(dto.phone);
-    const key = doctorOtpKey(phone);
-
-    const session = await this.prisma.otpSession.findFirst({
-      where: { phone: key, verifiedAt: null },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!session) throw new BadRequestException('No OTP found. Please request a new one.');
-    if (session.expiresAt < new Date()) {
-      throw new BadRequestException('This OTP has expired. Please request a new one.');
-    }
-
-    const given = Buffer.from(dto.otp);
-    const expected = Buffer.from(session.otp);
-    const matches = given.length === expected.length && timingSafeEqual(given, expected);
-
-    if (!matches) {
-      const attempts = (this.otpAttempts.get(key) ?? 0) + 1;
-      this.otpAttempts.set(key, attempts);
-      if (attempts >= OTP_MAX_ATTEMPTS) {
-        // Burn the code so it can't be brute-forced
-        await this.prisma.otpSession.update({ where: { id: session.id }, data: { verifiedAt: new Date() } });
-        this.otpAttempts.delete(key);
-        throw new BadRequestException('Too many wrong attempts. Please request a new OTP.');
-      }
-      throw new BadRequestException(
-        `Incorrect OTP. ${OTP_MAX_ATTEMPTS - attempts} attempt${OTP_MAX_ATTEMPTS - attempts === 1 ? '' : 's'} left.`,
-      );
-    }
-
-    await this.prisma.otpSession.update({ where: { id: session.id }, data: { verifiedAt: new Date() } });
-    this.otpAttempts.delete(key);
+    const { phone } = await this.otp.verify('DOCTOR', dto.phone, dto.otp);
 
     let { registration, doctor } = await this.findDoctorAccount(phone);
 

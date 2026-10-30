@@ -25,12 +25,14 @@ import { LabTestsModule } from './lab-tests/lab-tests.module.js';
 import { LabsModule } from './labs/labs.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
 import { LabPrescriptionsModule } from './lab-prescriptions/lab-prescriptions.module.js';
+import { OtpModule } from './otp/otp.module.js';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
     PrismaModule,
+    OtpModule,
     UsersModule,
     AuthModule,
     AddressModule,

@@ -5,85 +5,76 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAccountDto } from './dto/create-account.dto.js';
+import { SendOtpDto } from './dto/send-otp.dto.js';
+import { VerifyOtpDto } from './dto/verify-otp.dto.js';
+import { OTP_LENGTH, OtpService, type OtpRole } from '../otp/otp.service.js';
+import { pkPhoneVariants } from '../otp/phone.js';
+import { DoctorsService } from '../doctors/doctors.service.js';
+import { PharmaciesService } from '../pharmacies/pharmacies.service.js';
+import { LabAuthService } from '../labs/lab-auth.service.js';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly otp: OtpService,
+    private readonly doctors: DoctorsService,
+    private readonly pharmacies: PharmaciesService,
+    private readonly labAuth: LabAuthService,
+  ) {}
 
-  async sendOtp(phone: string) {
-    // 1. Generate 6 digit OTP
-    const otp = Math.floor(
-      100000 + Math.random() * 900000,
-    ).toString();
-
-    // 2. OTP expires after 2 minutes
-    const expiresAt = new Date(
-      Date.now() + 2 * 60 * 1000,
-    );
-
-    // 3. Save OTP in database
-    await this.prisma.otpSession.create({
-      data: {
-        phone,
-        otp,
-        expiresAt,
-      },
-    });
-
-    // Development only
-    console.log(`OTP for ${phone}: ${otp}`);
-
-    return {
-      message: 'OTP sent successfully',
-    };
+  /** POST /auth/send-otp */
+  async sendOtp(dto: SendOtpDto) {
+    const role: OtpRole = dto.role ?? 'USER';
+    const extra = { role, codeLength: OTP_LENGTH[role] };
+    switch (role) {
+      case 'DOCTOR':
+        return { ...(await this.doctors.sendOtp({ phone: dto.phone })), ...extra };
+      case 'PHARMACY':
+        return { ...(await this.pharmacies.sendPharmacyOtp(dto.phone)), ...extra };
+      case 'LAB':
+        return { ...(await this.labAuth.sendOtp({ phone: dto.phone })), ...extra };
+      default: {
+        const sent = await this.otp.send('USER', dto.phone);
+        return {
+          success: true,
+          message: sent.channel === 'whatsapp' ? 'OTP sent on WhatsApp' : 'OTP sent successfully',
+          phone: sent.phone,
+          channel: sent.channel,
+          resendAfterSeconds: sent.resendAfterSeconds,
+          expiresInMinutes: sent.expiresInMinutes,
+          ...extra,
+        };
+      }
+    }
   }
 
-  async verifyOtp(phone: string, otp: string) {
-    // Find latest OTP for this phone
-    const otpSession =
-      await this.prisma.otpSession.findFirst({
-        where: {
+  /** POST /auth/verify-otp */
+  async verifyOtp(dto: VerifyOtpDto) {
+    const role: OtpRole = dto.role ?? 'USER';
+    const code = dto.code || dto.otp;
+    if (!code) throw new BadRequestException('Enter the OTP code.');
+    const extra = { verified: true, role };
+    switch (role) {
+      case 'DOCTOR':
+        return { ...(await this.doctors.verifyOtp({ phone: dto.phone, otp: code })), ...extra };
+      case 'PHARMACY':
+        return { ...(await this.pharmacies.verifyPharmacyOtp(dto.phone, code)), ...extra };
+      case 'LAB':
+        return { ...(await this.labAuth.verifyOtp({ phone: dto.phone, otp: code })), ...extra };
+      default: {
+        const { phone } = await this.otp.verify('USER', dto.phone, code);
+        const user = await this.prisma.user.findFirst({ where: { phone: { in: pkPhoneVariants(phone) } } });
+        return {
+          success: true,
+          message: 'OTP verified successfully',
           phone,
-          verifiedAt: null,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-    if (!otpSession) {
-      throw new BadRequestException(
-        'OTP not found',
-      );
+          exists: Boolean(user),
+          user: user ? { id: user.id, firstName: user.firstName, lastName: user.lastName, phone: user.phone, email: user.email } : null,
+          ...extra,
+        };
+      }
     }
-
-    // Check expiry
-    if (otpSession.expiresAt < new Date()) {
-      throw new BadRequestException(
-        'OTP has expired',
-      );
-    }
-
-    // Check OTP
-    if (otpSession.otp !== otp) {
-      throw new BadRequestException(
-        'Invalid OTP',
-      );
-    }
-
-    // Mark OTP as verified
-    await this.prisma.otpSession.update({
-      where: {
-        id: otpSession.id,
-      },
-      data: {
-        verifiedAt: new Date(),
-      },
-    });
-
-    return {
-      message: 'OTP verified successfully',
-    };
   }
 
   async checkAccount(phone: string) {

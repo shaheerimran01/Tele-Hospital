@@ -14,6 +14,6 @@ import { PatientLabsService } from './patient-labs.service.js';
   imports: [PrismaModule],
   controllers: [LabsController, LabPricingController, LabAuthController, LabPortalController, PatientLabsController],
   providers: [LabsService, LabPricingService, LabAuthService, LabPortalService, PatientLabsService],
-  exports: [LabsService, LabPricingService],
+  exports: [LabsService, LabPricingService, LabAuthService],
 })
 export class LabsModule {}

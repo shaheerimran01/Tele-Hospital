@@ -1,10 +1,14 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { OtpService } from '../otp/otp.service.js';
 import { CreatePharmacyDto } from './dto/create-pharmacy.dto.js';
 
 @Injectable()
 export class PharmaciesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly otp: OtpService,
+  ) {}
 
   private formatPhone(phone: string): string {
     if (!phone) return '';
@@ -42,41 +46,23 @@ export class PharmaciesService {
   // -------------------------------------------------------------
   async sendPharmacyOtp(phone: string) {
     if (!phone) throw new BadRequestException('Phone number is required');
-    const formattedPhone = this.formatPhone(phone);
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    await this.prisma.otpSession.create({
-      data: { phone: formattedPhone, otp, expiresAt },
-    });
-
-    // 🔐 DEV: Print OTP to terminal (remove before production)
-    console.log(`\n==============================`);
-    console.log(`📱 OTP for ${formattedPhone}: ${otp}`);
-    console.log(`==============================\n`);
-
-    return { success: true, message: 'OTP sent successfully', phone: formattedPhone };
+    // 6-digit code by WhatsApp (or the API console when ENABLE_WHATSAPP_OTP=false); see OtpService
+    const sent = await this.otp.send('PHARMACY', phone);
+    return {
+      success: true,
+      message: sent.channel === 'whatsapp' ? 'OTP sent on WhatsApp' : 'OTP sent successfully',
+      phone: sent.phone,
+      channel: sent.channel,
+      resendAfterSeconds: sent.resendAfterSeconds,
+      expiresInMinutes: sent.expiresInMinutes,
+    };
   }
 
   async verifyPharmacyOtp(phone: string, otp: string) {
     if (!phone || !otp) throw new BadRequestException('Phone and OTP are required');
 
-    const formattedPhone = this.formatPhone(phone);
+    const { phone: formattedPhone } = await this.otp.verify('PHARMACY', phone, otp);
     const phoneVariants = this.getPhoneVariants(phone);
-
-    const otpSession = await this.prisma.otpSession.findFirst({
-      where: { phone: { in: phoneVariants }, verifiedAt: null },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    if (!otpSession) throw new BadRequestException('OTP not found or expired.');
-    if (otpSession.expiresAt < new Date()) throw new BadRequestException('OTP has expired.');
-    if (otpSession.otp !== otp.trim()) throw new BadRequestException('Invalid OTP. Please try again.');
-
-    await this.prisma.otpSession.update({
-      where: { id: otpSession.id },
-      data: { verifiedAt: new Date() },
-    });
 
     const reg = await this.prisma.pharmacyRegistration.findFirst({
       where: { phone: { in: phoneVariants } },
