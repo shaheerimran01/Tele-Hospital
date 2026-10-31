@@ -187,7 +187,7 @@ export default function LoginForm({ isOpen: propIsOpen, onClose }: LoginFormProp
 
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const formattedPhone = `+92${cleanPhone}`;
 
       const res = await fetch(`${apiUrl}/auth/send-otp`, {
@@ -221,7 +221,7 @@ export default function LoginForm({ isOpen: propIsOpen, onClose }: LoginFormProp
     setSuccessMsg(null);
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const formattedPhone = `+92${phone.replace(/\D/g, '')}`;
 
       const res = await fetch(`${apiUrl}/auth/send-otp`, {
@@ -258,7 +258,7 @@ export default function LoginForm({ isOpen: propIsOpen, onClose }: LoginFormProp
 
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const formattedPhone = `+92${phone.replace(/\D/g, '')}`;
 
       // 1. Verify OTP
@@ -324,7 +324,7 @@ export default function LoginForm({ isOpen: propIsOpen, onClose }: LoginFormProp
 
     try {
       setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const formattedPhone = `+92${phone.replace(/\D/g, '')}`;
 
       const res = await fetch(`${apiUrl}/auth/create-account`, {

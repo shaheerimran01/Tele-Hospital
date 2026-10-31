@@ -21,7 +21,7 @@ export default function CompleteProfileForm() {
     try {
       const storedPhone = sessionStorage.getItem('pharmacyPhone') || phone;
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/pharmacies/auth/complete-profile`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org'}/pharmacies/auth/complete-profile`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

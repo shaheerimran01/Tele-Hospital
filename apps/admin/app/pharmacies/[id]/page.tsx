@@ -27,7 +27,7 @@ import { useRouter } from 'next/navigation';
 import { fetchPharmacyById, updatePharmacyStatus, sendPharmacyNotification } from '@/lib/api/pharmacies';
 import { deleteNotification } from '@/lib/api/notifications';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export default function PharmacyDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);

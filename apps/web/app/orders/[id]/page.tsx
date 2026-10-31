@@ -53,7 +53,7 @@ export default function CustomerOrderDetailsPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`http://localhost:4000/orders/${orderId}`);
+      const res = await fetch(`https://tabibistan.org/orders/${orderId}`);
       if (!res.ok) {
         throw new Error('Order details load nahi ho sakay.');
       }
@@ -65,7 +65,7 @@ export default function CustomerOrderDetailsPage() {
       let rawPrescriptionUrl: string | null = null;
       if (prescriptions.length > 0 && prescriptions[0]?.fileUrl) {
         const url = prescriptions[0].fileUrl;
-        rawPrescriptionUrl = url.startsWith('http') ? url : `http://localhost:4000${url.startsWith('/') ? '' : '/'}${url}`;
+        rawPrescriptionUrl = url.startsWith('http') ? url : `https://tabibistan.org${url.startsWith('/') ? '' : '/'}${url}`;
       }
 
       setOrder({

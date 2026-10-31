@@ -419,7 +419,7 @@ export default function LocationModal({
 
     try {
       const response = await fetch(
-        `http://localhost:4000/addresses?userId=${user.id}`,
+        `https://tabibistan.org/addresses?userId=${user.id}`,
         {
           method: 'POST',
           headers: {

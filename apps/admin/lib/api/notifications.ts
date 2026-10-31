@@ -1,6 +1,6 @@
 import { NotificationItem, OrderItemSummary } from '@/types/notification';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export async function fetchNotifications(): Promise<NotificationItem[]> {
   const res = await fetch(`${API_BASE_URL}/notifications`, { cache: 'no-store' });

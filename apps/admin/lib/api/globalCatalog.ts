@@ -5,7 +5,7 @@ import {
   GlobalCatalogResponse,
 } from '@/types/globalCatalog';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 type RawGlobalCatalogItem = Omit<GlobalCatalogItem, 'pharmacies'> & {
   /** Older responses only carried isActive. */

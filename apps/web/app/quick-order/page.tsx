@@ -55,7 +55,7 @@ export default function QuickOrderPage() {
     const timer = setTimeout(async () => {
       try {
         setIsSearching(true);
-        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
         const res = await fetch(`${apiBase}/products/search?q=${encodeURIComponent(searchQuery.trim())}`);
         if (res.ok) {
           const data = await res.json();
@@ -400,7 +400,7 @@ export default function QuickOrderPage() {
                   {selectedPrescriptions.map((file) => {
                     const fullFileUrl = file.fileUrl.startsWith('http')
                       ? file.fileUrl
-                      : `http://localhost:4000${file.fileUrl}`;
+                      : `https://tabibistan.org${file.fileUrl}`;
 
                     const isPdf =
                       file.fileType?.includes('pdf') ||
@@ -580,7 +580,7 @@ export default function QuickOrderPage() {
                     const fullProdImgUrl = rawImg
                       ? rawImg.startsWith('http')
                         ? rawImg
-                        : `http://localhost:4000${rawImg}`
+                        : `https://tabibistan.org${rawImg}`
                       : null;
 
                     return (

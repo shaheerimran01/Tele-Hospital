@@ -9,7 +9,7 @@ export interface PrescriptionResponse {
   createdAt: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export async function uploadPrescriptionApi(
   userId: string,
@@ -91,7 +91,7 @@ export async function getUserPrescriptionsApi(
   userId: string,
   unattached = false
 ): Promise<PrescriptionResponse[]> {
-  const url = `http://localhost:4000/prescriptions?userId=${userId}${
+  const url = `https://tabibistan.org/prescriptions?userId=${userId}${
     unattached ? '&unattached=true' : ''
   }`;
 
@@ -109,7 +109,7 @@ export async function deletePrescriptionApi(
   userId: string
 ): Promise<{ message?: string }> {
   const response = await fetch(
-    `http://localhost:4000/prescriptions/${id}?userId=${userId}`,
+    `https://tabibistan.org/prescriptions/${id}?userId=${userId}`,
     {
       method: 'DELETE',
     }

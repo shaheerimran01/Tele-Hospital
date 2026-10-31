@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 /** Quick-select issues for "Send Issue / Request Revision" (each becomes one line of the note) */
 const QUICK_ISSUES = [

@@ -1,6 +1,6 @@
 // Admin Doctor Portal API (apps/api: /admin/doctor-portal/*)
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 const BASE = `${API_BASE_URL}/admin/doctor-portal`;
 
 export type DoctorStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

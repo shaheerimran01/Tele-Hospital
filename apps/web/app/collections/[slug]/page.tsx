@@ -421,7 +421,7 @@ export default function GenericCollectionPage({ params }: PageProps) {
     async function fetchProducts() {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:4000/products');
+        const res = await fetch('https://tabibistan.org/products');
         if (!res.ok) throw new Error('Failed to fetch backend products');
 
         const data = await res.json();

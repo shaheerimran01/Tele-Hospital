@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 const ORDER_STATUS_OPTIONS = [
   'PENDING',

@@ -1,7 +1,7 @@
 // apps/web/app/lib/api/hospitals.ts
 // Patient flow: hospitals near the patient, with the registered doctors who practise there.
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export interface HospitalDoctor {
   id: string;

@@ -6,7 +6,7 @@ import {
   SyncResult,
 } from '@/types/pharmacyProduct';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export type PharmacyProductFilters = {
   pharmacyId?: string;

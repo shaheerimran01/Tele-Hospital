@@ -14,7 +14,7 @@ export interface CreateOrderPayload {
 }
 
 export async function placeOrderApi(userId: string, payload: CreateOrderPayload) {
-  const response = await fetch(`http://localhost:4000/orders?userId=${userId}`, {
+  const response = await fetch(`https://tabibistan.org/orders?userId=${userId}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

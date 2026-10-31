@@ -98,14 +98,14 @@ export default function PersonalDetailsPage() {
   const getFullImageUrl = (path?: string | null) => {
     if (!path) return '';
     if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
     return `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
   };
 
   const fetchPharmacyDetails = async (id: string) => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/pharmacies/${id}`);
       if (res.ok) {
         const data = await res.json();
@@ -187,7 +187,7 @@ export default function PersonalDetailsPage() {
     setStatusMessage(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/pharmacies/${pharmacyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

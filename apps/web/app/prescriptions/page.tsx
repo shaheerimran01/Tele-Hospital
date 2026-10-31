@@ -175,7 +175,7 @@ export default function MyPrescriptionsPage() {
               {prescriptions.map((file) => {
                 const fullFileUrl = file.fileUrl.startsWith('http')
                   ? file.fileUrl
-                  : `http://localhost:4000${file.fileUrl}`;
+                  : `https://tabibistan.org${file.fileUrl}`;
 
                 const isPdf =
                   file.fileType?.includes('pdf') ||

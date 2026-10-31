@@ -22,7 +22,7 @@ export default function ProductDetailView({ slug }: ProductDetailViewProps) {
     async function fetchProduct() {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://tabibistan.org"}/products`, { cache: 'no-store' });
         if (res.ok) {
           const products: ApiProduct[] = await res.json();
           const matched = products.find(

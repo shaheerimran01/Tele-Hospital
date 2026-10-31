@@ -211,7 +211,7 @@ export default function ProductsPage() {
   const fetchPharmacyProducts = async (targetId: string) => {
     setLoading(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/pharmacy-products/${targetId}`);
       const data = await res.json();
 
@@ -285,7 +285,7 @@ export default function ProductsPage() {
     if (!window.confirm(`Kya aap "${productName}" ko delete karna chahte hain?`)) return;
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/pharmacy-products/${pharmacyId}/product/${productId}`, {
         method: 'DELETE',
       });
@@ -314,7 +314,7 @@ export default function ProductsPage() {
     }
 
     setIsSubmitting(true);
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
     try {
       if (editingProductId) {
@@ -392,7 +392,7 @@ export default function ProductsPage() {
     setStatusMessage(null);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const formData = new FormData();
       formData.append('file', file);
 

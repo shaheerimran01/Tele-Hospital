@@ -95,7 +95,7 @@ export default function PharmacyOrdersPage() {
     setLoading(true);
     setError(null);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/orders/pharmacy-orders`, {
         headers: {
           'x-pharmacy-id': pharmacyId,
@@ -114,7 +114,7 @@ export default function PharmacyOrdersPage() {
   const fetchAnalytics = async () => {
     if (!pharmacyId) return;
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/orders/pharmacy-orders/analytics`, {
         headers: {
           'x-pharmacy-id': pharmacyId,
@@ -130,7 +130,7 @@ export default function PharmacyOrdersPage() {
 
   const handleResponse = async (requestId: string, status: string) => {
     if (!pharmacyId) return;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
     try {
       const res = await fetch(`${baseUrl}/orders/pharmacy-orders/${requestId}/respond`, {
         method: 'PATCH',
@@ -198,7 +198,7 @@ export default function PharmacyOrdersPage() {
 
   const handlePartialResponse = async () => {
     if (!partialRequestId || !pharmacyId || selectedPartialItems.size === 0) return;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
     try {
       let res = await fetch(`${baseUrl}/orders/pharmacy-orders/${partialRequestId}/respond`, {
         method: 'PATCH',

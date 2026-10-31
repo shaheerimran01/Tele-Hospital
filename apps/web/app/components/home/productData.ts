@@ -1,3 +1,4 @@
+import { fetchAllProductsCached } from '@/app/lib/api/cachedProducts';
 import { Product } from './ProductSection';
 
 export interface ApiProduct {
@@ -37,20 +38,7 @@ export interface ApiProduct {
  */
 export async function getSkinCareProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error: ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {
@@ -159,20 +147,7 @@ const COMBO_METADATA: Record<string, { title: string; image: string }> = {
 
 export async function getComboDeals(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error fetching Combo Deals: ${res.statusText}`);
-      return [];
-    }
-
-    const rawData = await res.json();
-    const products = Array.isArray(rawData)
-      ? rawData
-      : Array.isArray(rawData.data)
-      ? rawData.data
-      : rawData.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const comboBuckets: Record<string, any[]> = {};
@@ -263,22 +238,7 @@ export async function getComboDeals(): Promise<Product[]> {
  */
 export async function getHealthyHairProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error fetching Healthy Hair products: ${res.statusText}`);
-      return [];
-    }
-
-    const rawData = await res.json();
-
-    // Safely unwrap response array payload
-    const products = Array.isArray(rawData)
-      ? rawData
-      : Array.isArray(rawData.data)
-      ? rawData.data
-      : rawData.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {
@@ -358,22 +318,7 @@ export async function getHealthyHairProducts(): Promise<Product[]> {
  */
 export async function getHomeopathyBestMedicines(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error fetching Homeopathy products: ${res.statusText}`);
-      return [];
-    }
-
-    const rawData = await res.json();
-
-    // Safely unwrap response array payload
-    const products = Array.isArray(rawData)
-      ? rawData
-      : Array.isArray(rawData.data)
-      ? rawData.data
-      : rawData.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {
@@ -444,17 +389,7 @@ export async function getHomeopathyBestMedicines(): Promise<Product[]> {
  */
 export async function getAllopathyTopSellers(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) return [];
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     // Helper to safely convert text fields / arrays to string
@@ -530,20 +465,7 @@ export async function getAllopathyTopSellers(): Promise<Product[]> {
  */
 export async function getHerbalBestMedicines(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error: ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {
@@ -613,20 +535,7 @@ export async function getHerbalBestMedicines(): Promise<Product[]> {
  */
 export async function getPopularProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error: ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const matchedProducts = products
@@ -694,22 +603,7 @@ export async function getPopularProducts(): Promise<Product[]> {
  */
 export async function getExploreSomethingNew(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error fetching Explore Something New: ${res.statusText}`);
-      return [];
-    }
-
-    const rawData = await res.json();
-
-    // Safely unwrap response array payload
-    const products = Array.isArray(rawData)
-      ? rawData
-      : Array.isArray(rawData.data)
-      ? rawData.data
-      : rawData.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     // Sort by createdAt DESC (newest additions first) and take top 10
@@ -765,22 +659,7 @@ export async function getExploreSomethingNew(): Promise<Product[]> {
  */
 export async function getTrendingNowProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error fetching Trending Now products: ${res.statusText}`);
-      return [];
-    }
-
-    const rawData = await res.json();
-
-    // Safely unwrap response array payload
-    const products = Array.isArray(rawData)
-      ? rawData
-      : Array.isArray(rawData.data)
-      ? rawData.data
-      : rawData.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {
@@ -843,22 +722,7 @@ export async function getTrendingNowProducts(): Promise<Product[]> {
  */
 export async function getTopDealsPainAndCough(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', {
-      cache: 'no-store', // Ensures fresh database data on every request
-    });
-
-    if (!res.ok) {
-      console.error(`Database Error: ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: string | string[]): string => {
@@ -965,20 +829,7 @@ export async function getTopDealsPainAndCough(): Promise<Product[]> {
  */
 export async function getCollagenSupplements(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error: ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {
@@ -1047,20 +898,7 @@ export async function getCollagenSupplements(): Promise<Product[]> {
  */
 export async function getInTheSpotlightProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error: ${res.statusText}`);
-      return [];
-    }
-
-    const data = await res.json();
-    const products = Array.isArray(data)
-      ? data
-      : Array.isArray(data.data)
-      ? data.data
-      : data.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const matchedProducts = products
@@ -1142,22 +980,7 @@ export function mapApiProductToUiProduct(item: ApiProduct): Product {
  */
 export async function getPainReliefProducts(): Promise<Product[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
-
-    if (!res.ok) {
-      console.error(`Database Error fetching Pain Relief: ${res.statusText}`);
-      return [];
-    }
-
-    const rawData = await res.json();
-
-    // Safely unwrap response array payload
-    const products = Array.isArray(rawData)
-      ? rawData
-      : Array.isArray(rawData.data)
-      ? rawData.data
-      : rawData.products || [];
-
+    const products = await fetchAllProductsCached();
     if (!products.length) return [];
 
     const getSafeText = (val?: any): string => {

@@ -1,6 +1,6 @@
 import { AdminDashboardSummary, OrderTableItem, NotificationItem } from '@/types/dashboard';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export async function fetchAdminDashboardData(): Promise<AdminDashboardSummary> {
   // Direct Global Admin API Calls

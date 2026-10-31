@@ -298,7 +298,7 @@ export default function BrandCollectionPage({ params }: PageProps) {
     async function fetchProductsFromNestJS() {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:4000/products');
+        const res = await fetch('https://tabibistan.org/products');
 
         if (!res.ok) {
           throw new Error(`Failed to fetch from NestJS: ${res.statusText}`);

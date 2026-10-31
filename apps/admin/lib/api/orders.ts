@@ -1,6 +1,6 @@
 import { OrderTableItem, OrderProductItem } from '@/types/order';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export async function fetchAdminOrders(): Promise<OrderTableItem[]> {
   const res = await fetch(`${API_BASE_URL}/orders`, { cache: 'no-store' });

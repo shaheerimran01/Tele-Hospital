@@ -89,7 +89,7 @@ export default function ComboDetailPage({ params }: PageProps) {
     async function fetchComboDetails() {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:4000/products', { cache: 'no-store' });
+        const res = await fetch('https://tabibistan.org/products', { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to fetch products');
 
         const rawData = await res.json();

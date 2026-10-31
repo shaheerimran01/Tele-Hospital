@@ -40,7 +40,7 @@ export default function LoginForm({ onSubmitPhone }: LoginFormProps) {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/pharmacies/auth/send-otp`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org'}/pharmacies/auth/send-otp`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

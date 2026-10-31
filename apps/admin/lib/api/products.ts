@@ -1,6 +1,6 @@
 import { Product } from '@/types/product';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export async function fetchAdminProducts(): Promise<Product[]> {
   const res = await fetch(`${API_BASE_URL}/products`, {

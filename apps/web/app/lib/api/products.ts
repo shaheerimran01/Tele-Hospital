@@ -21,7 +21,7 @@ export interface ApiProduct {
 
 export async function getApiProducts(): Promise<ApiProduct[]> {
   try {
-    const res = await fetch('http://localhost:4000/products', {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://tabibistan.org"}/products`, {
       cache: 'no-store',
     });
     if (!res.ok) {

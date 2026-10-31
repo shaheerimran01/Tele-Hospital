@@ -116,12 +116,12 @@ function CheckoutContent() {
       if (!buyNowProductId) return;
       try {
         setFetchingBuyNow(true);
-        const res = await fetch(`http://localhost:4000/products/${buyNowProductId}`);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://tabibistan.org"}/products/${buyNowProductId}`);
         if (res.ok) {
           const data = await res.json();
           setBuyNowProduct(data);
         } else {
-          const allRes = await fetch('http://localhost:4000/products');
+          const allRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://tabibistan.org"}/products`);
           const allData = await allRes.json();
           const products = Array.isArray(allData)
             ? allData

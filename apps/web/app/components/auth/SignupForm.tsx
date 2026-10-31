@@ -21,7 +21,7 @@ export default function SignupForm({ phone, onComplete }: SignupFormProps) {
 
     try {
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/pharmacies/auth/init`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org'}/pharmacies/auth/init`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

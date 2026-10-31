@@ -11,6 +11,8 @@ const LocationModal = dynamic(
   { ssr: false }
 );
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
+
 interface UserProfile {
   id: string;
   firstName?: string;
@@ -222,7 +224,7 @@ export default function Header() {
         return;
       }
       try {
-        const res = await fetch(`http://localhost:4000/user-notifications?userId=${user.id}`);
+        const res = await fetch(`${API_URL}/user-notifications?userId=${user.id}`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) {
@@ -272,7 +274,7 @@ export default function Header() {
       setIsSearching(true);
       try {
         const res = await fetch(
-          `http://localhost:4000/products/search?q=${encodeURIComponent(
+          `${API_URL}/products/search?q=${encodeURIComponent(
             searchQuery.trim()
           )}`
         );
@@ -327,7 +329,7 @@ export default function Header() {
 
       try {
         const response = await fetch(
-          `http://localhost:4000/addresses?userId=${user.id}`
+          `${API_URL}/addresses?userId=${user.id}`
         );
 
         if (!response.ok) {
@@ -803,7 +805,7 @@ export default function Header() {
                         const fullImgUrl = rawImg
                           ? rawImg.startsWith('http')
                             ? rawImg
-                            : `http://localhost:4000${rawImg}`
+                            : `${API_URL}${rawImg}`
                           : null;
 
                         return (

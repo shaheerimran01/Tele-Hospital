@@ -394,7 +394,7 @@ export default function PharmacyRegisterPage() {
     setIsSubmitting(true);
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const bodyData = new FormData();
 
       // Retrieve verified phone & email from localStorage saved during Auth modal step

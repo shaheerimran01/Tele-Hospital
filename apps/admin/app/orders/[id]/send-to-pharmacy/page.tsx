@@ -136,7 +136,7 @@ export default function SendToPharmacyPage() {
 
     const pollInterval = setInterval(async () => {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
         const res = await fetch(`${baseUrl}/orders/${orderId}/nearby-pharmacies?radius=${selectedRadius}`);
         if (res.ok) {
           const data = await res.json();
@@ -174,7 +174,7 @@ export default function SendToPharmacyPage() {
 
   const fetchPharmacyAnalytics = async () => {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const analyticsData: Record<string, {
         acceptanceRate: number;
         totalRequestsReceived: number;
@@ -245,7 +245,7 @@ export default function SendToPharmacyPage() {
     if (!orderId) return;
     setLoadingPharmacies(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/orders/${orderId}/nearby-pharmacies?radius=${selectedRadius}`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org'}/orders/${orderId}/nearby-pharmacies?radius=${selectedRadius}`);
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(errData.message || 'Failed to fetch nearby pharmacies');
@@ -282,7 +282,7 @@ export default function SendToPharmacyPage() {
     }
     setSendingRequest(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/orders/${orderId}/send-to-pharmacies`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org'}/orders/${orderId}/send-to-pharmacies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -325,7 +325,7 @@ export default function SendToPharmacyPage() {
   const handleSendToSinglePharmacy = async (pharmacyId: string) => {
     setSendingRequest(true);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/orders/${orderId}/send-to-pharmacies`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org'}/orders/${orderId}/send-to-pharmacies`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

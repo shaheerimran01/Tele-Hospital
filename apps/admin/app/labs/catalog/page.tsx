@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight, FileCheck2, FlaskConical, LayoutDashboard, Loader2, Pencil, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 const PAGE_SIZE = 20;
 type ItemType = 'PACKAGE' | 'INDIVIDUAL_TEST';
 interface CatalogItem { id: string; title: string; slug: string; code: string | null; itemType: ItemType; category: string | null; basePrice: number; discountPrice: number | null; totalTestsCount: number; testsIncluded: string[]; reportTime: string | null; isActive: boolean; }

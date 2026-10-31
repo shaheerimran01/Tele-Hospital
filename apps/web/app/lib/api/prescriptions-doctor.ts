@@ -4,7 +4,7 @@
 import { doctorMeCall } from './doctor-dashboard';
 import type { ServiceMode } from './doctors';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export interface PrescriptionMedicine {
   name: string;

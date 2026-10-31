@@ -1,6 +1,6 @@
 // apps/web/app/lib/api/consultation.ts
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export type PatientType = 'SELF' | 'FAMILY_MEMBER';
 export type RelationType = 'SPOUSE' | 'CHILD' | 'PARENT' | 'SIBLING' | 'OTHER';

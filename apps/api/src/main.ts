@@ -20,11 +20,22 @@ async function bootstrap() {
     'https://api.tabibistan.org',
     'http://admin.tabibistan.org',
     'https://admin.tabibistan.org',
+    'http://tabibistan.com',
+    'https://tabibistan.com',
+    'http://www.tabibistan.com',
+    'https://www.tabibistan.com',
+    'http://admin.tabibistan.com',
+    'https://admin.tabibistan.com',
   ];
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.tabibistan.org')) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.tabibistan.org') ||
+        origin.endsWith('.tabibistan.com')
+      ) {
         callback(null, true);
       } else {
         callback(null, true);

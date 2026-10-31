@@ -63,7 +63,7 @@ export default function PartialFulfillmentPage() {
     try {
       setLoading(true);
       setError(null);
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/orders/${orderId}/partial-summary`);
       if (!res.ok) {
         const errData = await res.json();
@@ -93,7 +93,7 @@ export default function PartialFulfillmentPage() {
 
     setSubmitting(true);
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
       const res = await fetch(`${baseUrl}/orders/${orderId}/confirm-split-assignment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -27,7 +27,7 @@ import {
 import { fetchAdminProducts } from '@/lib/api/products';
 import { Product } from '@/types/product';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 const initialFormState = {
   name: '',

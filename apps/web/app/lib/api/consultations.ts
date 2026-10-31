@@ -3,7 +3,7 @@
 // The patient is identified by their user id (same as the rest of the patient API);
 // the doctor by the doctor login token kept in this tab's sessionStorage.
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export type ParticipantRole = 'USER' | 'DOCTOR';
 export type RoomMode = 'VIDEO' | 'TEXT';

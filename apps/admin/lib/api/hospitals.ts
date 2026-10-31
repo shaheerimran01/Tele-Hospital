@@ -1,6 +1,6 @@
 // Admin: hospitals directory (/admin/hospitals on the API)
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 const BASE = `${API_BASE_URL}/admin/hospitals`;
 
 export const HOSPITAL_EMERGENCY_OPTIONS = ['24/7', 'Available', 'Daytime'] as const;

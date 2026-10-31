@@ -9,7 +9,7 @@ import {
   type PendingAppointmentAction,
 } from '@/app/lib/api/appointments';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 const APPOINTMENT_NUMBER = /\bAPT-\d{6}-\d{4,6}\b/;
 /** Notifications that can carry the patient's choices for an appointment */
 const ACTIONABLE_TYPES = new Set(['APPOINTMENT_RESCHEDULE_PROPOSED', 'APPOINTMENT_ALTERNATIVE_DOCTOR']);

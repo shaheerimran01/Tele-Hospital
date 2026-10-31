@@ -3,7 +3,7 @@
 import type { DoctorProfile, ServiceMode } from './doctors';
 import type { PatientType, RelationType } from './consultation';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export type PaymentMethod = 'COD' | 'JAZZCASH' | 'EASYPAISA' | 'CARD';
 export type AppointmentStatus =

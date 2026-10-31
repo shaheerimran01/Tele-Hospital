@@ -78,7 +78,7 @@ export default function SellerDashboardPage() {
       setPharmacyId(activeId);
 
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
         
         // 1. Fetch Pharmacy details & associated products count
         const pharmacyRes = await fetch(`${baseUrl}/pharmacies/${activeId}`);

@@ -65,7 +65,7 @@ export default function AllMedicinesPage() {
     async function fetchProducts() {
       try {
         setLoading(true);
-        const res = await fetch('http://localhost:4000/products');
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://tabibistan.org"}/products`);
         if (!res.ok) throw new Error('Failed to fetch backend products');
 
         const data = await res.json();

@@ -46,7 +46,7 @@ interface PackageExclusionItem {
   isFullyExcluded?: boolean;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://tabibistan.org';
 
 export default function CatalogExclusionsPage() {
   const [activeTab, setActiveTab] = useState<'PKG_EXCL' | 'IND_TEST' | 'FULL_EXCL' | 'ACTIVE'>('PKG_EXCL');
