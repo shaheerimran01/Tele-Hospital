@@ -10,7 +10,7 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 
-import 'leaflet/dist/leaflet.css';
+// leaflet.css loaded via CDN in layout.tsx
 
 interface UserProfile {
   id: string;
